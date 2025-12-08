@@ -23,7 +23,7 @@ class CentralizedSmacWrapper:
     Wraps a multi-agent SMAC environment to appear as a single-agent environment.
     
     - Returns global state (full battlefield view) by default.
-    - Accepts a single integer action (joint action).
+    - Accepts MultiDiscrete actions (array of actions, one per agent).
     - Tracks action history for the Replay Strategy.
     
     Note: Does not inherit from gym.Wrapper because SMAC uses old gym API.
@@ -39,13 +39,13 @@ class CentralizedSmacWrapper:
         self.n_agents = env_info["n_agents"]
         self.n_actions_per_agent = env_info["n_actions"]
         
-        # Calculate joint action space size
-        # WARNING: This grows exponentially! Only use for small maps (e.g. 3m).
-        self.joint_action_space_size = self.n_actions_per_agent ** self.n_agents
-        
         # Create Gym-compatible action and observation spaces
         import gymnasium as gym
-        self.action_space = gym.spaces.Discrete(self.joint_action_space_size)
+        # Use MultiDiscrete: each agent independently chooses from n_actions
+        # Example for 8m: MultiDiscrete([14, 14, 14, 14, 14, 14, 14, 14])
+        self.action_space = gym.spaces.MultiDiscrete(
+            [self.n_actions_per_agent] * self.n_agents
+        )
         
         # Get observation size by doing a dummy reset
         obs, _ = self.reset()
@@ -69,23 +69,39 @@ class CentralizedSmacWrapper:
         # Return flattened observation and info
         return self._get_obs(), {}
         
-    def step(self, action: int):
+    def step(self, actions):
         """
-        Take a joint action (integer) and step the environment.
-        """
-        # 1. Decode joint action into list of agent actions
-        agent_actions = self._decode_action(action)
+        Take actions for all agents.
         
-        # 2. Validate and fix invalid actions (action masking)
+        Args:
+            actions: Array-like of shape (n_agents,) with integer actions.
+                    Can be np.ndarray, torch.Tensor, or list.
+        
+        Returns:
+            Standard Gym tuple (obs, reward, terminated, truncated, info)
+        """
+        # Convert to list for SMAC compatibility
+        if isinstance(actions, np.ndarray):
+            agent_actions = actions.tolist()
+        elif hasattr(actions, 'cpu'):  # torch.Tensor
+            import torch
+            if torch.is_tensor(actions):
+                agent_actions = actions.cpu().numpy().tolist()
+            else:
+                agent_actions = list(actions)
+        else:
+            agent_actions = list(actions)
+        
+        # Validate and fix invalid actions (action masking)
         agent_actions = self._mask_invalid_actions(agent_actions)
         
-        # 3. Record for history
+        # Record for history
         self.action_history.append(agent_actions)
         
-        # 4. Step environment
+        # Step environment
         reward, terminated, info = self.env.step(agent_actions)
         
-        # 5. Return standard Gym tuple
+        # Return standard Gym tuple
         truncated = False  # SMAC handles time limits via terminated usually
         return self._get_obs(), reward, terminated, truncated, info
     
@@ -101,14 +117,6 @@ class CentralizedSmacWrapper:
             else:
                 valid_actions.append(action)
         return valid_actions
-        
-    def _decode_action(self, joint_action: int) -> List[int]:
-        """Convert single integer to list of agent actions (base-N decoding)."""
-        actions = []
-        for _ in range(self.n_agents):
-            actions.append(joint_action % self.n_actions_per_agent)
-            joint_action //= self.n_actions_per_agent
-        return list(reversed(actions))
         
     def _get_obs(self):
         """Return global state or flattened observations."""
