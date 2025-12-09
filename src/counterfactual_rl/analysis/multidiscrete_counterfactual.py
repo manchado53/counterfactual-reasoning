@@ -8,6 +8,9 @@ without exhaustive enumeration of the combinatorial action space.
 from typing import Dict, List, Optional, Tuple, Callable
 import numpy as np
 import gymnasium as gym
+from tqdm.auto import tqdm
+import logging
+from datetime import datetime
 
 from counterfactual_rl.environments.base import StateManager
 from counterfactual_rl.utils.data_structures import ConsequenceRecord
@@ -52,7 +55,8 @@ class MultiDiscreteCounterfactualAnalyzer:
         n_rollouts: int = 48,
         gamma: float = 0.99,
         deterministic: bool = True,
-        top_k: int = 20
+        top_k: int = 20, 
+        log_file: str = None
     ):
         """
         Initialize MultiDiscrete counterfactual analyzer.
@@ -86,6 +90,48 @@ class MultiDiscreteCounterfactualAnalyzer:
         self.gamma = gamma
         self.deterministic = deterministic
         self.top_k = top_k
+        
+        # Setup file logging
+        self.log_file = log_file
+        self.logger = None
+        self.setup_logging(log_file)
+    
+    def setup_logging(self, log_file: str = None):
+        """Setup file-based logging for analysis."""
+        if log_file is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = f"counterfactual_analysis_{timestamp}.log"
+        
+        self.log_file = log_file
+        self.logger = logging.getLogger(f"CounterfactualAnalyzer_{id(self)}")
+        self.logger.setLevel(logging.INFO)
+        
+        # Remove existing handlers
+        self.logger.handlers = []
+        
+        # File handler
+        fh = logging.FileHandler(log_file, mode='w')
+        fh.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        fh.setFormatter(formatter)
+        self.logger.addHandler(fh)
+        
+        self.logger.info("="*80)
+        self.logger.info("Counterfactual Analysis Started")
+        self.logger.info(f"Configuration: n_agents={self.n_agents}, n_actions={self.n_actions}")
+        self.logger.info(f"Parameters: horizon={self.horizon}, n_rollouts={self.n_rollouts}, top_k={self.top_k}")
+        self.logger.info(f"Gamma={self.gamma}, Deterministic={self.deterministic}")
+        self.logger.info("="*80)
+    
+    def _log(self, message: str, level: str = "info"):
+        """Log message to file if logging is enabled."""
+        if self.logger:
+            if level == "info":
+                self.logger.info(message)
+            elif level == "warning":
+                self.logger.warning(message)
+            elif level == "error":
+                self.logger.error(message)
     
     
     def perform_counterfactual_rollouts(
@@ -107,24 +153,19 @@ class MultiDiscreteCounterfactualAnalyzer:
         """
         return_distributions = {}
         
-        if verbose:
-            print(f"      Getting valid actions...")
+        self._log("Starting counterfactual rollouts")
         
         # Get valid actions for each agent
         valid_actions = self.get_valid_actions_fn()
-        
-        if verbose:
-            print(f"      Valid actions per agent: {[len(v) for v in valid_actions]}")
+        self._log(f"Valid actions per agent: {[len(v) for v in valid_actions]}")
         
         # Get action probabilities (optional - if None, beam search uses uniform)
         action_probs = None
         if self.get_action_probs_fn is not None:
-            if verbose:
-                print(f"      Getting action probabilities...")
             action_probs = self.get_action_probs_fn(obs)
-        
-        if verbose:
-            print(f"      Running beam search for top-{self.top_k} actions...")
+            self._log("Action probabilities computed")
+        else:
+            self._log("Using uniform action probabilities")
         
         # Use beam search to find top-K joint actions
         actions_to_evaluate = beam_search_top_k_joint_actions(
@@ -132,18 +173,18 @@ class MultiDiscreteCounterfactualAnalyzer:
             action_probs=action_probs,
             k=self.top_k
         )
-
-        if verbose:
-            print(f"      Beam search returned {len(actions_to_evaluate)} joint actions")
+        
+        self._log(f"Beam search returned {len(actions_to_evaluate)} joint actions to evaluate")
+        self._log(f"Actions: {actions_to_evaluate}")
         
         # Perform rollouts for each selected joint action
-        for action_idx, joint_action in enumerate(actions_to_evaluate):
+        for action_idx, joint_action in enumerate(tqdm(actions_to_evaluate, desc="Joint actions", leave=False, disable=not verbose)):
             returns = []
-            
-            if verbose:
-                print(f"        Action {action_idx+1}/{len(actions_to_evaluate)}: {joint_action}", end="")
+            self._log(f"\n--- Action {action_idx+1}/{len(actions_to_evaluate)}: {joint_action} ---")
             
             for rollout_idx in range(self.n_rollouts):
+                self._log(f"  Rollout {rollout_idx+1}/{self.n_rollouts}")
+                
                 # Restore to the original state
                 self.state_manager.restore_state(self.env, state_dict)
                 
@@ -151,9 +192,12 @@ class MultiDiscreteCounterfactualAnalyzer:
                 obs_next, reward, terminated, truncated, info = self.env.step(list(joint_action))
                 done = terminated or truncated
                 
+                self._log(f"    Initial step: reward={reward:.4f}, done={done}")
+                
                 # Compute discounted return
                 total_return = reward
                 discount = self.gamma
+                step_rewards = [reward]
                 
                 # Roll out policy for remaining horizon
                 if not done:
@@ -162,19 +206,25 @@ class MultiDiscreteCounterfactualAnalyzer:
                         obs_next, reward, terminated, truncated, info = self.env.step(list(action_pred))
                         done = terminated or truncated
                         
+                        step_rewards.append(reward)
                         total_return += discount * reward
                         discount *= self.gamma
                         
+                        self._log(f"    Step {step+1}: action={tuple(action_pred)}, reward={reward:.4f}, done={done}")
+                        
                         if done:
+                            self._log(f"    Episode terminated at step {step+1}")
                             break
                 
                 returns.append(total_return)
+                self._log(f"    Total return: {total_return:.4f} (from {len(step_rewards)} rewards: {[f'{r:.3f}' for r in step_rewards]})")
+            
+            mean_return = np.mean(returns)
+            std_return = np.std(returns)
+            self._log(f"  Action {joint_action} summary: mean_return={mean_return:.4f}, std={std_return:.4f}")
+            self._log(f"  All returns: {[f'{r:.3f}' for r in returns]}")
             
             return_distributions[joint_action] = np.array(returns)
-            
-            if verbose:
-                mean_return = np.mean(returns)
-                print(f" -> mean return: {mean_return:.3f}")
         
         return return_distributions
     
@@ -208,7 +258,7 @@ class MultiDiscreteCounterfactualAnalyzer:
     def evaluate_episode(
         self,
         max_steps: int = 100,
-        verbose: bool = False
+        verbose: bool = True
     ) -> List[ConsequenceRecord]:
         """
         Evaluate consequential states for a single episode.
@@ -225,41 +275,48 @@ class MultiDiscreteCounterfactualAnalyzer:
         step = 0
         records = []
         
-        if verbose:
-            print(f"  Starting episode (max_steps={max_steps})")
+        self._log("\n" + "="*80)
+        self._log(f"Starting Episode Evaluation (max_steps={max_steps})")
+        self._log("="*80)
         
+        pbar = tqdm(total=max_steps, desc="Episode steps", disable=not verbose)
         while not done and step < max_steps:
-            if verbose:
-                print(f"\n  Step {step}/{max_steps}")
-                print(f"    Cloning state...")
+            pbar.update(1)
+            
+            self._log(f"\n{'='*40} STEP {step} {'='*40}")
             
             # Save current state
             current_state = self.state_manager.clone_state(self.env)
-            
-            if verbose:
-                print(f"    Getting policy action...")
+            self._log(f"State cloned at step {step}")
             
             # Get action from policy
             action, _ = self.model.predict(obs, deterministic=self.deterministic)
             action_tuple = tuple(action)
             
-            if verbose:
-                print(f"    Action selected: {action_tuple}")
-                print(f"    Running {self.top_k} counterfactual rollouts x {self.n_rollouts} samples...")
+            self._log(f"Policy selected action: {action_tuple}")
+            self._log(f"Starting counterfactual analysis: {self.top_k} actions x {self.n_rollouts} rollouts")
             
             # Perform counterfactual rollouts for top-K actions
             return_distributions = self.perform_counterfactual_rollouts(current_state, obs, verbose=verbose)
             
-            if verbose:
-                print(f"    Evaluated {len(return_distributions)} joint actions")
+            self._log(f"Evaluated {len(return_distributions)} joint actions")
             
             # Compute consequence score
             consequence_score, kl_divergences = self.compute_consequence_score(
                 action_tuple, return_distributions
             )
             
+            self._log(f"Consequence score: {consequence_score:.6f}")
+            if kl_divergences:
+                self._log("KL divergences to alternative actions:")
+                for alt_action, kl in kl_divergences.items():
+                    self._log(f"  {alt_action}: {kl:.6f}")
+            
             if verbose:
-                print(f"    Consequence score: {consequence_score:.4f}")
+                pbar.set_postfix({
+                    'action': str(action_tuple),
+                    'consequence': f"{consequence_score:.4f}"
+                })
             
             # Restore state before getting info
             self.state_manager.restore_state(self.env, current_state)
@@ -276,19 +333,34 @@ class MultiDiscreteCounterfactualAnalyzer:
                 return_distributions=return_distributions
             )
             records.append(record)
+            self._log(f"Record created and saved")
             
             # Execute the chosen action
             self.state_manager.restore_state(self.env, current_state)
             obs, reward, terminated, truncated, info = self.env.step(list(action))
             done = terminated or truncated
             
-            if verbose:
-                print(f"    Reward: {reward}, Done: {done}")
+            self._log(f"Actual step executed: reward={reward:.4f}, done={done}")
+            if done:
+                self._log(f"Episode terminated at step {step}")
             
             step += 1
         
-        if verbose:
-            print(f"\n  Episode finished after {step} steps")
+        pbar.close()
+        
+        self._log("\n" + "="*80)
+        self._log(f"Episode Evaluation Complete: {len(records)} records collected")
+        self._log("="*80)
+        
+        if self.logger:
+            # Log summary statistics
+            if records:
+                scores = [r.consequence_score for r in records]
+                self._log(f"\nSummary Statistics:")
+                self._log(f"  Mean consequence score: {np.mean(scores):.6f}")
+                self._log(f"  Max consequence score: {np.max(scores):.6f}")
+                self._log(f"  Min consequence score: {np.min(scores):.6f}")
+                self._log(f"  Std consequence score: {np.std(scores):.6f}")
         
         return records
     
@@ -307,15 +379,9 @@ class MultiDiscreteCounterfactualAnalyzer:
         
         all_records = []
         
-        for episode in range(n_episodes):
-            if verbose:
-                print(f"Episode {episode + 1}/{n_episodes}...", end=" ")
-            
+        for episode in tqdm(range(n_episodes), desc="Episodes", disable=not verbose):
             episode_records = self.evaluate_episode(verbose=verbose)
             all_records.extend(episode_records)
-            
-            if verbose:
-                print(f"Recorded {len(episode_records)} state-action pairs")
         
         if verbose:
             print(f"\nTotal records collected: {len(all_records)}")
