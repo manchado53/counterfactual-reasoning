@@ -8,6 +8,25 @@ from typing import List, Tuple, Dict, Optional
 import numpy as np
 
 
+def convert_mask_to_indices(action_mask: List[List[int]]) -> List[List[int]]:
+    """
+    Convert binary action mask to indices of valid actions.
+
+    Args:
+        action_mask: Binary mask per agent, shape (n_agents, n_actions)
+                    Example: [[0,1,1,0,1], [1,0,1,1,0], ...]
+                    Where 1 = valid action, 0 = invalid action
+
+    Returns:
+        List of valid action indices per agent
+        Example: [[1,2,4], [0,2,3], ...]
+    """
+    return [
+        [i for i, valid in enumerate(agent_mask) if valid == 1]
+        for agent_mask in action_mask
+    ]
+
+
 def beam_search_top_k_joint_actions(
     valid_actions: List[List[int]],
     action_probs: Optional[List[Dict[int, float]]] = None,

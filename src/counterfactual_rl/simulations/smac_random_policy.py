@@ -21,11 +21,11 @@ from random_policy import RandomPolicy
 
 # Configuration
 MAP_NAME = "3m"
-MAX_STEPS = 10
-HORIZON = 10
-N_ROLLOUTS = 20
-TOP_K = 3
-LOG_FILE = "smac_counterfactual_analysis.log"
+MAX_STEPS = 300
+HORIZON = 300
+N_ROLLOUTS = 40
+TOP_K = 20
+LOG_FILE = "smac_counterfactual_analysis-random.log"
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
         model=policy,
         env=env,
         state_manager=SmacStateManager,
-        get_valid_actions_fn=lambda: get_valid_actions(smac_env),
+        get_valid_actions_mask_fn=lambda: get_valid_actions(smac_env),
         get_action_probs_fn=None,
         n_agents=env.n_agents,
         n_actions=env.n_actions_per_agent,

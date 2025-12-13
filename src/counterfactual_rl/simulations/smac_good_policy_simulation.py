@@ -20,10 +20,10 @@ from utils import get_valid_actions
 from naive_ppo import PPO
 # Configuration
 MAP_NAME = "3m"
-MAX_STEPS = 10
-HORIZON = 10
-N_ROLLOUTS = 20
-TOP_K = 3
+MAX_STEPS = 300
+HORIZON = 300
+N_ROLLOUTS = 40
+TOP_K = 40
 LOG_FILE = "smac_counterfactual_analysis.log"
 
 
@@ -44,7 +44,7 @@ def main():
         model=policy,
         env=env,
         state_manager=SmacStateManager,
-        get_valid_actions_fn=lambda: smac_env.get_avail_actions(),
+        get_valid_actions_mask_fn=lambda: smac_env.get_avail_actions(),
         get_action_probs_fn=policy.get_action_probs,
         n_agents=env.n_agents,
         n_actions=env.n_actions_per_agent,

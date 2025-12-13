@@ -53,3 +53,7 @@ Thumbs.db
 # SMAC specific
 replays/
 *.SC2Replay
+
+# Simulations ignored
+simulations/logs/
+simulations/runs

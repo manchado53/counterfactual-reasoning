@@ -247,3 +247,53 @@ def compute_jensen_shannon_divergence(
     except Exception as e:
         warnings.warn(f"JSD computation failed: {e}. Returning 0.")
         return 0.0
+
+
+def compute_all_consequence_metrics(
+    action: tuple,
+    return_distributions: dict
+) -> dict:
+    """
+    Compute consequence scores using all available metrics.
+    
+    Args:
+        action: The chosen action
+        return_distributions: Dict mapping actions to return samples (np.ndarray)
+    
+    Returns:
+        Dict mapping metric name to (consequence_score, divergences_dict)
+        {
+            'kl_divergence': (max_score, {alt_action: divergence, ...}),
+            'jensen_shannon': (max_score, {alt_action: divergence, ...}),
+            'total_variation': (max_score, {alt_action: distance, ...}),
+            'wasserstein': (max_score, {alt_action: distance, ...})
+        }
+    """
+    chosen_returns = return_distributions.get(action)
+    
+    if chosen_returns is None:
+        return {
+            'kl_divergence': (0.0, {}),
+            'jensen_shannon': (0.0, {}),
+            'total_variation': (0.0, {}),
+            'wasserstein': (0.0, {})
+        }
+    
+    metrics = {
+        'kl_divergence': compute_kl_divergence_kde,
+        'jensen_shannon': compute_jensen_shannon_divergence,
+        'total_variation': compute_total_variation,
+        'wasserstein': compute_wasserstein_distance
+    }
+    
+    results = {}
+    for metric_name, metric_fn in metrics.items():
+        divergences = {}
+        for alt_action, alt_returns in return_distributions.items():
+            if alt_action != action:
+                divergences[alt_action] = metric_fn(chosen_returns, alt_returns)
+        
+        score = max(divergences.values()) if divergences else 0.0
+        results[metric_name] = (score, divergences)
+    
+    return results

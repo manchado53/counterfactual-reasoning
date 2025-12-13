@@ -11,15 +11,17 @@ import gymnasium as gym
 from tqdm.auto import tqdm
 import logging
 from datetime import datetime
+import time
+from counterfactual_rl.utils.smac_data_structures import SmacConsequenceRecord
 
 from counterfactual_rl.environments.base import StateManager
-from counterfactual_rl.utils.data_structures import ConsequenceRecord
-from counterfactual_rl.utils.action_selection import beam_search_top_k_joint_actions
+from counterfactual_rl.utils.action_selection import beam_search_top_k_joint_actions, convert_mask_to_indices
 from counterfactual_rl.analysis.metrics import (
     compute_kl_divergence_kde,
     compute_jensen_shannon_divergence,
     compute_total_variation,
-    compute_wasserstein_distance
+    compute_wasserstein_distance,
+    compute_all_consequence_metrics
 )
 
 
@@ -47,7 +49,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         model,  # Your custom PPO model
         env: gym.Env,
         state_manager: StateManager,
-        get_valid_actions_fn: Callable[[], List[List[int]]],
+        get_valid_actions_mask_fn: Callable[[], List[List[int]]],
         get_action_probs_fn: Optional[Callable[[np.ndarray], List[Dict[int, float]]]] = None,
         n_agents: int = None,
         n_actions: int = None,
@@ -65,8 +67,8 @@ class MultiDiscreteCounterfactualAnalyzer:
             model: Trained policy model with .predict(obs, deterministic) method
             env: Environment with MultiDiscrete action space
             state_manager: StateManager for cloning/restoring environment state
-            get_valid_actions_fn: Function that returns valid action indices per agent.
-                                 Returns List[List[int]], e.g., [[0,1,4], [2,3], [1,4,5]]
+            get_valid_actions_mask_fn: Function that returns valid action masks per agent.
+                                 Returns List[List[int]], e.g., [[0,1,0,0,1], [1,0,1,1,0], [0,1,0,0,1]]
             get_action_probs_fn: Optional function that takes obs and returns action probs.
                                 Returns List[Dict[int, float]], e.g., [{0: 0.5, 1: 0.3}, ...]
                                 If None, uses uniform probability over valid actions.
@@ -81,7 +83,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         self.model = model
         self.env = env
         self.state_manager = state_manager
-        self.get_valid_actions_fn = get_valid_actions_fn
+        self.get_valid_actions_mask_fn = get_valid_actions_mask_fn
         self.get_action_probs_fn = get_action_probs_fn
         self.n_agents = n_agents
         self.n_actions = n_actions
@@ -98,11 +100,20 @@ class MultiDiscreteCounterfactualAnalyzer:
     
     def setup_logging(self, log_file: str = None):
         """Setup file-based logging for analysis."""
-        if log_file is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = f"counterfactual_analysis_{timestamp}.log"
+        import os
         
-        self.log_file = log_file
+        # Create unique run directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_dir = os.path.join("runs", f"run_{timestamp}")
+        os.makedirs(self.run_dir, exist_ok=True)
+
+        if log_file is None:
+            log_filename = "counterfactual_analysis.log"
+        else:
+            # Use the provided filename but place it in the run directory
+            log_filename = os.path.basename(log_file)
+        
+        self.log_file = os.path.join(self.run_dir, log_filename)
         self.logger = logging.getLogger(f"CounterfactualAnalyzer_{id(self)}")
         self.logger.setLevel(logging.INFO)
         
@@ -110,7 +121,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         self.logger.handlers = []
         
         # File handler
-        fh = logging.FileHandler(log_file, mode='w')
+        fh = logging.FileHandler(self.log_file, mode='w')
         fh.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         fh.setFormatter(formatter)
@@ -138,6 +149,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         self,
         state_dict: Dict,
         obs: np.ndarray,
+        actual_action: Tuple[int, ...],
         verbose: bool = False
     ) -> Dict[Tuple[int, ...], np.ndarray]:
         """
@@ -146,6 +158,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         Args:
             state_dict: Saved environment state
             obs: Current observation (needed to compute action probabilities)
+            actual_action: The actual action taken by the policy (always included in evaluation)
             verbose: Whether to print progress
         
         Returns:
@@ -155,24 +168,32 @@ class MultiDiscreteCounterfactualAnalyzer:
         
         self._log("Starting counterfactual rollouts")
         
-        # Get valid actions for each agent
-        valid_actions = self.get_valid_actions_fn()
-        self._log(f"Valid actions per agent: {[len(v) for v in valid_actions]}")
+        # Get valid MASK for each agent
+        valid_actions_mask = self.get_valid_actions_mask_fn()
+
         
         # Get action probabilities (optional - if None, beam search uses uniform)
         action_probs = None
         if self.get_action_probs_fn is not None:
-            action_probs = self.get_action_probs_fn(obs)
+            action_probs = self.get_action_probs_fn(obs, valid_actions_mask)
             self._log("Action probabilities computed")
         else:
             self._log("Using uniform action probabilities")
         
+        # Convert valid actions mask to list of valid action indices per agent
+        valid_actions = convert_mask_to_indices(valid_actions_mask)
+
         # Use beam search to find top-K joint actions
         actions_to_evaluate = beam_search_top_k_joint_actions(
             valid_actions=valid_actions,
             action_probs=action_probs,
             k=self.top_k
         )
+        
+        # Ensure actual action is always included in evaluation
+        if actual_action not in actions_to_evaluate:
+            actions_to_evaluate = [actual_action] + actions_to_evaluate[:self.top_k-1]
+            self._log(f"Added actual action {actual_action} to evaluation set (was not in top-K)")
         
         self._log(f"Beam search returned {len(actions_to_evaluate)} joint actions to evaluate")
         self._log(f"Actions: {actions_to_evaluate}")
@@ -202,15 +223,19 @@ class MultiDiscreteCounterfactualAnalyzer:
                 # Roll out policy for remaining horizon
                 if not done:
                     for step in range(self.horizon - 1):
-                        action_pred, _ = self.model.predict(obs_next, deterministic=self.deterministic)
-                        obs_next, reward, terminated, truncated, info = self.env.step(list(action_pred))
+                        # Get the available actions masks for each agent
+                        allowed_actions_mask = self.get_valid_actions_mask_fn()
+                        
+                        # Get action from policy
+                        actions_pred = self.model.predict(obs_next, allowed_actions_mask)
+                        obs_next, reward, terminated, truncated, info = self.env.step(list(actions_pred))
                         done = terminated or truncated
                         
                         step_rewards.append(reward)
                         total_return += discount * reward
                         discount *= self.gamma
                         
-                        self._log(f"    Step {step+1}: action={tuple(action_pred)}, reward={reward:.4f}, done={done}")
+                        self._log(f"    Step {step+1}: action={tuple(actions_pred)}, reward={reward:.4f}, done={done}")
                         
                         if done:
                             self._log(f"    Episode terminated at step {step+1}")
@@ -228,38 +253,11 @@ class MultiDiscreteCounterfactualAnalyzer:
         
         return return_distributions
     
-    def compute_consequence_score(
-        self,
-        action: Tuple[int, ...],
-        return_distributions: Dict[Tuple[int, ...], np.ndarray]
-    ) -> Tuple[float, Dict[Tuple[int, ...], float]]:
-        """
-        Compute consequence score for a state-action pair.
-        
-        The consequence score is the maximum KL divergence between the
-        return distribution of the chosen action and any alternative action.
-        """
-        kl_divergences = {}
-        chosen_returns = return_distributions.get(action)
-        
-        # If chosen action not in top-K, we can't compute score
-        if chosen_returns is None:
-            return 0.0, {}
-        
-        for alt_action in return_distributions.keys():
-            if alt_action != action:
-                alt_returns = return_distributions[alt_action]
-                kl_div = compute_kl_divergence_kde(chosen_returns, alt_returns)
-                kl_divergences[alt_action] = kl_div
-        
-        consequence_score = max(kl_divergences.values()) if kl_divergences else 0.0
-        return consequence_score, kl_divergences
-    
     def evaluate_episode(
         self,
         max_steps: int = 100,
         verbose: bool = True
-    ) -> List[ConsequenceRecord]:
+    ) -> List[SmacConsequenceRecord]:
         """
         Evaluate consequential states for a single episode.
         
@@ -274,6 +272,8 @@ class MultiDiscreteCounterfactualAnalyzer:
         done = False
         step = 0
         records = []
+        episode_start_time = time.time()
+        total_counterfactual_time = 0.0
         
         self._log("\n" + "="*80)
         self._log(f"Starting Episode Evaluation (max_steps={max_steps})")
@@ -290,23 +290,57 @@ class MultiDiscreteCounterfactualAnalyzer:
             self._log(f"State cloned at step {step}")
             
             # Get action from policy
-            action, _ = self.model.predict(obs, deterministic=self.deterministic)
-            action_tuple = tuple(action)
+            allowed_actions_mask = self.get_valid_actions_mask_fn()
+            
+            # Get action from policy
+            actions_pred = self.model.predict(obs, allowed_actions_mask)
+            action_tuple = tuple(actions_pred)
             
             self._log(f"Policy selected action: {action_tuple}")
             self._log(f"Starting counterfactual analysis: {self.top_k} actions x {self.n_rollouts} rollouts")
             
             # Perform counterfactual rollouts for top-K actions
-            return_distributions = self.perform_counterfactual_rollouts(current_state, obs, verbose=verbose)
+            counterfactual_start_time = time.time()
+            return_distributions = self.perform_counterfactual_rollouts(current_state, obs, action_tuple, verbose=verbose)
+            counterfactual_duration = time.time() - counterfactual_start_time
+            total_counterfactual_time += counterfactual_duration
             
             self._log(f"Evaluated {len(return_distributions)} joint actions")
+
+            sets_completed = step + 1
+            sets_remaining = max(max_steps - sets_completed, 0)
+            avg_time_per_set = total_counterfactual_time / sets_completed
+            est_remaining_seconds = avg_time_per_set * sets_remaining
+            elapsed_seconds = time.time() - episode_start_time
             
-            # Compute consequence score
-            consequence_score, kl_divergences = self.compute_consequence_score(
-                action_tuple, return_distributions
-            )
+            # Format timing for readability
+            est_remaining_min = est_remaining_seconds / 60
+            elapsed_min = elapsed_seconds / 60
             
-            self._log(f"Consequence score: {consequence_score:.6f}")
+            self._log("=" * 80)
+            self._log("⏱️  TIMING INFORMATION")
+            self._log("=" * 80)
+            self._log(f"  Last counterfactual set:  {counterfactual_duration:.2f}s ({counterfactual_duration/60:.2f} min)")
+            self._log(f"  Average per set:          {avg_time_per_set:.2f}s ({avg_time_per_set/60:.2f} min)")
+            self._log(f"  Steps completed:          {sets_completed}/{max_steps}")
+            self._log(f"  Estimated remaining:      {est_remaining_seconds:.2f}s ({est_remaining_min:.2f} min)")
+            self._log(f"  Total elapsed:            {elapsed_seconds:.2f}s ({elapsed_min:.2f} min)")
+            self._log("=" * 80)
+            
+            # Compute all consequence metrics
+            all_metrics = compute_all_consequence_metrics(action_tuple, return_distributions)
+            
+            # Unpack all metrics
+            kl_score = all_metrics['kl_divergence'][0]
+            kl_divergences = all_metrics['kl_divergence'][1]
+            jsd_score = all_metrics['jensen_shannon'][0]
+            jsd_divergences = all_metrics['jensen_shannon'][1]
+            tv_score = all_metrics['total_variation'][0]
+            tv_distances = all_metrics['total_variation'][1]
+            wasserstein_score = all_metrics['wasserstein'][0]
+            wasserstein_distances = all_metrics['wasserstein'][1]
+            
+            self._log(f"Consequence scores: KL={kl_score:.6f}, JSD={jsd_score:.6f}, TV={tv_score:.6f}, W={wasserstein_score:.6f}")
             if kl_divergences:
                 self._log("KL divergences to alternative actions:")
                 for alt_action, kl in kl_divergences.items():
@@ -315,7 +349,7 @@ class MultiDiscreteCounterfactualAnalyzer:
             if verbose:
                 pbar.set_postfix({
                     'action': str(action_tuple),
-                    'consequence': f"{consequence_score:.4f}"
+                    'consequence': f"{kl_score:.4f}"
                 })
             
             # Restore state before getting info
@@ -324,20 +358,26 @@ class MultiDiscreteCounterfactualAnalyzer:
             position = state_info.get('position', None)
             
             # Create record
-            record = ConsequenceRecord(
+            record = SmacConsequenceRecord(
                 state=obs,
                 action=action_tuple,
-                position=position,
-                consequence_score=consequence_score,
+                timestep=step,
+                kl_score=kl_score,
                 kl_divergences=kl_divergences,
-                return_distributions=return_distributions
+                return_distributions=return_distributions,
+                jsd_score=jsd_score,
+                jsd_divergences=jsd_divergences,
+                tv_score=tv_score,
+                tv_distances=tv_distances,
+                wasserstein_score=wasserstein_score,
+                wasserstein_distances=wasserstein_distances
             )
             records.append(record)
             self._log(f"Record created and saved")
             
             # Execute the chosen action
             self.state_manager.restore_state(self.env, current_state)
-            obs, reward, terminated, truncated, info = self.env.step(list(action))
+            obs, reward, terminated, truncated, info = self.env.step(list(action_tuple))
             done = terminated or truncated
             
             self._log(f"Actual step executed: reward={reward:.4f}, done={done}")
@@ -355,12 +395,12 @@ class MultiDiscreteCounterfactualAnalyzer:
         if self.logger:
             # Log summary statistics
             if records:
-                scores = [r.consequence_score for r in records]
+                kl_scores = [r.kl_score for r in records]
                 self._log(f"\nSummary Statistics:")
-                self._log(f"  Mean consequence score: {np.mean(scores):.6f}")
-                self._log(f"  Max consequence score: {np.max(scores):.6f}")
-                self._log(f"  Min consequence score: {np.min(scores):.6f}")
-                self._log(f"  Std consequence score: {np.std(scores):.6f}")
+                self._log(f"  Mean KL score: {np.mean(kl_scores):.6f}")
+                self._log(f"  Max KL score: {np.max(kl_scores):.6f}")
+                self._log(f"  Min KL score: {np.min(kl_scores):.6f}")
+                self._log(f"  Std KL score: {np.std(kl_scores):.6f}")
         
         return records
     
@@ -368,7 +408,7 @@ class MultiDiscreteCounterfactualAnalyzer:
         self,
         n_episodes: int = 20,
         verbose: bool = True
-    ) -> List[ConsequenceRecord]:
+    ) -> List[SmacConsequenceRecord]:
         """Evaluate consequential states across multiple episodes."""
         if verbose:
             print(f"\n{'='*60}")
