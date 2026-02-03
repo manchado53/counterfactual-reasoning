@@ -4,7 +4,7 @@ Action selection utilities for counterfactual analysis.
 Provides efficient methods for selecting actions in large action spaces.
 """
 
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 import numpy as np
 
 
@@ -30,17 +30,18 @@ def convert_mask_to_indices(action_mask: List[List[int]]) -> List[List[int]]:
 def beam_search_top_k_joint_actions(
     valid_actions: List[List[int]],
     action_probs: Optional[List[Dict[int, float]]] = None,
-    k: int = 20
-) -> List[Tuple[int, ...]]:
+    k: int = 20,
+    return_probs: bool = False
+) -> Union[List[Tuple[int, ...]], Tuple[List[Tuple[int, ...]], Dict[Tuple[int, ...], float]]]:
     """
     Beam search for top-K joint actions using only valid actions.
-    
+
     For MultiDiscrete action spaces where the joint action space is exponentially large
     (n_actions^n_agents), this efficiently finds the top-K most probable joint actions
     without enumerating all possibilities.
-    
+
     Complexity: O(n_agents × K × max_valid_actions) instead of O(n_actions^n_agents)
-    
+
     Args:
         valid_actions: List of valid action indices per agent.
                       e.g., [[0, 1, 4], [2, 3], [1, 4, 5]] for 3 agents
@@ -48,15 +49,20 @@ def beam_search_top_k_joint_actions(
                      If None, assumes uniform probability over valid actions.
                      e.g., [{0: 0.5, 1: 0.3, 4: 0.2}, {2: 0.6, 3: 0.4}, ...]
         k: Number of top joint actions to return (default: 20)
-    
+        return_probs: If True, also return normalized joint action probabilities.
+
     Returns:
-        List of top-K joint actions as tuples, ordered by probability (highest first).
-        Each tuple has length n_agents.
-    
+        If return_probs=False: List of top-K joint actions as tuples.
+        If return_probs=True: Tuple of (actions_list, probs_dict) where probs_dict
+            maps each joint action to its normalized probability.
+
     Example:
         >>> valid_actions = [[0, 1, 4], [2, 3], [1, 4, 5]]  # 3 agents
         >>> top_k = beam_search_top_k_joint_actions(valid_actions, k=10)
         >>> print(top_k[0])  # Most probable joint action, e.g., (0, 2, 1)
+        >>> # With probabilities:
+        >>> actions, probs = beam_search_top_k_joint_actions(valid_actions, k=10, return_probs=True)
+        >>> print(probs[actions[0]])  # Probability of most likely action
     """
     n_agents = len(valid_actions)
     
@@ -111,7 +117,19 @@ def beam_search_top_k_joint_actions(
         # Prune to top-K
         new_beams.sort(key=lambda x: x[1], reverse=True)
         beams = new_beams[:k]
-    
+
+    if return_probs:
+        # Convert log probs back to probs and normalize over the top-K
+        actions = [beam[0] for beam in beams]
+        raw_probs = {beam[0]: np.exp(beam[1]) for beam in beams}
+        total = sum(raw_probs.values())
+        if total > 0:
+            normalized_probs = {k: v / total for k, v in raw_probs.items()}
+        else:
+            # Fallback to uniform if all probs are zero
+            normalized_probs = {k: 1.0 / len(actions) for k in actions}
+        return actions, normalized_probs
+
     return [beam[0] for beam in beams]
 
 

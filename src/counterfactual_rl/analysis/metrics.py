@@ -251,26 +251,34 @@ def compute_jensen_shannon_divergence(
 
 def compute_all_consequence_metrics(
     action: tuple,
-    return_distributions: dict
+    return_distributions: dict,
+    action_probs: Optional[dict] = None,
+    aggregation: str = 'max'
 ) -> dict:
     """
     Compute consequence scores using all available metrics.
-    
+
     Args:
         action: The chosen action
         return_distributions: Dict mapping actions to return samples (np.ndarray)
-    
+        action_probs: Optional dict mapping actions to their probabilities.
+                     Used for 'weighted_mean' aggregation.
+        aggregation: How to aggregate divergences across alternatives.
+                    'max' - Maximum divergence (default, finds most different alternative)
+                    'mean' - Simple mean of all divergences
+                    'weighted_mean' - Mean weighted by action probabilities
+
     Returns:
         Dict mapping metric name to (consequence_score, divergences_dict)
         {
-            'kl_divergence': (max_score, {alt_action: divergence, ...}),
-            'jensen_shannon': (max_score, {alt_action: divergence, ...}),
-            'total_variation': (max_score, {alt_action: distance, ...}),
-            'wasserstein': (max_score, {alt_action: distance, ...})
+            'kl_divergence': (score, {alt_action: divergence, ...}),
+            'jensen_shannon': (score, {alt_action: divergence, ...}),
+            'total_variation': (score, {alt_action: distance, ...}),
+            'wasserstein': (score, {alt_action: distance, ...})
         }
     """
     chosen_returns = return_distributions.get(action)
-    
+
     if chosen_returns is None:
         return {
             'kl_divergence': (0.0, {}),
@@ -278,22 +286,44 @@ def compute_all_consequence_metrics(
             'total_variation': (0.0, {}),
             'wasserstein': (0.0, {})
         }
-    
+
     metrics = {
         'kl_divergence': compute_kl_divergence_kde,
         'jensen_shannon': compute_jensen_shannon_divergence,
         'total_variation': compute_total_variation,
         'wasserstein': compute_wasserstein_distance
     }
-    
+
     results = {}
     for metric_name, metric_fn in metrics.items():
         divergences = {}
         for alt_action, alt_returns in return_distributions.items():
             if alt_action != action:
                 divergences[alt_action] = metric_fn(chosen_returns, alt_returns)
-        
-        score = max(divergences.values()) if divergences else 0.0
+
+        # Aggregate divergences into a single score
+        if not divergences:
+            score = 0.0
+        elif aggregation == 'max':
+            score = max(divergences.values())
+        elif aggregation == 'mean':
+            score = float(np.mean(list(divergences.values())))
+        elif aggregation == 'weighted_mean' and action_probs is not None:
+            # Weight by probability of each alternative action
+            # Higher probability alternatives contribute more to the score
+            total_weight = sum(action_probs.get(a, 0.0) for a in divergences.keys())
+            if total_weight > 0:
+                score = sum(
+                    action_probs.get(a, 0.0) * div
+                    for a, div in divergences.items()
+                ) / total_weight
+            else:
+                # Fallback to simple mean if no probs available for alternatives
+                score = float(np.mean(list(divergences.values())))
+        else:
+            # Default fallback to max
+            score = max(divergences.values())
+
         results[metric_name] = (score, divergences)
-    
+
     return results

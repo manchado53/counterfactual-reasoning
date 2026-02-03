@@ -23,8 +23,8 @@ from random_policy import RandomPolicy
 MAP_NAME = "3m"
 MAX_STEPS = 300
 HORIZON = 300
-N_ROLLOUTS = 40
-TOP_K = 20
+N_ROLLOUTS = 10
+TOP_K = 2
 LOG_FILE = "smac_counterfactual_analysis-random.log"
 
 

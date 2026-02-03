@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from counterfactual_rl.utils.smac_data_structures import SmacConsequenceRecord
+from counterfactual_rl.utils.action_names import format_joint_action
 
 
 class SmacConsequencePlotter:
@@ -17,29 +18,33 @@ class SmacConsequencePlotter:
     Adapted from ConsequencePlotter for multi-agent environments with continuous states.
     """
 
-    def __init__(self):
-        """Initialize SMAC plotter."""
-        pass
+    def __init__(self, n_enemies: int = 3):
+        """Initialize SMAC plotter.
+        
+        Args:
+            n_enemies: Number of enemies in the map (for action name translation)
+        """
+        self.n_enemies = n_enemies
 
     def plot_histogram(
         self,
         records: List[SmacConsequenceRecord],
         ax: Optional[plt.Axes] = None,
-        title: str = "Distribution of Consequence Scores",
-        bins: int = 30
+        title: str = "Distribution of Consequence Scores"
     ) -> plt.Axes:
         """
-        Plot histogram of consequence scores.
+        Plot KDE of consequence scores.
 
         Args:
             records: List of SmacConsequenceRecord objects
             ax: Matplotlib axes. If None, creates new figure.
             title: Plot title
-            bins: Number of histogram bins
 
         Returns:
             Matplotlib axes
         """
+        from scipy.stats import gaussian_kde
+
         if ax is None:
             fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -49,22 +54,32 @@ class SmacConsequencePlotter:
         finite_scores = scores[np.isfinite(scores)]
         n_infinite = np.sum(np.isinf(scores))
 
-        # Plot histogram of finite scores only
-        if len(finite_scores) > 0:
-            ax.hist(finite_scores, bins=bins, alpha=0.7, color='steelblue', edgecolor='black')
+        # Plot KDE of finite scores
+        if len(finite_scores) > 1:
+            # Create KDE
+            kde = gaussian_kde(finite_scores, bw_method='scott')
 
-            # Add mean and median lines for finite scores
+            # Create smooth x range for plotting
+            x_min, x_max = finite_scores.min(), finite_scores.max()
+            margin = 0.1 * (x_max - x_min) if x_max > x_min else 0.5
+            x_plot = np.linspace(x_min - margin, x_max + margin, 200)
+
+            # Plot KDE curve
+            ax.fill_between(x_plot, kde(x_plot), alpha=0.3, color='steelblue')
+            ax.plot(x_plot, kde(x_plot), color='steelblue', linewidth=2, label='KDE')
+
+            # Add mean and median lines
             finite_mean = finite_scores.mean()
             finite_median = np.median(finite_scores)
 
-            ax.axvline(finite_mean, color='red', linestyle='--',
+            ax.axvline(finite_mean, color='red', linestyle='--', linewidth=2,
                        label=f'Mean: {finite_mean:.3f}')
-            ax.axvline(finite_median, color='green', linestyle='--',
+            ax.axvline(finite_median, color='green', linestyle='--', linewidth=2,
                        label=f'Median: {finite_median:.3f}')
 
         # Add note about infinite values if present
         if n_infinite > 0:
-            ax.text(0.98, 0.98, f'Note: {n_infinite} infinite values\nexcluded from histogram',
+            ax.text(0.98, 0.98, f'Note: {n_infinite} infinite values excluded',
                     transform=ax.transAxes,
                     verticalalignment='top',
                     horizontalalignment='right',
@@ -72,7 +87,7 @@ class SmacConsequencePlotter:
                     fontsize=9)
 
         ax.set_xlabel('Consequence Score (max KL divergence)')
-        ax.set_ylabel('Frequency')
+        ax.set_ylabel('Density')
         ax.set_title(title)
         ax.legend()
         ax.grid(True, alpha=0.3)
@@ -135,8 +150,8 @@ class SmacConsequencePlotter:
             for action_idx, action in enumerate(actions):
                 returns = record.return_distributions[action]
                 
-                # Format action label
-                action_label = f"{action}"
+                # Format action label with names
+                action_label = format_joint_action(action, self.n_enemies)
                 if action == record.action:
                     action_label += " (chosen)"
 
@@ -170,10 +185,11 @@ class SmacConsequencePlotter:
 
             # Title with state info
             score_display = "-1 (∞)" if np.isinf(record.kl_score) else f'{record.kl_score:.2f}'
+            action_names = format_joint_action(record.action, self.n_enemies)
             ax.set_title(
                 f'Rank #{idx+1}: t={record.timestep}\n'
-                f'Action: {record.action}, Score: {score_display}',
-                fontsize=10,
+                f'{action_names}\nScore: {score_display}',
+                fontsize=9,
                 fontweight='bold'
             )
 
@@ -194,7 +210,7 @@ class SmacConsequencePlotter:
         title: str = "Consequence Scores Over Time"
     ) -> plt.Axes:
         """
-        Plot consequence scores over episode timesteps.
+        Plot all consequence metrics over episode timesteps.
 
         Args:
             records: List of SmacConsequenceRecord objects
@@ -205,24 +221,36 @@ class SmacConsequencePlotter:
             Matplotlib axes
         """
         if ax is None:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            fig, ax = plt.subplots(figsize=(12, 6))
 
         timesteps = np.array([r.timestep for r in records])
-        scores = np.array([r.kl_score for r in records])
 
-        # Plot line with markers
-        ax.plot(timesteps, scores, marker='o', linestyle='-', linewidth=2, markersize=6)
-        
-        # Highlight most consequential moment
-        max_idx = np.argmax(scores)
-        ax.scatter([timesteps[max_idx]], [scores[max_idx]], 
-                  color='red', s=200, zorder=5, label='Most consequential')
+        # Extract all metrics
+        kl_scores = np.array([r.kl_score for r in records])
+        jsd_scores = np.array([r.jsd_score for r in records])
+        tv_scores = np.array([r.tv_score for r in records])
+        w_scores = np.array([r.wasserstein_score for r in records])
+
+        # Plot each metric with different colors and markers
+        ax.plot(timesteps, kl_scores, marker='o', linestyle='-', linewidth=2,
+                markersize=6, label='KL Divergence', color='tab:blue')
+        ax.plot(timesteps, jsd_scores, marker='s', linestyle='-', linewidth=2,
+                markersize=6, label='Jensen-Shannon', color='tab:orange')
+        ax.plot(timesteps, tv_scores, marker='^', linestyle='-', linewidth=2,
+                markersize=6, label='Total Variation', color='tab:green')
+        ax.plot(timesteps, w_scores, marker='d', linestyle='-', linewidth=2,
+                markersize=6, label='Wasserstein', color='tab:red')
+
+        # Highlight most consequential moment (based on KL)
+        max_idx = np.argmax(kl_scores)
+        ax.axvline(x=timesteps[max_idx], color='gray', linestyle='--',
+                   alpha=0.5, label=f'Peak KL (t={timesteps[max_idx]})')
 
         ax.set_xlabel('Episode Timestep')
         ax.set_ylabel('Consequence Score')
         ax.set_title(title)
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        ax.legend(loc='best')
 
         return ax
 
@@ -267,13 +295,16 @@ class SmacConsequencePlotter:
         print(f"\nTop-{top_n} Most Consequential Moments:")
 
         for idx, record in enumerate(top_records):
-            print(f"  #{idx+1}: Timestep {record.timestep}, Action: {record.action}")
+            action_names = format_joint_action(record.action, self.n_enemies)
+            print(f"  #{idx+1}: Timestep {record.timestep}")
+            print(f"       Action: {action_names}")
             print(f"       KL Score: {record.kl_score:.4f}")
 
             # Show which alternative action had highest KL
             if record.kl_divergences:
                 max_alt = max(record.kl_divergences.items(), key=lambda x: x[1])
-                print(f"       Max KL vs {max_alt[0]}: {max_alt[1]:.4f}")
+                max_alt_names = format_joint_action(max_alt[0], self.n_enemies)
+                print(f"       Max KL vs {max_alt_names}: {max_alt[1]:.4f}")
             
             # Show battle stats if available
             if record.agents_alive is not None:

@@ -128,6 +128,15 @@ class CentralizedSmacWrapper:
             obs_list = self.env.get_obs()
             return np.concatenate(obs_list)
 
+    def get_config(self) -> Dict[str, Any]:
+        """Get configuration dict for creating identical environments."""
+        return {
+            'map_name': self.env.map_name,
+            'debug': getattr(self.env, 'debug', False),
+            'seed': self._seed,
+            'use_state': self.use_state,
+        }
+
 
 class SmacStateManager(StateManager):
     """
@@ -159,8 +168,16 @@ class SmacStateManager(StateManager):
         }
     
     @staticmethod
-    def restore_state(env, state_dict: Dict[str, Any]) -> None:
-        """Restore state by REPLAYING history."""
+    def restore_state(env, state_dict: Dict[str, Any]) -> bool:
+        """Restore state by REPLAYING history.
+        This is a critical part of the Replay Strategy.
+        
+        Args:
+            env: The environment to restore state in.
+            state_dict: The state dictionary to restore from.
+            Returns:
+            True if successful, False if any action was invalid during replay.
+        """
         # 1. Reset
         env.reset(seed=state_dict.get('seed'))
         
@@ -169,12 +186,23 @@ class SmacStateManager(StateManager):
         
         # Access the inner SMAC env directly for replay
         inner_env = env.env  # Assuming CentralizedSmacWrapper
-        
         for agent_actions in history:
-            inner_env.step(agent_actions)
+            available_actions_mask = inner_env.get_avail_actions()   
+
+            # Apply action masking to ensure valid actions are taken
+            masked_actions = []
+            for agent_id, action in enumerate(agent_actions):
+                avail_actions = available_actions_mask[agent_id]
+                if avail_actions[action] == 0:
+                    return False
+                else:
+                    masked_actions.append(action)
+            inner_env.step(masked_actions)
+
             
         # Restore the wrapper's history to match the restored state
         env.action_history = copy.deepcopy(history)
+        return True
         
         # IMPORTANT: After replay, we need to ensure the wrapper's observation is updated
         # This is critical for action masking to work correctly

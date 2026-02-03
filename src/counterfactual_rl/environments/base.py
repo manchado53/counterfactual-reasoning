@@ -33,7 +33,7 @@ class StateManager(ABC):
     
     @staticmethod
     @abstractmethod
-    def restore_state(env, state_dict: Dict[str, Any]) -> None:
+    def restore_state(env, state_dict: Dict[str, Any]) -> bool:
         """Restore environment to a previously captured state.
         
         Args:

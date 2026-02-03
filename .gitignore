@@ -55,5 +55,7 @@ replays/
 *.SC2Replay
 
 # Simulations ignored
-simulations/logs/
-simulations/runs
+**/simulations/logs/
+**/simulations/runs
+
+/runs
