@@ -253,7 +253,7 @@ def compute_all_consequence_metrics(
     action: tuple,
     return_distributions: dict,
     action_probs: Optional[dict] = None,
-    aggregation: str = 'max'
+    aggregation: str = 'weighted_mean'
 ) -> dict:
     """
     Compute consequence scores using all available metrics.
