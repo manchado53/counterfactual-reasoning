@@ -9,7 +9,7 @@ from jaxmarl import make
 from jaxmarl.environments.smax import map_name_to_scenario
 
 
-def create_smax_env(scenario: str = '3m', seed: int = 0):
+def create_smax_env(scenario: str = '3m', seed: int = 0, obs_type: str = 'world_state'):
     """
     Create SMAX environment with heuristic enemy.
 
@@ -20,14 +20,15 @@ def create_smax_env(scenario: str = '3m', seed: int = 0):
         scenario: SMAX scenario name (e.g., '3m', '8m', '3s5z')
             Common scenarios: '3m', '8m', '2s3z', '3s5z', '5m_vs_6m'
         seed: Random seed
+        obs_type: 'world_state' (72 dims for 3m) or 'concatenated' (225 dims for 3m)
 
     Returns:
         Tuple of (env, jax_key, env_info)
 
     Example:
-        env, key, env_info = create_smax_env(scenario='3m')
+        env, key, env_info = create_smax_env(scenario='3m', obs_type='world_state')
         obs, state = env.reset(key)
-        global_state = get_global_state(obs, env_info['agent_names'])
+        global_state = get_global_state(obs, env_info['agent_names'], env_info['obs_type'])
         action_masks = get_action_masks(env, state)
     """
     scenario_obj = map_name_to_scenario(scenario)
@@ -39,9 +40,11 @@ def create_smax_env(scenario: str = '3m', seed: int = 0):
     obs, state = env.reset(key)
     agent_names = list(env.agents)
 
-    # Get obs dim from environment's world state
     single_obs_dim = obs[agent_names[0]].shape[0]
-    obs_dim = obs["world_state"].shape[0]  # World state dimension
+    if obs_type == 'world_state':
+        obs_dim = obs["world_state"].shape[0]
+    else:
+        obs_dim = single_obs_dim * len(agent_names)
     num_agents = len(agent_names)
     actions_per_agent = env.action_space(agent_names[0]).n
 
@@ -52,27 +55,28 @@ def create_smax_env(scenario: str = '3m', seed: int = 0):
         'actions_per_agent': actions_per_agent,
         'scenario': scenario,
         'agent_names': agent_names,
+        'obs_type': obs_type,
     }
 
     return env, key, env_info
 
 
-def get_global_state(obs: Dict, agent_names: List[str]) -> np.ndarray:
+def get_global_state(obs: Dict, agent_names: List[str], obs_type: str = 'world_state') -> np.ndarray:
     """
-    Extract world state from SMAX observations.
-
-    Uses the environment's built-in world_state rather than
-    concatenating per-agent local observations.
+    Extract global state from SMAX observations.
 
     Args:
-        obs: Dict mapping agent names to observation arrays,
-             must include 'world_state' key
-        agent_names: Ordered list of agent names (kept for API compatibility)
+        obs: Dict mapping agent names to observation arrays
+        agent_names: Ordered list of agent names
+        obs_type: 'world_state' or 'concatenated'
 
     Returns:
-        World state array as numpy
+        Global state array as numpy
     """
-    return np.array(obs["world_state"])
+    if obs_type == 'world_state':
+        return np.array(obs["world_state"])
+    else:
+        return np.concatenate([np.array(obs[agent]) for agent in agent_names])
 
 
 def get_action_masks(env, state) -> np.ndarray:
@@ -161,7 +165,7 @@ def record_episode(agent, env=None, seed: int = 42, greedy: bool = True):
     while not done:
         key, step_key = jax.random.split(key)
 
-        global_state = get_global_state(obs, agent_names)
+        global_state = get_global_state(obs, agent_names, agent.env_info['obs_type'])
         action_masks = get_action_masks(env, state)
 
         joint_action = agent.select_action(global_state, action_masks)

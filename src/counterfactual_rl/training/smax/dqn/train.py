@@ -20,10 +20,13 @@ def main():
                         help='Path to save training curves (default: training_curves.png)')
     parser.add_argument('--seed', type=int, default=0,
                         help='Random seed (default: 0)')
+    parser.add_argument('--obs-type', type=str, default='world_state',
+                        choices=['world_state', 'concatenated'],
+                        help='Observation type (default: world_state)')
     args = parser.parse_args()
 
     # Create environment
-    env, key, env_info = create_smax_env(scenario=args.scenario, seed=args.seed)
+    env, key, env_info = create_smax_env(scenario=args.scenario, seed=args.seed, obs_type=args.obs_type)
 
     # Create and train agent
     agent = DQN(env, env_info, config={
