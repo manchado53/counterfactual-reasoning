@@ -114,11 +114,13 @@ def main():
             print(f"  Most different alternative: {alt_action} (KL={alt_kl:.4f})")
 
     # --- Save episode replay video ---
+    # NOTE: Video generation with Pillow (no ffmpeg) hangs. Skipping for now.
+    # Install ffmpeg to enable: conda install -c conda-forge ffmpeg
     print(f"\n{'=' * 60}")
-    print("SAVING VIDEO")
+    print("SKIPPING VIDEO (ffmpeg not available - would hang)")
     print("=" * 60)
-    video_path = os.path.join(analyzer.run_dir, "episode_replay.gif")
-    analyzer.save_video(video_path)
+    # video_path = os.path.join(analyzer.run_dir, "episode_replay.gif")
+    # analyzer.save_video(video_path)
 
     # --- Generate and save analysis plots ---
     print(f"\n{'=' * 60}")

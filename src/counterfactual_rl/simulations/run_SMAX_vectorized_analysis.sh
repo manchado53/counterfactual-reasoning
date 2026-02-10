@@ -6,7 +6,7 @@
 #SBATCH --partition=teaching
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:t4:1
-#SBATCH --cpus-per-gpu=4
+#SBATCH --cpus-per-gpu=8
 
 # Create logs directory if it doesn't exist
 mkdir -p logs
