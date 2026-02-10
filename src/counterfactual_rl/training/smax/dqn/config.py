@@ -1,12 +1,17 @@
 """Default configuration and hyperparameters for SMAX DQN."""
 
+from datetime import datetime
+
 DEFAULT_CONFIG = {
     # Environment
     'scenario': '3m',
+    'obs_type': 'world_state',  # 'world_state' or 'concatenated'
 
     # DQN hyperparameters
-    'gamma': 0.99,
-    'epsilon': 0.1,
+    'gamma': 0.9,
+    'epsilon_start': 1.0,
+    'epsilon_end': 0.05,
+    'epsilon_decay_episodes': 2000,  # Linear decay over this many episodes
     'alpha': 0.0005,
     'hidden_dim': 256,
 
@@ -28,5 +33,5 @@ DEFAULT_CONFIG = {
     # Training
     'n_episodes': 2000,
     'save_every': 500,
-    'save_path': 'models/smax_dqn.pt',
+    'save_path': f'models/smax_dqn_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pt',
 }

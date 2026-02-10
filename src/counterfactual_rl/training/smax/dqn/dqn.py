@@ -74,7 +74,10 @@ class DQN:
 
         # Hyperparameters
         self.gamma = self.config.get('gamma', 0.99)
-        self.epsilon = self.config.get('epsilon', 0.1)
+        self.epsilon_start = self.config.get('epsilon_start', 1.0)
+        self.epsilon_end = self.config.get('epsilon_end', 0.05)
+        self.epsilon_decay_episodes = self.config.get('epsilon_decay_episodes', 5000)
+        self.epsilon = self.epsilon_start
         self.alpha = self.config.get('alpha', 0.0005)
         self.batch_size = self.config.get('B', 32)
         self.target_update_freq = self.config.get('C', 500)
@@ -161,52 +164,51 @@ class DQN:
         return q_values.cpu().numpy()
 
     def _update(self):
-        """Perform one update step if enough samples in buffer."""
+        """Perform one batched update step if enough samples in buffer."""
         if not self.buffer.can_sample(self.batch_size):
             return
 
         transitions, indices, is_weights = self.buffer.sample(self.batch_size)
 
-        Qs = []
-        targets = []
-        td_errors = []
+        # Stack transitions into batched tensors
+        states = torch.tensor(
+            np.array([d['s'] for d in transitions]), dtype=torch.float32, device=self.device
+        )  # (B, obs_dim)
+        next_states = torch.tensor(
+            np.array([d["s'"] for d in transitions]), dtype=torch.float32, device=self.device
+        )  # (B, obs_dim)
+        actions = torch.tensor(
+            np.array([d['a'] for d in transitions]), dtype=torch.long, device=self.device
+        )  # (B, num_agents)
+        rewards = torch.tensor(
+            np.array([d['r'] for d in transitions]), dtype=torch.float32, device=self.device
+        )  # (B,)
+        dones = torch.tensor(
+            np.array([d['done'] for d in transitions]), dtype=torch.float32, device=self.device
+        )  # (B,)
+        next_masks = torch.tensor(
+            np.array([d['next_masks'] for d in transitions]), dtype=torch.bool, device=self.device
+        )  # (B, num_agents, actions_per_agent)
 
-        for i, d in enumerate(transitions):
-            if not d['done']:
-                next_state = torch.tensor(d["s'"], dtype=torch.float32, device=self.device)
-                next_masks = torch.tensor(d['next_masks'], dtype=torch.bool, device=self.device)
+        # Target Q-values — single batched forward pass
+        with torch.no_grad():
+            next_q = self.Q_target(next_states)  # (B, num_agents, actions_per_agent)
+        next_q[~next_masks] = float('-inf')
+        max_next_q = next_q.max(dim=-1)[0].sum(dim=-1)  # (B,)
+        targets = rewards + self.gamma * max_next_q * (1 - dones)
 
-                with torch.no_grad():
-                    next_q = self.Q_target(next_state)
-
-                next_q_masked = next_q.clone()
-                next_q_masked[~next_masks] = float('-inf')
-
-                max_next_q = next_q_masked.max(dim=-1)[0].sum()
-                target = d['r'] + self.gamma * max_next_q.item()
-            else:
-                target = d['r']
-
-            targets.append(target)
-
-            state = torch.tensor(d['s'], dtype=torch.float32, device=self.device)
-            q_values = self.Q(state)
-
-            actions = d['a']
-            q_taken = sum(q_values[i, actions[i]] for i in range(self.num_agents))
-            Qs.append(q_taken)
-
-            td_errors.append(target - q_taken.detach().item())
+        # Current Q-values — single batched forward pass
+        q_values = self.Q(states)  # (B, num_agents, actions_per_agent)
+        q_taken = q_values.gather(2, actions.unsqueeze(-1)).squeeze(-1)  # (B, num_agents)
+        q_taken = q_taken.sum(dim=-1)  # (B,)
 
         # Update priorities
-        self.buffer.update_priorities(indices, np.array(td_errors))
+        td_errors = (targets - q_taken.detach()).cpu().numpy()
+        self.buffer.update_priorities(indices, td_errors)
 
-        # Compute loss
-        Qs = torch.stack(Qs)
-        targets = torch.tensor(targets, dtype=torch.float32, device=self.device)
+        # Compute weighted loss
         weights = torch.tensor(is_weights, dtype=torch.float32, device=self.device)
-
-        loss = (weights * (Qs - targets) ** 2).mean()
+        loss = (weights * (q_taken - targets) ** 2).mean()
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -234,9 +236,11 @@ class DQN:
 
         if verbose:
             print(f"Training DQN on SMAX {self.env_info['scenario']}")
+            print(f"  Obs type: {self.env_info['obs_type']}")
             print(f"  Obs dim: {self.obs_dim}")
             print(f"  Num agents: {self.num_agents}")
             print(f"  Actions per agent: {self.actions_per_agent}")
+            print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} episodes")
             print(f"  Device: {self.device}")
 
         agent_names = self.env_info['agent_names']
@@ -247,7 +251,7 @@ class DQN:
             self._key, reset_key = jax.random.split(self._key)
             obs, state = self.env.reset(reset_key)
 
-            global_state = get_global_state(obs, agent_names)
+            global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
             action_masks = get_action_masks(self.env, state)
 
             done = False
@@ -264,7 +268,7 @@ class DQN:
 
                 obs, state, rewards, dones, infos = self.env.step(step_key, state, action_dict)
 
-                next_global_state = get_global_state(obs, agent_names)
+                next_global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
                 next_action_masks = get_action_masks(self.env, state)
 
                 global_reward = get_global_reward(rewards, agent_names)
@@ -296,9 +300,13 @@ class DQN:
             self.episode_returns.append(episode_return)
             self.episode_lengths.append(episode_length)
 
+            # Epsilon decay (linear)
+            decay_progress = min(1.0, episode / self.epsilon_decay_episodes)
+            self.epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) * decay_progress
+
             if len(self.episode_returns) >= 100:
                 avg_return = np.mean(self.episode_returns[-100:])
-                pbar.set_description(f"Avg Return (100 ep): {avg_return:.2f}")
+                pbar.set_description(f"Avg Return (100 ep): {avg_return:.2f}, eps: {self.epsilon:.3f}")
 
             if (episode + 1) % save_every == 0:
                 os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)

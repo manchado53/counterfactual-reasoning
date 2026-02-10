@@ -66,7 +66,8 @@ class PrioritizedReplayBuffer:
         if len(self.buffer) < batch_size:
             raise ValueError(f"Not enough samples in buffer ({len(self.buffer)} < {batch_size})")
 
-        probs = np.array(self.priorities) / sum(self.priorities)
+        probs = np.array(self.priorities, dtype=np.float64)
+        probs /= probs.sum()
         indices = np.random.choice(len(self.buffer), size=batch_size, p=probs)
 
         transitions = [self.buffer[idx] for idx in indices]
