@@ -3,9 +3,9 @@
 #SBATCH --output=logs/train_%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=manchadoa@msoe.edu
-#SBATCH --partition=dgxh100
+#SBATCH --partition=teaching
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:h100:2
+#SBATCH --gres=gpu:t4:2
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
@@ -65,7 +65,8 @@ BACKEND=${BACKEND:-jax}
     --backend $BACKEND \
     --scenario 3m \
     --n-episodes 20000 \
-    --obs-type world_state \
-    --eval-episodes 100
+    --obs-type concatenated \
+    --eval-interval 1000 \
+    --eval-episodes 50
 
 echo "Training completed at $(date)"

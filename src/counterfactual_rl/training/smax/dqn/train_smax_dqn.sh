@@ -3,9 +3,9 @@
 #SBATCH --output=logs/train_%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=manchadoa@msoe.edu
-#SBATCH --partition=dgx
+#SBATCH --partition=dgxh100
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:2
+#SBATCH --gres=gpu:h100:2
 #SBATCH --cpus-per-gpu=8
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
@@ -23,8 +23,10 @@ export PYTHONPATH="${PYTHONPATH}:/home/ad.msoe.edu/manchadoa/UR-RL/counterfactua
 # Run training
 ~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.training.smax.dqn.train \
     --scenario 3m \
-    --n-episodes 10000 \
-    --save-path models/smax_dqn_3m-1.pt \
-    --plot-path training_curves.png
+    --n-episodes 40000 \
+    --save-path models/smax_dqn_3m_concatenated.pt \
+    --plot-path training_curves_concatenated.png \
+    --obs-type concatenated
 
 echo "Training completed at $(date)"
+    

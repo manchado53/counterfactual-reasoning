@@ -33,7 +33,7 @@ def create_smax_env(scenario: str = '3m', seed: int = 0, obs_type: str = 'world_
         action_masks = get_action_masks(env, state)
     """
     scenario_obj = map_name_to_scenario(scenario)
-    env = make('HeuristicEnemySMAX', scenario=scenario_obj)
+    env = make('HeuristicEnemySMAX', scenario=scenario_obj, won_battle_bonus=10.0)
 
     key = jax.random.PRNGKey(seed)
 
@@ -104,16 +104,16 @@ def get_action_masks(env, state) -> np.ndarray:
 
 def get_global_reward(rewards: Dict, agent_names: List[str]) -> float:
     """
-    Sum rewards across all agents.
+    Get team reward (all agents receive the same reward in SMAX).
 
     Args:
         rewards: Dict mapping agent names to rewards
         agent_names: List of agent names
 
     Returns:
-        Total team reward
+        Team reward (single agent's reward)
     """
-    return sum(float(rewards[agent]) for agent in agent_names)
+    return float(rewards[agent_names[0]])
 
 
 def is_done(dones: Dict) -> bool:
@@ -330,15 +330,17 @@ def _evaluate_sequential(agent, n_episodes: int, seed: int) -> Dict:
             joint_action = agent.select_action(global_state, action_masks)
             action_dict = {agent_name: joint_action[i] for i, agent_name in enumerate(agent_names)}
 
-            obs, state, rewards, dones, _ = env.step(step_key, state, action_dict)
+            obs, state, rewards, dones, _ = env.step_env(step_key, state, action_dict)
 
             episode_return += get_global_reward(rewards, agent_names)
             episode_length += 1
             done = is_done(dones)
 
-        # Check win condition from final state
-        allies_alive = int(np.sum(np.array(state.unit_alive[:num_allies])))
-        enemies_alive = int(np.sum(np.array(state.unit_alive[num_allies:])))
+        # Check win condition (HeuristicEnemySMAX wraps SMAX State inside .state)
+        # Using step_env above so state is the true terminal state, not auto-reset
+        smax_state = state.state
+        allies_alive = int(np.sum(np.array(smax_state.unit_alive[:num_allies])))
+        enemies_alive = int(np.sum(np.array(smax_state.unit_alive[num_allies:])))
         won = (enemies_alive == 0) and (allies_alive > 0)
 
         wins += int(won)
@@ -398,26 +400,38 @@ def _evaluate_vectorized(agent, n_episodes: int, seed: int) -> Dict:
             avail_actions = env.get_avail_actions(state_c)
             action_dict = policy_fn(policy_key, obs_c, avail_actions)
 
-            # Step environment
-            new_obs, new_state, rewards, dones, _ = env.step(step_key, state_c, action_dict)
+            # Use step_env to bypass auto-reset (env.step swaps terminal
+            # state with a fresh reset state, losing unit_alive info)
+            new_obs, new_state, rewards, dones, _ = env.step_env(step_key, state_c, action_dict)
 
             # Accumulate reward (masked by done)
-            step_reward = jnp.float32(0.0)
-            for agent_name in agent_names:
-                step_reward = step_reward + rewards[agent_name]
+            step_reward = rewards[agent_names[0]]
 
             cum_return = cum_return + step_reward * (1.0 - done_flag)
             length = length + (1.0 - done_flag)
+
+            # Freeze state/obs using the OLD done_flag (before update).
+            # Terminal step: done_flag=0 → picks new_state (enemies dead).
+            # Post-terminal steps: done_flag=1 → picks state_c (frozen).
+            frozen_state = jax.tree.map(
+                lambda old, new: jnp.where(done_flag, old, new),
+                state_c, new_state,
+            )
+            frozen_obs = jax.tree.map(
+                lambda old, new: jnp.where(done_flag, old, new),
+                obs_c, new_obs,
+            )
+
             done_flag = jnp.where(dones["__all__"], 1.0, done_flag)
 
-            return (new_state, new_obs, key_c, cum_return, length, done_flag), None
+            return (frozen_state, frozen_obs, key_c, cum_return, length, done_flag), None
 
         init_carry = (state, obs, run_key, jnp.float32(0.0), jnp.float32(0.0), jnp.float32(0.0))
         (final_state, _, _, episode_return, episode_length, _), _ = jax.lax.scan(
             scan_step, init_carry, None, length=max_steps
         )
 
-        # Check win condition (HeuristicEnemySMAX wraps SMAX State inside .state)
+        # final_state is the true terminal state (no auto-reset)
         smax_state = final_state.state
         allies_alive = jnp.sum(smax_state.unit_alive[:num_allies])
         enemies_alive = jnp.sum(smax_state.unit_alive[num_allies:])

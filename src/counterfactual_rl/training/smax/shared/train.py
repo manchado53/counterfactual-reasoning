@@ -28,6 +28,8 @@ def main():
                         help='Observation type (default: world_state)')
     parser.add_argument('--eval-episodes', type=int, default=100,
                         help='Evaluation episodes after training (default: 100)')
+    parser.add_argument('--eval-interval', type=int, default=None,
+                        help='Run greedy evaluation every N episodes during training (default: disabled)')
     args = parser.parse_args()
 
     # Dynamic import based on backend
@@ -52,6 +54,8 @@ def main():
         'n_episodes': args.n_episodes,
         'save_path': args.save_path,
         'save_every': args.save_every,
+        'eval_interval': args.eval_interval,
+        'eval_episodes': args.eval_episodes,
     })
 
     agent.learn()

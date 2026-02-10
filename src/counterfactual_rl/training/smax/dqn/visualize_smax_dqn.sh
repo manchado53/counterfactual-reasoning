@@ -12,7 +12,7 @@
 
 # Create directories
 mkdir -p logs
-mkdir -p videos
+mkdir -p videos/concatenated
 
 # Set matplotlib backend for headless
 export MPLBACKEND=Agg
@@ -27,12 +27,12 @@ if ! command -v ffmpeg &> /dev/null; then
 fi
 
 echo "Starting visualization..."
-echo "Checkpoint: models/smax_dqn_3m-1.pt"
+echo "Checkpoint: models/smax_dqn_3m_concatenated.pt"
 
 # Run visualization
 ~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.training.smax.dqn.visualize \
-    --checkpoint models/smax_dqn_3m-1.pt \
-    --output videos/gameplay.gif \
+    --checkpoint models/smax_dqn_3m_concatenated.pt \
+    --output videos/concatenated/gameplay.gif \
     --seed 42 \
     --episodes 3
 
