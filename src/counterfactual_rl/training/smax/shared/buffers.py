@@ -1,7 +1,7 @@
 """Replay buffers for DQN training."""
 
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class PrioritizedReplayBuffer:

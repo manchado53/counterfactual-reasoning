@@ -19,6 +19,7 @@ import optax
 from .policies import CentralizedQNetwork
 from ..shared.buffers import PrioritizedReplayBuffer
 from ..shared.config import DEFAULT_CONFIG
+from ..shared.metrics import MetricsLogger
 from ..shared.utils import (
     create_smax_env,
     evaluate,
@@ -233,15 +234,10 @@ class DQN:
         eval_episodes = self.config.get('eval_episodes', 20)
 
         # Set up metrics log file
-        job_id = os.environ.get('SLURM_JOB_ID', 'local')
-        metrics_path = f'logs/metrics_{job_id}.log'
-        os.makedirs('logs', exist_ok=True)
-        metrics_file = open(metrics_path, 'w')
-        metrics_file.write(f"# SMAX DQN Training Metrics (JAX) - {datetime.now()}\n")
-        metrics_file.write(f"# Scenario: {self.env_info['scenario']}, Obs: {self.env_info['obs_type']}\n")
-        metrics_file.write(f"# Episodes: {n_episodes}, Eval interval: {eval_interval}, Eval episodes: {eval_episodes}\n")
-        metrics_file.write(f"{'episode':>8} {'epsilon':>8} {'win_rate':>10} {'avg_allies':>12} {'avg_return':>12} {'avg_length':>12}\n")
-        metrics_file.flush()
+        metrics_logger = MetricsLogger(
+            backend='JAX', config=self.config, env_info=self.env_info,
+            n_episodes=n_episodes, eval_interval=eval_interval, eval_episodes=eval_episodes,
+        )
 
         if verbose:
             print(f"Training JAX DQN on SMAX {self.env_info['scenario']}")
@@ -251,7 +247,7 @@ class DQN:
             print(f"  Actions per agent: {self.actions_per_agent}")
             print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} episodes")
             print(f"  Backend: JAX")
-            print(f"  Metrics log: {metrics_path}")
+            print(f"  Metrics log: {metrics_logger.path}")
 
         agent_names = self.env_info['agent_names']
 
@@ -324,19 +320,14 @@ class DQN:
 
             if eval_interval and (episode + 1) % eval_interval == 0:
                 metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
-                metrics_file.write(
-                    f"{episode + 1:>8d} {self.epsilon:>8.3f} {metrics['win_rate']:>10.1%} "
-                    f"{metrics['avg_allies_alive']:>12.2f} {metrics['avg_return']:>12.2f} "
-                    f"{metrics['avg_length']:>12.1f}\n"
-                )
-                metrics_file.flush()
+                metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
 
         os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
         self.save(save_path)
-        metrics_file.close()
+        metrics_logger.close()
         if verbose:
             print(f"Training complete. Model saved to {save_path}")
-            print(f"Metrics log saved to {metrics_path}")
+            print(f"Metrics log saved to {metrics_logger.path}")
 
         return self
 
