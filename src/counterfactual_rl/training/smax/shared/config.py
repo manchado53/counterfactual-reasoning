@@ -8,10 +8,10 @@ DEFAULT_CONFIG = {
     'obs_type': 'world_state',  # 'world_state' or 'concatenated'
 
     # DQN hyperparameters
-    'gamma': 0.9,
+    'gamma': 0.95,
     'epsilon_start': 1.0,
     'epsilon_end': 0.05,
-    'epsilon_decay_episodes': 2000,  # Linear decay over this many episodes
+    'epsilon_decay_episodes': 20000,  # Linear decay over this many episodes
     'alpha': 0.0005,
     'hidden_dim': 256,
 
@@ -33,7 +33,6 @@ DEFAULT_CONFIG = {
     # Training
     'n_episodes': 2000,
     'save_every': 500,
-    'save_path': None,  # Set by train.py with backend-appropriate extension
 
     # Periodic evaluation during training
     'eval_interval': None,    # Evaluate every N episodes (None = disabled)

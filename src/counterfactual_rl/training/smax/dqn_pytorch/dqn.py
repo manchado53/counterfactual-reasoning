@@ -233,15 +233,19 @@ class DQN:
         """
         n_episodes = n_episodes or self.config['n_episodes']
         save_every = self.config.get('save_every', 500)
-        save_path = self.config.get('save_path', 'models/smax_dqn.pt')
         eval_interval = self.config.get('eval_interval', None)
         eval_episodes = self.config.get('eval_episodes', 20)
 
-        # Set up metrics log file
+        # Set up metrics log and run directory
         self.metrics_logger = MetricsLogger(
             backend='PyTorch', config=self.config, env_info=self.env_info,
             n_episodes=n_episodes, eval_interval=eval_interval, eval_episodes=eval_episodes,
         )
+
+        # Model save paths within run directory
+        last_path = os.path.join(self.metrics_logger.dir, 'last.pt')
+        best_path = os.path.join(self.metrics_logger.dir, 'best.pt')
+        best_win_rate = -1.0
 
         if verbose:
             print(f"Training DQN on SMAX {self.env_info['scenario']}")
@@ -319,22 +323,24 @@ class DQN:
                 pbar.set_description(f"Avg Return (100 ep): {avg_return:.2f}, eps: {self.epsilon:.3f}")
 
             if (episode + 1) % save_every == 0:
-                os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
-                self.save(save_path)
+                self.save(last_path)
                 if verbose:
                     print(f"\nSaved checkpoint at episode {episode + 1}")
 
             if eval_interval and (episode + 1) % eval_interval == 0:
                 metrics = evaluate(self, n_episodes=eval_episodes, parallel=False)
                 self.metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
+                if metrics['win_rate'] > best_win_rate:
+                    best_win_rate = metrics['win_rate']
+                    self.save(best_path)
+                    if verbose:
+                        print(f"\nNew best model (win rate: {best_win_rate:.1%})")
 
-        os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
-        self.save(save_path)
+        self.save(last_path)
         self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
         self.metrics_logger.close()
         if verbose:
-            print(f"Training complete. Model saved to {save_path}")
-            print(f"Metrics saved to {self.metrics_logger.dir}")
+            print(f"Training complete. Run saved to {self.metrics_logger.dir}")
 
         return self
 

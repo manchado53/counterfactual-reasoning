@@ -18,7 +18,7 @@ class MetricsLogger:
     def __init__(self, backend: str, config: dict, env_info: dict,
                  n_episodes: int, eval_interval, eval_episodes: int):
         job_id = os.environ.get('SLURM_JOB_ID', 'local')
-        self.dir = f'metrics/{job_id}'
+        self.dir = f'runs/{job_id}'
         os.makedirs(self.dir, exist_ok=True)
         self.path = os.path.join(self.dir, 'metrics.log')
 

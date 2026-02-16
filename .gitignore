@@ -58,4 +58,8 @@ replays/
 **/simulations/logs/
 **/simulations/runs
 
-/runs
+**/runs
+
+**/videos
+
+# 
