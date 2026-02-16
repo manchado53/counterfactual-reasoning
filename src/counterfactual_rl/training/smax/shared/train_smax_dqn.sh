@@ -3,16 +3,15 @@
 #SBATCH --output=logs/train_%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=manchadoa@msoe.edu
-#SBATCH --partition=teaching
+#SBATCH --partition=dgx
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:t4:2
+#SBATCH --gres=gpu:v100:1
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
 #SBATCH --time=04:00:00
 
 # Create directories
 mkdir -p logs
-mkdir -p models
 
 # Set matplotlib backend for headless
 export MPLBACKEND=Agg
@@ -57,16 +56,7 @@ echo ""
 # Add src to PYTHONPATH
 export PYTHONPATH="${PYTHONPATH}:/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src"
 
-# Default backend (override with: sbatch --export=BACKEND=pytorch train_smax_dqn.sh)
-BACKEND=${BACKEND:-jax}
-
-# Run training
-~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.training.smax.shared.train \
-    --backend $BACKEND \
-    --scenario 3m \
-    --n-episodes 20000 \
-    --obs-type concatenated \
-    --eval-interval 1000 \
-    --eval-episodes 50
+# Run training (all parameters are in config.py)
+~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.training.smax.shared.train
 
 echo "Training completed at $(date)"

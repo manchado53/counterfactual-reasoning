@@ -3,6 +3,10 @@
 from datetime import datetime
 
 DEFAULT_CONFIG = {
+    # Runtime
+    'backend': 'jax',  # 'jax' or 'pytorch'
+    'seed': 0,
+
     # Environment
     'scenario': '3m',
     'obs_type': 'world_state',  # 'world_state' or 'concatenated'
