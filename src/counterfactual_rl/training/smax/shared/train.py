@@ -2,7 +2,7 @@
 
 import argparse
 from datetime import datetime
-from .utils import create_smax_env, plot_training_curves, evaluate
+from .utils import create_smax_env, evaluate
 
 
 def main():
@@ -19,8 +19,6 @@ def main():
                         help='Path to save model (default: auto-generated with timestamp)')
     parser.add_argument('--save-every', type=int, default=500,
                         help='Save checkpoint every N episodes (default: 500)')
-    parser.add_argument('--plot-path', type=str, default='training_curves.png',
-                        help='Path to save training curves (default: training_curves.png)')
     parser.add_argument('--seed', type=int, default=0,
                         help='Random seed (default: 0)')
     parser.add_argument('--obs-type', type=str, default='world_state',
@@ -62,12 +60,6 @@ def main():
 
     # Post-training evaluation
     evaluate(agent, n_episodes=args.eval_episodes, parallel=(args.backend == 'jax'))
-
-    # Plot training curves
-    plot_training_curves(
-        agent.episode_returns, agent.episode_lengths,
-        save_path=args.plot_path, show=False
-    )
 
 
 if __name__ == '__main__':

@@ -238,7 +238,7 @@ class DQN:
         eval_episodes = self.config.get('eval_episodes', 20)
 
         # Set up metrics log file
-        metrics_logger = MetricsLogger(
+        self.metrics_logger = MetricsLogger(
             backend='PyTorch', config=self.config, env_info=self.env_info,
             n_episodes=n_episodes, eval_interval=eval_interval, eval_episodes=eval_episodes,
         )
@@ -251,7 +251,7 @@ class DQN:
             print(f"  Actions per agent: {self.actions_per_agent}")
             print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} episodes")
             print(f"  Device: {self.device}")
-            print(f"  Metrics log: {metrics_logger.path}")
+            print(f"  Metrics dir: {self.metrics_logger.dir}")
 
         agent_names = self.env_info['agent_names']
 
@@ -326,14 +326,15 @@ class DQN:
 
             if eval_interval and (episode + 1) % eval_interval == 0:
                 metrics = evaluate(self, n_episodes=eval_episodes, parallel=False)
-                metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
+                self.metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
 
         os.makedirs(os.path.dirname(save_path) or '.', exist_ok=True)
         self.save(save_path)
-        metrics_logger.close()
+        self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
+        self.metrics_logger.close()
         if verbose:
             print(f"Training complete. Model saved to {save_path}")
-            print(f"Metrics log saved to {metrics_logger.path}")
+            print(f"Metrics saved to {self.metrics_logger.dir}")
 
         return self
 
