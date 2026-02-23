@@ -163,22 +163,43 @@ def compute_total_variation(
     Returns:
         Total Variation distance (between 0 and 1)
     """
-    # Determine common range
-    all_samples = np.concatenate([samples_p, samples_q])
-    bins = np.linspace(all_samples.min(), all_samples.max(), n_bins + 1)
+    if len(samples_p) < 2 or len(samples_q) < 2:
+        return 0.0
 
-    # Create normalized histograms
-    hist_p, _ = np.histogram(samples_p, bins=bins, density=True)
-    hist_q, _ = np.histogram(samples_q, bins=bins, density=True)
+    if np.allclose(samples_p, samples_q):
+        return 0.0
 
-    # Normalize
-    hist_p = hist_p / np.sum(hist_p)
-    hist_q = hist_q / np.sum(hist_q)
+    var_p = np.var(samples_p)
+    var_q = np.var(samples_q)
+    if var_p < 1e-10 and var_q < 1e-10:
+        if np.allclose(samples_p.mean(), samples_q.mean()):
+            return 0.0
+        else:
+            return 1.0  # Maximum TV distance for different constants
 
-    # Compute TV
-    tv = 0.5 * np.sum(np.abs(hist_p - hist_q))
+    try:
+        # Determine common range
+        all_samples = np.concatenate([samples_p, samples_q])
+        bins = np.linspace(all_samples.min(), all_samples.max(), n_bins + 1)
 
-    return tv
+        # Create normalized histograms
+        hist_p, _ = np.histogram(samples_p, bins=bins, density=True)
+        hist_q, _ = np.histogram(samples_q, bins=bins, density=True)
+
+        # Normalize
+        sum_p = np.sum(hist_p)
+        sum_q = np.sum(hist_q)
+        if sum_p == 0 or sum_q == 0:
+            return 0.0
+        hist_p = hist_p / sum_p
+        hist_q = hist_q / sum_q
+
+        # Compute TV
+        tv = 0.5 * np.sum(np.abs(hist_p - hist_q))
+
+        return tv
+    except Exception:
+        return 0.0
 
 
 def compute_jensen_shannon_divergence(
@@ -247,6 +268,52 @@ def compute_jensen_shannon_divergence(
     except Exception as e:
         warnings.warn(f"JSD computation failed: {e}. Returning 0.")
         return 0.0
+
+
+METRIC_FUNCTIONS = {
+    'kl_divergence': compute_kl_divergence_kde,
+    'jensen_shannon': compute_jensen_shannon_divergence,
+    'total_variation': compute_total_variation,
+    'wasserstein': compute_wasserstein_distance,
+}
+
+
+def compute_consequence_metric(
+    action: tuple,
+    return_distributions: dict,
+    metric: str = 'jensen_shannon',
+    action_probs: Optional[dict] = None,
+    aggregation: str = 'weighted_mean',
+) -> float:
+    """Compute a single consequence score for the selected metric."""
+    chosen_returns = return_distributions.get(action)
+    if chosen_returns is None:
+        return 0.0
+
+    metric_fn = METRIC_FUNCTIONS[metric]
+
+    divergences = {}
+    for alt_action, alt_returns in return_distributions.items():
+        if alt_action != action:
+            divergences[alt_action] = metric_fn(chosen_returns, alt_returns)
+
+    if not divergences:
+        return 0.0
+    elif aggregation == 'max':
+        return max(divergences.values())
+    elif aggregation == 'mean':
+        return float(np.mean(list(divergences.values())))
+    elif aggregation == 'weighted_mean' and action_probs is not None:
+        total_weight = sum(action_probs.get(a, 0.0) for a in divergences.keys())
+        if total_weight > 0:
+            return sum(
+                action_probs.get(a, 0.0) * div
+                for a, div in divergences.items()
+            ) / total_weight
+        else:
+            return float(np.mean(list(divergences.values())))
+    else:
+        return max(divergences.values())
 
 
 def compute_all_consequence_metrics(
