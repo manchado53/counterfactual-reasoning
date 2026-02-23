@@ -2,5 +2,6 @@
 
 from .policies import CentralizedQNetwork
 from .dqn import DQN
+from .consequence_dqn import ConsequenceDQN
 
-__all__ = ['CentralizedQNetwork', 'DQN']
+__all__ = ['CentralizedQNetwork', 'DQN', 'ConsequenceDQN']
