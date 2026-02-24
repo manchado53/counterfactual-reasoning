@@ -290,7 +290,7 @@ class ConsequenceDQN(DQN):
         print(f"[Scoring] sample={t_sample-t_start:.3f}s  beam={t_beam-t_sample:.3f}s  "
               f"stack={t_stack-t_beam:.3f}s  rollouts={t_rollouts-t_stack:.3f}s  "
               f"metrics={t_metrics-t_rollouts:.3f}s  update={t_end-t_metrics:.3f}s  "
-              f"total={t_end-t_start:.3f}s  (B={B})")
+              f"total={t_end-t_start:.3f}s  (B={B})", flush=True)
 
     def _update(self):
         """Perform update with consequence scoring (Algorithm 2, lines 10-18)."""

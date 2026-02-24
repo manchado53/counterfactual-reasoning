@@ -60,7 +60,7 @@ class DQN:
         # Store environment
         self.env = env
         self.env_info = env_info
-        self._key = jax.random.PRNGKey(0)
+        self._key = jax.random.PRNGKey(self.config.get('seed', 0))
 
         # Environment parameters
         self.obs_dim = env_info['obs_dim']
@@ -242,6 +242,8 @@ class DQN:
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_win_rate = -1.0
+
+        np.random.seed(self.config.get('seed', 0))
 
         if verbose:
             print(f"Training JAX DQN on SMAX {self.env_info['scenario']}")
