@@ -105,7 +105,8 @@ class DQN:
             capacity=self.config.get('M', 100000),
             eps=per_params.get('eps', 0.01),
             beta=per_params.get('beta', 0.25),
-            max_priority=per_params.get('maximum_priority', 1.0)
+            max_priority=per_params.get('maximum_priority', 1.0),
+            uniform=(self.config.get('algorithm') == 'dqn-uniform'),
         )
 
         # Tracking

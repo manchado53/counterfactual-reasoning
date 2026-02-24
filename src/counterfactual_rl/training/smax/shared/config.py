@@ -8,14 +8,14 @@ DEFAULT_CONFIG = {
     'seed': 0,
 
     # Environment
-    'scenario': '3m',
+    'scenario': '5m_vs_6m',
     'obs_type': 'concatenated',  # 'world_state' or 'concatenated'
 
     # DQN hyperparameters
     'gamma': 0.95,
     'epsilon_start': 1.0,
     'epsilon_end': 0.05,
-    'epsilon_decay_episodes': 100,  # Linear decay over this many episodes
+    'epsilon_decay_episodes': 20000,  # Linear decay over this many episodes
     'alpha': 0.0005,
     'hidden_dim': 256,
 
@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     },
 
     # Training
-    'n_episodes': 1000,
+    'n_episodes': 100000,
     'save_every': 500,
 
     # Periodic evaluation during training
@@ -43,7 +43,7 @@ DEFAULT_CONFIG = {
     'eval_episodes': 100,      # Episodes per evaluation
 
     # Algorithm selection
-    'algorithm': 'consequence-dqn',              # 'dqn' or 'consequence-dqn'
+    'algorithm': 'consequence-dqn',              # 'dqn-uniform', 'dqn', or 'consequence-dqn'
 
     # Consequence-weighted PER (Algorithm 2) — only used when algorithm='consequence-dqn'
     'mu': 0.5,                        # Weight: 0=pure TD, 1=pure consequence
@@ -52,7 +52,7 @@ DEFAULT_CONFIG = {
     'consequence_metric': 'wasserstein',  # 'kl_divergence''jensen_shannon''total_variation''wasserstein'
     'consequence_aggregation': 'weighted_mean',
     'cf_horizon': 30,                 # Rollout horizon
-    'cf_n_rollouts': 48,              # Rollouts per action
-    'cf_top_k': 20,                   # Top-K actions from beam search
+    'cf_n_rollouts': 30,              # Rollouts per action
+    'cf_top_k': 10,                   # Top-K actions from beam search
     'cf_gamma': 0.95,                 # Discount factor for rollouts
 }

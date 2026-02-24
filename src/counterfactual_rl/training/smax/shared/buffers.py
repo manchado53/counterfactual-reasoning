@@ -17,7 +17,8 @@ class PrioritizedReplayBuffer:
         capacity: int = 100000,
         eps: float = 0.01,
         beta: float = 0.25,
-        max_priority: float = 1.0
+        max_priority: float = 1.0,
+        uniform: bool = False
     ):
         """
         Args:
@@ -25,11 +26,13 @@ class PrioritizedReplayBuffer:
             eps: Small constant added to priorities to ensure non-zero sampling
             beta: Exponent for priority-based sampling (0 = uniform, 1 = full prioritization)
             max_priority: Initial priority for new transitions
+            uniform: If True, sample uniformly (ignore priorities)
         """
         self.capacity = capacity
         self.eps = eps
         self.beta = beta
         self.max_priority = max_priority
+        self.uniform = uniform
 
         self.buffer: List[Dict] = []
         self.priorities: List[float] = []
@@ -66,6 +69,12 @@ class PrioritizedReplayBuffer:
         if len(self.buffer) < batch_size:
             raise ValueError(f"Not enough samples in buffer ({len(self.buffer)} < {batch_size})")
 
+        if self.uniform:
+            indices = np.random.choice(len(self.buffer), size=batch_size)
+            transitions = [self.buffer[idx] for idx in indices]
+            weights = np.ones(batch_size)
+            return transitions, indices, weights
+
         probs = np.array(self.priorities, dtype=np.float64)
         probs /= probs.sum()
         indices = np.random.choice(len(self.buffer), size=batch_size, p=probs)
@@ -86,6 +95,8 @@ class PrioritizedReplayBuffer:
             index: Index of transition in buffer
             td_error: Temporal difference error
         """
+        if self.uniform:
+            return
         priority = (abs(td_error) + self.eps) ** self.beta
         self.priorities[index] = priority
 
@@ -97,6 +108,8 @@ class PrioritizedReplayBuffer:
             indices: Array of indices
             td_errors: Array of TD errors
         """
+        if self.uniform:
+            return
         for idx, td_error in zip(indices, td_errors):
             self.update_priority(idx, td_error)
 
