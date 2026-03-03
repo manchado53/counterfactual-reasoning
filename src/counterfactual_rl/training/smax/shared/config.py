@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     'gamma': 0.95,
     'epsilon_start': 1.0,
     'epsilon_end': 0.05,
-    'epsilon_decay_episodes': 20000,  # Linear decay over this many episodes
+    'epsilon_decay_episodes': 10000,  # Linear decay over this many episodes
     'alpha': 0.0005,
     'hidden_dim': 256,
 
@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     },
 
     # Training
-    'n_episodes': 100000,
+    'n_episodes': 30000,
     'save_every': 500,
 
     # Periodic evaluation during training
@@ -47,7 +47,7 @@ DEFAULT_CONFIG = {
 
     # Consequence-weighted PER (Algorithm 2) — only used when algorithm='consequence-dqn'
     'mu': 0.5,                        # Weight: 0=pure TD, 1=pure consequence
-    'score_interval': 20,              # Score every N Q-updates (1 = matches paper)
+    'score_interval': 100,              # Score every N Q-updates (1 = matches paper)
     'n_score_sample': 256,            # B^C_est: transitions scored per pass
     'consequence_metric': 'wasserstein',  # 'kl_divergence''jensen_shannon''total_variation''wasserstein'
     'consequence_aggregation': 'weighted_mean',
