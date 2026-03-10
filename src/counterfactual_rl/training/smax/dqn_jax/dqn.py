@@ -80,10 +80,16 @@ class DQN:
 
         # Network
         hidden_dim = self.config.get('hidden_dim', 256)
+        n_body_layers = self.config.get('n_body_layers', 3)
+        n_head_layers = self.config.get('n_head_layers', 1)
+        use_layer_norm = self.config.get('use_layer_norm', False)
         self.network = CentralizedQNetwork(
             num_agents=self.num_agents,
             actions_per_agent=self.actions_per_agent,
             hidden_dim=hidden_dim,
+            n_body_layers=n_body_layers,
+            n_head_layers=n_head_layers,
+            use_layer_norm=use_layer_norm,
         )
 
         # Initialize parameters
@@ -239,6 +245,9 @@ class DQN:
             n_episodes=n_episodes, eval_interval=eval_interval, eval_episodes=eval_episodes,
         )
 
+        timer = self.metrics_logger.timer
+        timer.start('total')
+
         # Model save paths within run directory
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
@@ -260,48 +269,55 @@ class DQN:
 
         pbar = tqdm(range(n_episodes), disable=not verbose)
         for episode in pbar:
-            # Reset environment
-            self._key, reset_key = jax.random.split(self._key)
-            obs, state = self.env.reset(reset_key)
+            sampled = timer.is_sampled(episode)
 
-            global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
-            action_masks = get_action_masks(self.env, state)
+            # Reset environment
+            with timer('env', episode=episode, enabled=sampled):
+                self._key, reset_key = jax.random.split(self._key)
+                obs, state = self.env.reset(reset_key)
+
+                global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
+                action_masks = get_action_masks(self.env, state)
 
             done = False
             episode_return = 0.0
             episode_length = 0
 
             while not done:
-                joint_action = self.select_action(global_state, action_masks)
+                with timer('action', episode=episode, enabled=sampled):
+                    joint_action = self.select_action(global_state, action_masks)
 
-                self._key, step_key = jax.random.split(self._key)
-                action_dict = {agent: joint_action[i] for i, agent in enumerate(agent_names)}
+                    self._key, step_key = jax.random.split(self._key)
+                    action_dict = {agent: joint_action[i] for i, agent in enumerate(agent_names)}
 
-                obs, state, rewards, dones, infos = self.env.step(step_key, state, action_dict)
+                with timer('env', episode=episode, enabled=sampled):
+                    obs, state, rewards, dones, infos = self.env.step(step_key, state, action_dict)
 
-                next_global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
-                next_action_masks = get_action_masks(self.env, state)
+                    next_global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
+                    next_action_masks = get_action_masks(self.env, state)
 
-                global_reward = get_global_reward(rewards, agent_names)
-                done = is_done(dones)
+                    global_reward = get_global_reward(rewards, agent_names)
+                    done = is_done(dones)
 
-                transition = {
-                    's': np.array(global_state),
-                    'a': np.array(joint_action),
-                    'r': global_reward,
-                    "s'": np.array(next_global_state),
-                    'done': done,
-                    'masks': np.array(action_masks),
-                    'next_masks': np.array(next_action_masks),
-                }
-                self.buffer.add(transition)
+                with timer('buffer.add', episode=episode, enabled=sampled):
+                    transition = {
+                        's': np.array(global_state),
+                        'a': np.array(joint_action),
+                        'r': global_reward,
+                        "s'": np.array(next_global_state),
+                        'done': done,
+                        'masks': np.array(action_masks),
+                        'next_masks': np.array(next_action_masks),
+                    }
+                    self.buffer.add(transition)
 
                 self.total_steps += 1
-                if self.total_steps % self.n_steps_for_Q_update == 0:
-                    self._update()
+                with timer('update', episode=episode, enabled=sampled):
+                    if self.total_steps % self.n_steps_for_Q_update == 0:
+                        self._update()
 
-                if self.total_steps % self.target_update_freq == 0:
-                    self._update_target_network()
+                    if self.total_steps % self.target_update_freq == 0:
+                        self._update_target_network()
 
                 global_state = next_global_state
                 action_masks = next_action_masks
@@ -325,7 +341,8 @@ class DQN:
                     print(f"\nSaved checkpoint at episode {episode + 1}")
 
             if eval_interval and (episode + 1) % eval_interval == 0:
-                metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
+                with timer('eval', episode=episode):
+                    metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
                 self.metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
                 if metrics['win_rate'] > best_win_rate:
                     best_win_rate = metrics['win_rate']
@@ -334,6 +351,7 @@ class DQN:
                         print(f"\nNew best model (win rate: {best_win_rate:.1%})")
 
         self.save(last_path)
+        timer.stop('total')
         self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
         self.metrics_logger.close()
         if verbose:

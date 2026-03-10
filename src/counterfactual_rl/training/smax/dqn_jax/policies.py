@@ -17,11 +17,14 @@ class CentralizedQNetwork(nn.Module):
     for each agent's action space via separate heads.
 
     Architecture:
-        Global State -> Shared MLP Body (3 layers) -> Per-Agent Q-Value Heads
+        Global State -> Shared MLP Body (n_body_layers) -> Per-Agent Q-Value Heads
     """
     num_agents: int
     actions_per_agent: int
     hidden_dim: int = 256
+    n_body_layers: int = 3
+    n_head_layers: int = 1
+    use_layer_norm: bool = False
 
     @nn.compact
     def __call__(self, global_state):
@@ -34,11 +37,24 @@ class CentralizedQNetwork(nn.Module):
         Returns:
             Q-values: (..., num_agents, actions_per_agent) array
         """
-        # Shared body — 3 layer MLP
-        x = nn.relu(nn.Dense(self.hidden_dim)(global_state))
-        x = nn.relu(nn.Dense(self.hidden_dim)(x))
-        x = nn.relu(nn.Dense(self.hidden_dim)(x))
+        # Shared body
+        x = global_state
+        for _ in range(self.n_body_layers):
+            x = nn.Dense(self.hidden_dim)(x)
+            if self.use_layer_norm:
+                x = nn.LayerNorm()(x)
+            x = nn.relu(x)
 
         # Per-agent Q-value heads
-        q_values = [nn.Dense(self.actions_per_agent)(x) for _ in range(self.num_agents)]
+        q_values = []
+        for _ in range(self.num_agents):
+            h = x
+            for _ in range(self.n_head_layers - 1):
+                h = nn.Dense(self.hidden_dim // 2)(h)
+                if self.use_layer_norm:
+                    h = nn.LayerNorm()(h)
+                h = nn.relu(h)
+            h = nn.Dense(self.actions_per_agent)(h)
+            q_values.append(h)
+
         return jnp.stack(q_values, axis=-2)  # (..., num_agents, actions_per_agent)
