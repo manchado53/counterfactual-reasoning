@@ -9,6 +9,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from .timing import TrainingTimer
+
 
 class MetricsLogger:
     """Handles metrics log file creation, writing, plotting, and closing."""
@@ -22,6 +24,7 @@ class MetricsLogger:
         os.makedirs(self.dir, exist_ok=True)
         self.path = os.path.join(self.dir, 'metrics.log')
 
+        self.timer = TrainingTimer(self.dir)
         self._file = open(self.path, 'w')
         self._file.write(f"# SMAX DQN Training Metrics ({backend}) - {datetime.now()}\n")
         self._file.write(f"# Scenario: {env_info['scenario']}, Obs: {env_info['obs_type']}\n")
@@ -155,6 +158,7 @@ class MetricsLogger:
         print(f"Saved training curves to {save_path}")
 
     def close(self):
-        """Close the log file and auto-generate eval curve plots."""
+        """Close the log file, timing, and auto-generate eval curve plots."""
         self._file.close()
+        self.timer.close()
         self.plot_eval_curves()

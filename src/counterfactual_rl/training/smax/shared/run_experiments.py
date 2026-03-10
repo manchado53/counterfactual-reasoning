@@ -103,6 +103,28 @@ def submit_experiment(experiment_name, dry_run=False):
             print(f"Warning: failed to submit summary job: {result.stderr.strip()}")
             print(f"Run manually: python summarize_experiment.py {manifest_path}")
 
+        # Submit timing comparison job (runs after all training jobs)
+        timing_cmd = [
+            'sbatch',
+            '--job-name=timing-compare',
+            f'--output={os.path.join(script_dir, "logs", "timing_%j.out")}',
+            '--partition=teaching',
+            '--nodes=1',
+            '--cpus-per-task=1',
+            '--mem=4G',
+            '--time=00:10:00',
+            f'--dependency=afterany:{dependency}',
+            '--wrap',
+            f'{python_bin} -m counterfactual_rl.training.smax.shared.timing.plot --manifest {manifest_path}',
+        ]
+        result = subprocess.run(timing_cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            timing_job_id = result.stdout.strip().split()[-1]
+            print(f"Timing comparison job {timing_job_id} queued (runs after all training jobs)")
+        else:
+            print(f"Warning: failed to submit timing job: {result.stderr.strip()}")
+            print(f"Run manually: python -m counterfactual_rl.training.smax.shared.timing.plot --manifest {manifest_path}")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Submit experiment sweeps to SLURM')
