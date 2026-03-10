@@ -8,7 +8,7 @@ DEFAULT_CONFIG = {
     'seed': 0,
 
     # Environment
-    'scenario': '5m_vs_6m',
+    'scenario': '3s5z',
     'obs_type': 'concatenated',  # 'world_state' or 'concatenated'
 
     # DQN hyperparameters
@@ -18,6 +18,9 @@ DEFAULT_CONFIG = {
     'epsilon_decay_episodes': 10000,  # Linear decay over this many episodes
     'alpha': 0.0005,
     'hidden_dim': 256,
+    'n_body_layers': 3,
+    'n_head_layers': 1,
+    'use_layer_norm': False,
 
     # Replay buffer
     'M': 100000,  # Buffer size
@@ -55,4 +58,24 @@ DEFAULT_CONFIG = {
     'cf_n_rollouts': 30,              # Rollouts per action
     'cf_top_k': 10,                   # Top-K actions from beam search
     'cf_gamma': 0.95,                 # Discount factor for rollouts
+
+    # Diagnostics
+    'diagnostics_plot_interval': 50,  # Generate diagnostic plot every N scoring passes
+}
+
+# Per-scenario architecture/training presets.
+# Applied as: DEFAULT_CONFIG < SCENARIO_PRESET < CONFIG_OVERRIDES_B64
+SCENARIO_PRESETS = {
+    # Small (3-5 allies)
+    '3m':        {'hidden_dim': 128, 'n_body_layers': 2, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
+    '2s3z':      {'hidden_dim': 128, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
+    '3s_vs_5z':  {'hidden_dim': 128, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
+    '5m_vs_6m':  {'hidden_dim': 192, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
+    # Medium (6-8 allies, mixed units)
+    '3s5z':      {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
+    '8m':        {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
+    '3s5z_vs_3s6z': {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
+    # Large (10+ allies)
+    '10m_vs_11m': {'hidden_dim': 512, 'n_body_layers': 4, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 128, 'alpha': 0.0001},
+    '25m':        {'hidden_dim': 512, 'n_body_layers': 4, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 128, 'alpha': 0.0001},
 }
