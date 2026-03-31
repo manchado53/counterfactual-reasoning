@@ -269,10 +269,10 @@ class DQN:
 
         pbar = tqdm(range(n_episodes), disable=not verbose)
         for episode in pbar:
-            sampled = timer.is_sampled(episode)
+            timer.begin_episode(episode)
 
             # Reset environment
-            with timer('env', episode=episode, enabled=sampled):
+            with timer('env', episode=episode):
                 self._key, reset_key = jax.random.split(self._key)
                 obs, state = self.env.reset(reset_key)
 
@@ -284,13 +284,13 @@ class DQN:
             episode_length = 0
 
             while not done:
-                with timer('action', episode=episode, enabled=sampled):
+                with timer('action', episode=episode):
                     joint_action = self.select_action(global_state, action_masks)
 
                     self._key, step_key = jax.random.split(self._key)
                     action_dict = {agent: joint_action[i] for i, agent in enumerate(agent_names)}
 
-                with timer('env', episode=episode, enabled=sampled):
+                with timer('env', episode=episode):
                     obs, state, rewards, dones, infos = self.env.step(step_key, state, action_dict)
 
                     next_global_state = get_global_state(obs, agent_names, self.env_info['obs_type'])
@@ -299,7 +299,7 @@ class DQN:
                     global_reward = get_global_reward(rewards, agent_names)
                     done = is_done(dones)
 
-                with timer('buffer.add', episode=episode, enabled=sampled):
+                with timer('buffer.add', episode=episode):
                     transition = {
                         's': np.array(global_state),
                         'a': np.array(joint_action),
@@ -312,7 +312,7 @@ class DQN:
                     self.buffer.add(transition)
 
                 self.total_steps += 1
-                with timer('update', episode=episode, enabled=sampled):
+                with timer('update', episode=episode):
                     if self.total_steps % self.n_steps_for_Q_update == 0:
                         self._update()
 
@@ -349,6 +349,8 @@ class DQN:
                     self.save(best_path)
                     if verbose:
                         print(f"\nNew best model (win rate: {best_win_rate:.1%})")
+
+            timer.flush_episode()
 
         self.save(last_path)
         timer.stop('total')
