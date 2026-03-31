@@ -62,8 +62,13 @@ def config_label(overrides):
     mu = overrides.get('mu', '')
 
     if algo == 'consequence-dqn' and metric:
+        mixing = overrides.get('priority_mixing', 'additive')
         label = f"consequence ({metric}"
-        if mu != '':
+        if mixing == 'multiplicative':
+            mu_c = overrides.get('mu_c', 1.0)
+            mu_delta = overrides.get('mu_delta', 1.0)
+            label += f", mult mu_c={mu_c} mu_d={mu_delta}"
+        elif mu != '':
             label += f", mu={mu}"
         label += ")"
     elif algo == 'dqn':

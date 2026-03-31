@@ -51,7 +51,7 @@ def submit_experiment(experiment_name, dry_run=False):
         encoded = base64.b64encode(overrides_json.encode()).decode()
         cmd = [
             'sbatch',
-            f'--export=ALL,CONFIG_OVERRIDES_B64={encoded}',
+            f'--export=CONFIG_OVERRIDES_B64={encoded}',
             script_path,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
