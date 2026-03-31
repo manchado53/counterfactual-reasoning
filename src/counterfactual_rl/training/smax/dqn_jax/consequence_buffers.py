@@ -1,4 +1,4 @@
-"""Consequence-weighted Prioritized Experience Replay buffer (Algorithm 2, Equations 2-4)."""
+"""Consequence-weighted Prioritized Experience Replay buffer (Algorithm 2, Equations 2-5)."""
 
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
@@ -8,8 +8,13 @@ class ConsequenceReplayBuffer:
     """
     Prioritized replay buffer with consequence-weighted priorities.
 
-    Combines TD-error priorities with consequence scores using mixing parameter mu:
-        p(j) = mu * p^C(j) + (1-mu) * p^delta(j)     (Equation 4)
+    Supports two mixing modes:
+
+    Additive (Eq 4):
+        p(j) = mu * p^C(j) + (1-mu) * p^delta(j)
+
+    Multiplicative (Eq 5):
+        p(j) = p^C(j)^mu_C * p^delta(j)^mu_delta / Z
 
     where:
         p^delta(j) = (m^delta_j + eps)^beta / sum    (Equation 2)
@@ -23,12 +28,22 @@ class ConsequenceReplayBuffer:
         beta: float = 0.25,
         max_priority: float = 1.0,
         mu: float = 0.5,
+        priority_mixing: str = 'additive',
+        mu_c: float = 1.0,
+        mu_delta: float = 1.0,
     ):
+        if priority_mixing not in ('additive', 'multiplicative'):
+            raise ValueError(
+                f"priority_mixing must be 'additive' or 'multiplicative', got '{priority_mixing}'"
+            )
         self.capacity = capacity
         self.eps = eps
         self.beta = beta
         self.max_priority = max_priority
         self.mu = mu
+        self.priority_mixing = priority_mixing
+        self.mu_c = mu_c
+        self.mu_delta = mu_delta
 
         self.buffer: List[Dict] = []
         self.consequence_scores: List[float] = []
@@ -80,7 +95,7 @@ class ConsequenceReplayBuffer:
         self._cached_probs = None
 
     def _compute_priorities(self) -> np.ndarray:
-        """Compute combined priorities (Equations 2-4)."""
+        """Compute combined priorities (Equations 2-5)."""
         if self._cached_probs is not None:
             return self._cached_probs
 
@@ -99,9 +114,19 @@ class ConsequenceReplayBuffer:
         p_td_raw = (td + self.eps) ** self.beta
         p_td = p_td_raw / p_td_raw.sum()
 
-        # Eq 4: combined
-        combined = self.mu * p_c + (1.0 - self.mu) * p_td
-        combined /= combined.sum()
+        if self.priority_mixing == 'multiplicative':
+            # Eq 5: p(j) = p^C(j)^mu_C * p^delta(j)^mu_delta / Z
+            combined = (p_c ** self.mu_c) * (p_td ** self.mu_delta)
+        else:
+            # Eq 4: p(j) = mu * p^C(j) + (1-mu) * p^delta(j)
+            combined = self.mu * p_c + (1.0 - self.mu) * p_td
+
+        # Underflow guard: fall back to uniform if all priorities collapse to 0
+        total = combined.sum()
+        if total == 0.0:
+            combined = np.ones_like(combined) / len(combined)
+        else:
+            combined /= total
 
         self._cached_probs = combined
         return combined

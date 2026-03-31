@@ -38,7 +38,7 @@ DEFAULT_CONFIG = {
     },
 
     # Training
-    'n_episodes': 30000,
+    'n_episodes': 50000,
     'save_every': 500,
 
     # Periodic evaluation during training
@@ -50,7 +50,10 @@ DEFAULT_CONFIG = {
 
     # Consequence-weighted PER (Algorithm 2) — only used when algorithm='consequence-dqn'
     'mu': 0.5,                        # Weight: 0=pure TD, 1=pure consequence
-    'score_interval': 100,              # Score every N Q-updates (1 = matches paper)
+    'priority_mixing': 'additive',    # 'additive' (Eq 4) or 'multiplicative' (Eq 5)
+    'mu_c': 1.0,                      # Multiplicative: consequence exponent
+    'mu_delta': 1.0,                  # Multiplicative: TD-error exponent
+    'score_interval': 200,              # Score every N Q-updates (1 = matches paper)
     'n_score_sample': 256,            # B^C_est: transitions scored per pass
     'consequence_metric': 'wasserstein',  # 'kl_divergence''jensen_shannon''total_variation''wasserstein'
     'consequence_aggregation': 'weighted_mean',
@@ -60,7 +63,9 @@ DEFAULT_CONFIG = {
     'cf_gamma': 0.95,                 # Discount factor for rollouts
 
     # Diagnostics
+    'diagnostics_enabled': False,      # Log per-scoring-pass diagnostics (expensive: recomputes all 4 metrics)
     'diagnostics_plot_interval': 50,  # Generate diagnostic plot every N scoring passes
+    'diagnostics_n_step_slices': 10,  # Number of training-phase rows in step-score plot
 }
 
 # Per-scenario architecture/training presets.
@@ -72,7 +77,7 @@ SCENARIO_PRESETS = {
     '3s_vs_5z':  {'hidden_dim': 128, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
     '5m_vs_6m':  {'hidden_dim': 192, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': False, 'B': 32, 'alpha': 0.0005},
     # Medium (6-8 allies, mixed units)
-    '3s5z':      {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
+    '3s5z':      {'hidden_dim': 516, 'n_body_layers': 3, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
     '8m':        {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 1, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
     '3s5z_vs_3s6z': {'hidden_dim': 256, 'n_body_layers': 3, 'n_head_layers': 2, 'use_layer_norm': True, 'B': 64, 'alpha': 0.0003},
     # Large (10+ allies)

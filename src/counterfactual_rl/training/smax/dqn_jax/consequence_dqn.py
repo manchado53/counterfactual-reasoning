@@ -55,6 +55,9 @@ class ConsequenceDQN(DQN):
             beta=per_params.get('beta', 0.25),
             max_priority=per_params.get('maximum_priority', 1.0),
             mu=self.config.get('mu', 0.5),
+            priority_mixing=self.config.get('priority_mixing', 'additive'),
+            mu_c=self.config.get('mu_c', 1.0),
+            mu_delta=self.config.get('mu_delta', 1.0),
         )
 
         # Consequence scoring params
@@ -70,6 +73,7 @@ class ConsequenceDQN(DQN):
         self.cf_gamma = self.config.get('cf_gamma', 0.99)
 
         self.q_update_count = 0
+        self.diagnostics_enabled = self.config.get('diagnostics_enabled', True)
 
         # Batched rollout function (built once, params passed dynamically)
         self._compiled_batched_fn = None
@@ -283,14 +287,15 @@ class ConsequenceDQN(DQN):
             scored_buffer_indices = indices[np.array(valid_indices)]
             self.buffer.update_consequence_scores(scored_buffer_indices, scores)
 
-            episode_steps = np.array([
-                transitions[i].get('episode_step', 0) for i in valid_indices
-            ])
-            self.diagnostics.log_scoring_pass(
-                self.q_update_count, scores, returns_np,
-                all_actual_actions, all_actions, all_action_probs, self.buffer,
-                episode_steps=episode_steps,
-            )
+            if self.diagnostics_enabled:
+                episode_steps = np.array([
+                    transitions[i].get('episode_step', 0) for i in valid_indices
+                ])
+                self.diagnostics.log_scoring_pass(
+                    self.q_update_count, scores, returns_np,
+                    all_actual_actions, all_actions, all_action_probs, self.buffer,
+                    episode_steps=episode_steps,
+                )
 
     def _update(self):
         """Perform update with consequence scoring (Algorithm 2, lines 10-18)."""
@@ -355,7 +360,10 @@ class ConsequenceDQN(DQN):
         self.diagnostics = ConsequenceDiagnostics(
             self.metrics_logger.dir, metric_name=self.consequence_metric,
             plot_interval=self.config.get('diagnostics_plot_interval', 50),
+            n_step_slices=self.config.get('diagnostics_n_step_slices', 10),
         )
+
+        np.random.seed(self.config.get('seed', 0))
 
         # Model save paths within run directory
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
@@ -370,7 +378,15 @@ class ConsequenceDQN(DQN):
             print(f"  Actions per agent: {self.actions_per_agent}")
             print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} "
                   f"over {self.epsilon_decay_episodes} episodes")
-            print(f"  mu: {self.config.get('mu', 0.5)}, metric: {self.consequence_metric}")
+            mixing = self.config.get('priority_mixing', 'additive')
+            if mixing == 'multiplicative':
+                print(f"  Priority mixing: multiplicative (Eq 5), "
+                      f"mu_c={self.config.get('mu_c', 1.0)}, "
+                      f"mu_delta={self.config.get('mu_delta', 1.0)}")
+            else:
+                print(f"  Priority mixing: additive (Eq 4), "
+                      f"mu={self.config.get('mu', 0.5)}")
+            print(f"  Metric: {self.consequence_metric}")
             print(f"  Score interval: {self.score_interval}, "
                   f"Score sample: {self.n_score_sample}")
             print(f"  CF rollouts: {self.cf_n_rollouts}, CF horizon: {self.cf_horizon}, "
@@ -382,10 +398,10 @@ class ConsequenceDQN(DQN):
         pbar = tqdm(range(n_episodes), disable=not verbose)
         for episode in pbar:
             self._current_episode = episode
-            sampled = timer.is_sampled(episode)
+            timer.begin_episode(episode)
 
             # Reset environment
-            with timer('env', episode=episode, enabled=sampled):
+            with timer('env', episode=episode):
                 self._key, reset_key = jax.random.split(self._key)
                 obs, state = self.env.reset(reset_key)
 
@@ -401,7 +417,7 @@ class ConsequenceDQN(DQN):
                 saved_state = state
                 saved_obs = obs
 
-                with timer('action', episode=episode, enabled=sampled):
+                with timer('action', episode=episode):
                     joint_action = self.select_action(global_state, action_masks)
 
                     self._key, step_key = jax.random.split(self._key)
@@ -409,7 +425,7 @@ class ConsequenceDQN(DQN):
                         agent: joint_action[i] for i, agent in enumerate(agent_names)
                     }
 
-                with timer('env', episode=episode, enabled=sampled):
+                with timer('env', episode=episode):
                     obs, state, rewards, dones_dict, infos = self.env.step(
                         step_key, state, action_dict
                     )
@@ -422,7 +438,7 @@ class ConsequenceDQN(DQN):
                     global_reward = get_global_reward(rewards, agent_names)
                     done = is_done(dones_dict)
 
-                with timer('buffer.add', episode=episode, enabled=sampled):
+                with timer('buffer.add', episode=episode):
                     transition = {
                         's': np.array(global_state),
                         'a': np.array(joint_action),
@@ -437,7 +453,7 @@ class ConsequenceDQN(DQN):
                     self.buffer.add(transition, jax_state=saved_state, jax_obs=saved_obs)
 
                 self.total_steps += 1
-                with timer('update', episode=episode, enabled=sampled):
+                with timer('update', episode=episode):
                     if self.total_steps % self.n_steps_for_Q_update == 0:
                         self._update()
 
@@ -477,6 +493,8 @@ class ConsequenceDQN(DQN):
                     self.save(best_path)
                     if verbose:
                         print(f"\nNew best model (win rate: {best_win_rate:.1%})")
+
+            timer.flush_episode()
 
         self.save(last_path)
         timer.stop('total')
