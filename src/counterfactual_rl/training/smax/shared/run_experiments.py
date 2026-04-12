@@ -43,8 +43,11 @@ def submit_experiment(experiment_name, dry_run=False):
 
     # Submit all jobs
     manifest = {}
-    experiments_dir = os.path.join(script_dir, 'experiments')
-    os.makedirs(experiments_dir, exist_ok=True)
+    date_str = date.today().isoformat()          # e.g. "2026-04-12"
+    month_str = date_str[:7]                     # e.g. "2026-04"
+    exp_name = f"{experiment_name}_{date_str}"   # e.g. "full_algorithm_comparison_2026-04-12"
+    exp_dir = os.path.join(script_dir, 'experiments', month_str, exp_name)
+    os.makedirs(exp_dir, exist_ok=True)
 
     for i, overrides in enumerate(runs):
         overrides_json = json.dumps(overrides)
@@ -66,10 +69,7 @@ def submit_experiment(experiment_name, dry_run=False):
         print(f"  [{i+1:3d}] Job {job_id}: {overrides}")
 
     # Save manifest
-    manifest_path = os.path.join(
-        experiments_dir,
-        f"{experiment_name}_{date.today().isoformat()}.json"
-    )
+    manifest_path = os.path.join(exp_dir, f"{exp_name}.json")
     with open(manifest_path, 'w') as f:
         json.dump(manifest, f, indent=2)
 
