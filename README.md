@@ -21,9 +21,16 @@ A **high consequence score** means: *"There existed an alternative action that w
   - SMAC (StarCraft Multi-Agent Challenge)
   - SMAX (JaxMARL - JAX-accelerated SMAC)
 
+- **Consequence-weighted DQN Training (Algorithm 2)**
+  - Full training pipeline integrating counterfactual consequence scoring into DQN
+  - Prioritized Experience Replay weighted by both TD-error and consequence score
+  - Additive (Eq 4) and multiplicative (Eq 5) priority mixing modes
+  - Circular replay buffer for O(1) add/eviction (no per-step memory shifts)
+  - SLURM experiment sweep infrastructure for hyperparameter search
+
 - **Efficient Multi-Agent Analysis**
   - Beam search for top-K joint actions (avoids exponential enumeration)
-  - JAX-vectorized rollouts (vmap/jit) for 100x+ speedup
+  - JAX triple-vmap rollouts (transitions × actions × rollouts) compiled via JIT
 
 - **Four Divergence Metrics**
   - KL Divergence (asymmetric, unbounded)
@@ -280,7 +287,64 @@ How to combine divergences across alternative actions into a single score:
 - **`mean`**: "On average, how different are alternatives?"
 - **`weighted_mean`**: "Weighted by how likely I was to take each alternative" — most principled for policy analysis
 
-## Running on SLURM (HPC)
+## Training Consequence-weighted DQN
+
+### Running a single training job locally
+
+```bash
+conda activate counterfactual
+cd src/counterfactual_rl/training/smax/shared
+
+CONFIG_OVERRIDES='{"scenario":"3m","n_episodes":1000,"algorithm":"consequence-dqn"}' \
+    python -m counterfactual_rl.training.smax.shared.train
+```
+
+Results are written to `runs/<job_id>/`:
+- `timing.jsonl` — per-component timing records
+- `metrics.log` — win rate, return, episode length per eval interval
+- `training_curves.png` — return and episode length over training
+- `timing_breakdown.png` / `timing_timeseries.png` — profiling plots
+- `last.pkl` / `best.pkl` — saved model weights
+
+### Running experiment sweeps on SLURM
+
+```bash
+cd src/counterfactual_rl/training/smax/shared
+
+# Preview jobs without submitting
+python run_experiments.py metric_sweep --dry-run
+
+# Submit all jobs
+python run_experiments.py metric_sweep
+python run_experiments.py algorithm_comparison
+python run_experiments.py mu_sweep
+```
+
+Available experiments: `smoke_test`, `metric_sweep`, `algorithm_comparison`, `mu_sweep`.
+
+### Key configuration parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `scenario` | `3s5z` | SMAX map: `3m`, `2s3z`, `5m_vs_6m`, `3s5z`, etc. |
+| `algorithm` | `consequence-dqn` | `dqn-uniform`, `dqn`, or `consequence-dqn` |
+| `mu` | `0.5` | Priority blend: 0 = pure TD, 1 = pure consequence |
+| `priority_mixing` | `additive` | `additive` (Eq 4) or `multiplicative` (Eq 5) |
+| `consequence_metric` | `wasserstein` | `kl_divergence`, `jensen_shannon`, `total_variation`, `wasserstein` |
+| `score_interval` | `200` | Q-updates between consequence scoring passes |
+| `cf_horizon` | `30` | Counterfactual rollout horizon |
+| `cf_n_rollouts` | `30` | Rollouts per action per transition |
+| `cf_top_k` | `10` | Top-K actions from beam search |
+| `M` | `100000` | Replay buffer capacity |
+
+### Running on SLURM (HPC)
+
+```bash
+cd src/counterfactual_rl/training/smax/shared
+sbatch train_smax_dqn.sh
+```
+
+Legacy counterfactual analysis scripts:
 
 ```bash
 cd src/counterfactual_rl/simulations
@@ -314,6 +378,23 @@ Results saved to `runs/smax_vectorized_run_<timestamp>/`:
    ```
 
 3. **Use existing analyzers** - no changes needed!
+
+## Known Bugs and Defects
+
+See `bugs.md` for full detail. Summary of open issues:
+
+| # | File | Severity | Description |
+|---|---|---|---|
+| 1 | `consequence_diagnostics.py:118` | Low | `buffer_scored_frac` always reports ~100% — uses wrong sentinel (`max_priority`) instead of initial consequence score (`0.0`) |
+| 2 | `consequence_dqn.py:76` | Low | `diagnostics_enabled` fallback is `True` but `DEFAULT_CONFIG` default is `False` — partial configs behave unexpectedly |
+| 4 | `config.py:80` | Low | `3s5z` preset uses `hidden_dim=516` — likely typo for `512` (all other presets use powers of 2) |
+| 6 | `experiments.py:116` | Cosmetic | Run count comment (`57 runs`) is stale after `MU_SWEEP` was narrowed to `3m` only |
+| 7 | `consequence_buffers.py:152` | Medium | IS weights not normalized by batch max — rare high-priority transitions can produce very large weights, potentially destabilizing updates |
+| 8 | `consequence_dqn.py:208` | Low | Duplicate action padding for under-full action sets wastes JIT compute (rolled-out returns discarded silently) |
+
+**Fixed:**
+- Bug 3: `ConsequenceDQN.learn()` now seeds NumPy RNG for reproducibility
+- Bug 5: `ConsequenceReplayBuffer.add()` replaced `list.pop(0)` (O(N)) with circular buffer (O(1)) — eliminated 43% of total training time in profiling
 
 ## Documentation
 
