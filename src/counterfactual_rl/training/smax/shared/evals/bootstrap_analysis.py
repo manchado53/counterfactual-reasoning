@@ -188,8 +188,7 @@ def make_figure(groups, scenario, metric, focus_checkpoint,
     # ── Figure layout: 2×2 grid ────────────────────────────────────────────
     fig = plt.figure(figsize=(18, 12))
     fig.patch.set_facecolor('#0f0f0f')
-    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.42, wspace=0.32,
-                           top=0.90, bottom=0.07, left=0.06, right=0.97)
+    gs = gridspec.GridSpec(2, 2, figure=fig)
     ax_curves  = fig.add_subplot(gs[0, 0])
     ax_dist    = fig.add_subplot(gs[0, 1])
     ax_prob_p3 = fig.add_subplot(gs[1, 0])   # additive
@@ -362,7 +361,8 @@ def make_figure(groups, scenario, metric, focus_checkpoint,
     manifest_dir = os.path.dirname(os.path.abspath(manifest_paths[0]))
     base_name = os.path.splitext(os.path.basename(manifest_paths[0]))[0]
     save_path = os.path.join(manifest_dir, f'{base_name}_{scenario}_{metric}_bootstrap.png')
-    plt.savefig(save_path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+    fig.subplots_adjust(top=0.93, bottom=0.07, left=0.06, right=0.97, hspace=0.42, wspace=0.32)
+    plt.savefig(save_path, dpi=150, facecolor=fig.get_facecolor())
     plt.close(fig)
     print(f"  Saved: {save_path}")
 
