@@ -4,17 +4,31 @@ from itertools import product
 
 
 def generate_runs(experiment):
-    """Expand sweep dict into flat list of config override dicts."""
-    sweep = experiment.get('sweep', {})
+    """Expand experiment into flat list of config override dicts.
+
+    Supports two forms:
+    - sweep/fixed: cartesian product of sweep values merged with fixed params
+    - runs/fixed: explicit list of per-run dicts merged with fixed params
+    """
     fixed = experiment.get('fixed', {})
+
+    if 'runs' in experiment:
+        result = []
+        for run in experiment['runs']:
+            overrides = dict(fixed)
+            overrides.update(run)
+            result.append(overrides)
+        return result
+
+    sweep = experiment.get('sweep', {})
     keys = list(sweep.keys())
     values = [sweep[k] for k in keys]
-    runs = []
+    result = []
     for combo in product(*values):
         overrides = dict(zip(keys, combo))
         overrides.update(fixed)
-        runs.append(overrides)
-    return runs
+        result.append(overrides)
+    return result
 
 
 # --- Experiments ---
@@ -104,6 +118,95 @@ MIXING_COMPARISON = {
               'n_episodes': 25000, 'epsilon_decay_episodes': 10000, 'score_interval': 100},
 }
 
+# 8. Full algorithm comparison — vanilla DQN, PER, additive, multiplicative (12 runs)
+FULL_ALGORITHM_COMPARISON = {
+    'name': 'full_algorithm_comparison',
+    'runs': [
+        {'algorithm': 'dqn-uniform',     'seed': 0},
+        {'algorithm': 'dqn-uniform',     'seed': 1},
+        {'algorithm': 'dqn-uniform',     'seed': 2},
+        {'algorithm': 'dqn',             'seed': 0},
+        {'algorithm': 'dqn',             'seed': 1},
+        {'algorithm': 'dqn',             'seed': 2},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',       'seed': 0},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',       'seed': 1},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',       'seed': 2},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': 0},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': 1},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': 2},
+    ],
+    'fixed': {
+        'scenario': '3m',
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 50000,
+        'epsilon_decay_episodes': 15000,
+        'score_interval': 200,
+    },
+}
+
+# 9. Full algorithm comparison on 8m — vanilla DQN, PER, additive, multiplicative (4 runs, 1 seed)
+FULL_ALGORITHM_COMPARISON_8M = {
+    'name': 'full_algorithm_comparison_8m',
+    'runs': [
+        {'algorithm': 'dqn-uniform'},
+        {'algorithm': 'dqn'},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive'},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative'},
+    ],
+    'fixed': {
+        'scenario': '8m',
+        'seed': 0,
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 50000,
+        'epsilon_decay_episodes': 20000,
+        'score_interval': 200,
+        'cf_n_rollouts': 50,
+        'cf_horizon': 45,
+        'gif_interval': 5000,
+    },
+}
+
+# 10. Bootstrap validation — 4 algorithms x 10 seeds, short runs to verify bootstrap analysis (40 runs)
+BOOTSTRAP_VALIDATION = {
+    'name': 'bootstrap_validation',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                    'seed': s} for s in range(10)],
+        *[{'algorithm': 'dqn',                                            'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'scenario': '3m',
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 2000,
+        'epsilon_decay_episodes': 1500,
+        'eval_interval': 100,
+        'score_interval': 50,
+    },
+}
+
+# 11. Full algorithm comparison, 10 seeds — 4 algorithms x 10 seeds, 25k episodes (40 runs)
+FULL_ALGORITHM_COMPARISON_10SEEDS = {
+    'name': 'full_algorithm_comparison_10seeds',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                         'seed': s} for s in range(10)],
+        *[{'algorithm': 'dqn',                                                 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',      'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'scenario': '3m',
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 25000,
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 200,
+    },
+}
+
 EXPERIMENTS = {
     'metric_sweep': METRIC_SWEEP,
     'mu_sweep': MU_SWEEP,
@@ -112,8 +215,12 @@ EXPERIMENTS = {
     'algorithm_comparison_3s5z': ALGORITHM_COMPARISON_3S5Z,
     'smoke_test': SMOKE_TEST,
     'mixing_comparison': MIXING_COMPARISON,
+    'full_algorithm_comparison': FULL_ALGORITHM_COMPARISON,
+    'full_algorithm_comparison_8m': FULL_ALGORITHM_COMPARISON_8M,
+    'bootstrap_validation': BOOTSTRAP_VALIDATION,
+    'full_algorithm_comparison_10seeds': FULL_ALGORITHM_COMPARISON_10SEEDS,
 }
-# Total: 36 + 12 + 9 = 57 runs (+ 2 smoke test + 6 mixing comparison)
+# Total: 36 + 12 + 9 = 57 runs (+ 2 smoke test + 6 mixing comparison + 12 full_algorithm_comparison)
 #
 # Run order:
 #   1. metric_sweep → find best metric           [DONE: kl_divergence]
