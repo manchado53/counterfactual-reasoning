@@ -15,7 +15,7 @@ from .timing import TrainingTimer
 class MetricsLogger:
     """Handles metrics log file creation, writing, plotting, and closing."""
 
-    HEADER_COLUMNS = f"{'episode':>8} {'epsilon':>8} {'win_rate':>10} {'avg_allies':>12} {'avg_return':>12} {'avg_length':>12}\n"
+    HEADER_COLUMNS = f"{'episode':>8} {'updates':>10} {'epsilon':>8} {'win_rate':>10} {'avg_allies':>12} {'avg_return':>12} {'avg_length':>12}\n"
 
     def __init__(self, backend: str, config: dict, env_info: dict,
                  n_episodes: int, eval_interval, eval_episodes: int):
@@ -38,21 +38,23 @@ class MetricsLogger:
 
         # In-memory accumulation for eval curve plotting
         self._episodes = []
+        self._updates = []
         self._epsilons = []
         self._win_rates = []
         self._avg_allies = []
         self._avg_returns = []
         self._avg_lengths = []
 
-    def log_eval(self, episode: int, epsilon: float, metrics: dict):
+    def log_eval(self, episode: int, model_updates: int, epsilon: float, metrics: dict):
         self._file.write(
-            f"{episode:>8d} {epsilon:>8.3f} {metrics['win_rate']:>10.1%} "
+            f"{episode:>8d} {model_updates:>10d} {epsilon:>8.3f} {metrics['win_rate']:>10.1%} "
             f"{metrics['avg_allies_alive']:>12.2f} {metrics['avg_return']:>12.2f} "
             f"{metrics['avg_length']:>12.1f}\n"
         )
         self._file.flush()
 
         self._episodes.append(episode)
+        self._updates.append(model_updates)
         self._epsilons.append(epsilon)
         self._win_rates.append(metrics['win_rate'])
         self._avg_allies.append(metrics['avg_allies_alive'])
@@ -67,6 +69,7 @@ class MetricsLogger:
         save_path = os.path.join(self.dir, 'eval_curves.png')
 
         episodes = np.array(self._episodes)
+        updates = np.array(self._updates)
         win_rates = np.array(self._win_rates) * 100
         avg_returns = np.array(self._avg_returns)
         avg_allies = np.array(self._avg_allies)
@@ -77,8 +80,8 @@ class MetricsLogger:
 
         # Win Rate
         ax = axes[0, 0]
-        ax.plot(episodes, win_rates, 'o-', color='#2196F3', markersize=2, linewidth=1)
-        ax.set_xlabel('Episode')
+        ax.plot(updates, win_rates, 'o-', color='#2196F3', markersize=2, linewidth=1)
+        ax.set_xlabel('Model Updates')
         ax.set_ylabel('Win Rate (%)')
         ax.set_title('Win Rate')
         ax.set_ylim(-5, 105)
@@ -86,16 +89,16 @@ class MetricsLogger:
 
         # Average Return
         ax = axes[0, 1]
-        ax.plot(episodes, avg_returns, 'o-', color='#4CAF50', markersize=2, linewidth=1)
-        ax.set_xlabel('Episode')
+        ax.plot(updates, avg_returns, 'o-', color='#4CAF50', markersize=2, linewidth=1)
+        ax.set_xlabel('Model Updates')
         ax.set_ylabel('Avg Return')
         ax.set_title('Average Return')
         ax.grid(True, alpha=0.3)
 
         # Avg Allies Alive
         ax = axes[1, 0]
-        ax.plot(episodes, avg_allies, 'o-', color='#FF9800', markersize=2, linewidth=1)
-        ax.set_xlabel('Episode')
+        ax.plot(updates, avg_allies, 'o-', color='#FF9800', markersize=2, linewidth=1)
+        ax.set_xlabel('Model Updates')
         ax.set_ylabel('Avg Allies Alive')
         ax.set_title('Average Allies Alive')
         ax.grid(True, alpha=0.3)
