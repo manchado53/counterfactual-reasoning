@@ -27,6 +27,8 @@ from ..shared.utils import (
     get_global_state,
     get_global_reward,
     is_done,
+    record_episode,
+    save_gameplay_gif,
 )
 
 
@@ -238,6 +240,7 @@ class DQN:
         save_every = self.config.get('save_every', 500)
         eval_interval = self.config.get('eval_interval', None)
         eval_episodes = self.config.get('eval_episodes', 20)
+        gif_interval = self.config.get('gif_interval', None)
 
         # Set up metrics log and run directory
         self.metrics_logger = MetricsLogger(
@@ -255,6 +258,8 @@ class DQN:
 
         np.random.seed(self.config.get('seed', 0))
 
+        devices = jax.devices()
+        backend = jax.default_backend()
         if verbose:
             print(f"Training JAX DQN on SMAX {self.env_info['scenario']}")
             print(f"  Obs type: {self.env_info['obs_type']}")
@@ -262,7 +267,8 @@ class DQN:
             print(f"  Num agents: {self.num_agents}")
             print(f"  Actions per agent: {self.actions_per_agent}")
             print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} episodes")
-            print(f"  Backend: JAX")
+            print(f"  JAX backend: {backend}")
+            print(f"  JAX devices: {devices}")
             print(f"  Metrics dir: {self.metrics_logger.dir}")
 
         agent_names = self.env_info['agent_names']
@@ -343,12 +349,18 @@ class DQN:
             if eval_interval and (episode + 1) % eval_interval == 0:
                 with timer('eval', episode=episode):
                     metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
-                self.metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
+                model_updates = self.total_steps // self.n_steps_for_Q_update
+                self.metrics_logger.log_eval(episode + 1, model_updates, self.epsilon, metrics)
                 if metrics['win_rate'] > best_win_rate:
                     best_win_rate = metrics['win_rate']
                     self.save(best_path)
                     if verbose:
                         print(f"\nNew best model (win rate: {best_win_rate:.1%})")
+
+            if gif_interval and (episode + 1) % gif_interval == 0:
+                gif_path = os.path.join(self.metrics_logger.dir, f'replay_ep{episode + 1}.gif')
+                state_seq, _, _ = record_episode(self)
+                save_gameplay_gif(self.env, state_seq, gif_path)
 
             timer.flush_episode()
 

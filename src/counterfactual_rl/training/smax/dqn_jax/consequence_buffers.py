@@ -19,6 +19,8 @@ class ConsequenceReplayBuffer:
     where:
         p^delta(j) = (m^delta_j + eps)^beta / sum    (Equation 2)
         p^C(j)     = (m^C_j + eps)^beta / sum        (Equation 3)
+
+    Internally uses a circular buffer with pre-allocated arrays for O(1) add/eviction.
     """
 
     def __init__(
@@ -45,19 +47,23 @@ class ConsequenceReplayBuffer:
         self.mu_c = mu_c
         self.mu_delta = mu_delta
 
-        self.buffer: List[Dict] = []
-        self.consequence_scores: List[float] = []
-        self.td_magnitudes: List[float] = []
-        self.jax_states: List[Any] = []
-        self.jax_obs: List[Any] = []
+        # Circular buffer: pre-allocated to capacity, no shifting on eviction
+        self.buffer: List[Any] = [None] * capacity
+        self.jax_states: List[Any] = [None] * capacity
+        self.jax_obs: List[Any] = [None] * capacity
+        self.consequence_scores: np.ndarray = np.zeros(capacity, dtype=np.float64)
+        self.td_magnitudes: np.ndarray = np.zeros(capacity, dtype=np.float64)
+
+        self._write_pos: int = 0   # next slot to write
+        self._size: int = 0        # number of valid entries
 
         self._cached_probs: Optional[np.ndarray] = None
 
     def __len__(self) -> int:
-        return len(self.buffer)
+        return self._size
 
     def can_sample(self, batch_size: int) -> bool:
-        return len(self.buffer) >= batch_size
+        return self._size >= batch_size
 
     def add(self, transition: Dict, jax_state: Any = None, jax_obs: Any = None):
         """
@@ -65,32 +71,26 @@ class ConsequenceReplayBuffer:
 
         m^C_t  = mean(existing consequence_scores), or 0 if empty
         m^d_t  = max(existing td_magnitudes),       or max_priority if empty
+
+        O(1): writes at _write_pos, advances pointer mod capacity.
         """
-        # Initial consequence score: mean of existing (line 7)
-        if self.consequence_scores:
-            init_consequence = float(np.mean(self.consequence_scores))
+        if self._size > 0:
+            valid = slice(None) if self._size == self.capacity else slice(self._size)
+            init_consequence = float(np.mean(self.consequence_scores[valid]))
+            init_td = float(np.max(self.td_magnitudes[valid]))
         else:
             init_consequence = 0.0
-
-        # Initial TD magnitude: max of existing (line 8)
-        if self.td_magnitudes:
-            init_td = float(np.max(self.td_magnitudes))
-        else:
             init_td = self.max_priority
 
-        self.buffer.append(transition)
-        self.consequence_scores.append(init_consequence)
-        self.td_magnitudes.append(init_td)
-        self.jax_states.append(jax_state)
-        self.jax_obs.append(jax_obs)
+        pos = self._write_pos
+        self.buffer[pos] = transition
+        self.jax_states[pos] = jax_state
+        self.jax_obs[pos] = jax_obs
+        self.consequence_scores[pos] = init_consequence
+        self.td_magnitudes[pos] = init_td
 
-        # FIFO eviction if over capacity (line 9)
-        if len(self.buffer) > self.capacity:
-            self.buffer.pop(0)
-            self.consequence_scores.pop(0)
-            self.td_magnitudes.pop(0)
-            self.jax_states.pop(0)
-            self.jax_obs.pop(0)
+        self._write_pos = (pos + 1) % self.capacity
+        self._size = min(self._size + 1, self.capacity)
 
         self._cached_probs = None
 
@@ -99,8 +99,9 @@ class ConsequenceReplayBuffer:
         if self._cached_probs is not None:
             return self._cached_probs
 
-        cs = np.array(self.consequence_scores, dtype=np.float64)
-        td = np.array(self.td_magnitudes, dtype=np.float64)
+        valid = slice(None) if self._size == self.capacity else slice(self._size)
+        cs = self.consequence_scores[valid].copy()
+        td = self.td_magnitudes[valid].copy()
 
         # Safety: replace any NaN/inf with 0 before priority computation
         cs = np.nan_to_num(cs, nan=0.0, posinf=0.0, neginf=0.0)
@@ -139,26 +140,26 @@ class ConsequenceReplayBuffer:
             (transitions, indices, importance_sampling_weights)
             IS weights: w_j = (p(j) * |D|)^{-1}  (line 14)
         """
-        if len(self.buffer) < batch_size:
-            raise ValueError(f"Not enough samples ({len(self.buffer)} < {batch_size})")
+        if self._size < batch_size:
+            raise ValueError(f"Not enough samples ({self._size} < {batch_size})")
 
         probs = self._compute_priorities()
-        indices = np.random.choice(len(self.buffer), size=batch_size, p=probs)
+        indices = np.random.choice(self._size, size=batch_size, p=probs)
 
         transitions = [self.buffer[idx] for idx in indices]
 
         # IS weights: w_j = 1 / (p(j) * N)  (line 14)
-        N = len(self.buffer)
+        N = self._size
         weights = 1.0 / (probs[indices] * N)
 
         return transitions, indices, weights
 
     def sample_uniform(self, batch_size: int) -> Tuple[List[Dict], np.ndarray]:
         """Uniform sampling for consequence scoring pass (line 11)."""
-        if len(self.buffer) < batch_size:
-            batch_size = len(self.buffer)
+        if self._size < batch_size:
+            batch_size = self._size
 
-        indices = np.random.choice(len(self.buffer), size=batch_size, replace=False)
+        indices = np.random.choice(self._size, size=batch_size, replace=False)
         transitions = [self.buffer[idx] for idx in indices]
         return transitions, indices
 

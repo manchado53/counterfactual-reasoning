@@ -31,6 +31,8 @@ from ..shared.utils import (
     get_action_masks,
     get_global_reward,
     is_done,
+    record_episode,
+    save_gameplay_gif,
 )
 
 
@@ -232,17 +234,10 @@ class ConsequenceDQN(DQN):
                 dtype=jnp.int32,
             )
 
-            # Keys: (B, K, N, 2)
+            # Keys: (B, K, N, 2) — single vectorized split instead of B separate JAX calls
             self._key, subkey = jax.random.split(self._key)
-            batch_keys = jax.random.split(subkey, B)  # (B, 2)
-            all_keys = []
-            for b_key in batch_keys:
-                action_keys = jax.random.split(b_key, K)  # (K, 2)
-                rollout_keys = jax.vmap(
-                    lambda k: jax.random.split(k, N)
-                )(action_keys)  # (K, N, 2)
-                all_keys.append(rollout_keys)
-            keys_array = jnp.stack(all_keys, axis=0)  # (B, K, N, 2)
+            keys_flat = jax.random.split(subkey, B * K * N)  # (B*K*N, 2)
+            keys_array = keys_flat.reshape(B, K, N, 2)
 
             # Build compiled function lazily on first scoring pass
             if self._compiled_batched_fn is None:
@@ -347,6 +342,7 @@ class ConsequenceDQN(DQN):
         save_every = self.config.get('save_every', 500)
         eval_interval = self.config.get('eval_interval', None)
         eval_episodes = self.config.get('eval_episodes', 20)
+        gif_interval = self.config.get('gif_interval', None)
 
         # Set up metrics log and run directory
         self.metrics_logger = MetricsLogger(
@@ -370,8 +366,12 @@ class ConsequenceDQN(DQN):
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_win_rate = -1.0
 
+        devices = jax.devices()
+        backend = jax.default_backend()
         if verbose:
             print(f"Training Consequence-weighted DQN on SMAX {self.env_info['scenario']}")
+            print(f"  JAX backend: {backend}")
+            print(f"  JAX devices: {devices}")
             print(f"  Obs type: {self.env_info['obs_type']}")
             print(f"  Obs dim: {self.obs_dim}")
             print(f"  Num agents: {self.num_agents}")
@@ -487,12 +487,17 @@ class ConsequenceDQN(DQN):
             if eval_interval and (episode + 1) % eval_interval == 0:
                 with timer('eval', episode=episode):
                     metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
-                self.metrics_logger.log_eval(episode + 1, self.epsilon, metrics)
+                self.metrics_logger.log_eval(episode + 1, self.q_update_count, self.epsilon, metrics)
                 if metrics['win_rate'] > best_win_rate:
                     best_win_rate = metrics['win_rate']
                     self.save(best_path)
                     if verbose:
                         print(f"\nNew best model (win rate: {best_win_rate:.1%})")
+
+            if gif_interval and (episode + 1) % gif_interval == 0:
+                gif_path = os.path.join(self.metrics_logger.dir, f'replay_ep{episode + 1}.gif')
+                state_seq, _, _ = record_episode(self)
+                save_gameplay_gif(self.env, state_seq, gif_path)
 
             timer.flush_episode()
 
