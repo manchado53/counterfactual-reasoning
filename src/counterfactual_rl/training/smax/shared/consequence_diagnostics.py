@@ -35,6 +35,9 @@ class ConsequenceDiagnostics:
         # Accumulated (episode_step, score, q_update) for step-vs-score plot
         self._step_score_data: List[tuple] = []
 
+        # Priority snapshots for p_per vs p_consequence scatter plot
+        self._priority_snapshots: List[dict] = []
+
     def log_scoring_pass(
         self,
         q_update_count: int,
@@ -144,6 +147,20 @@ class ConsequenceDiagnostics:
             **buffer_stats,
         }
 
+        # --- Priority snapshot for scatter plot ---
+        n = len(buffer)
+        td = np.nan_to_num(buffer.td_magnitudes[:n], nan=0.0, posinf=0.0, neginf=0.0)
+        p_td_raw = (td + buffer.eps) ** buffer.beta
+        p_per = p_td_raw / p_td_raw.sum() if p_td_raw.sum() > 0 else np.ones(n) / n
+        p_consequence = buffer._compute_priorities().copy()
+        cs = np.nan_to_num(buffer.consequence_scores[:n], nan=0.0, posinf=0.0, neginf=0.0)
+        self._priority_snapshots.append({
+            'q_update': q_update_count,
+            'p_per': p_per,
+            'p_consequence': p_consequence,
+            'consequence_scores': cs.copy(),
+        })
+
         # Write JSONL
         self._file.write(json.dumps(record) + '\n')
         self._file.flush()
@@ -169,6 +186,7 @@ class ConsequenceDiagnostics:
 
         self._plot_step_scores(plt)
         self._plot_diagnostics(plt)
+        self._plot_priority_scatter(plt)
 
     def _plot_step_scores(self, plt):
         """Score vs step-in-episode: n_step_slices rows (training phases) x 4 cols (metrics).
@@ -312,6 +330,59 @@ class ConsequenceDiagnostics:
         fig.suptitle('Consequence Scoring Diagnostics', fontsize=14)
         fig.tight_layout()
         fig.savefig(self.plot_path, dpi=150)
+        plt.close(fig)
+
+    def _plot_priority_scatter(self, plt):
+        """Scatter p_per(j) vs p_consequence(j) for 3 training snapshots.
+
+        Points above the diagonal: consequence upweights vs PER.
+        Points below: consequence downweights vs PER.
+        Perfect diagonal = consequence adds nothing beyond PER.
+        """
+        if len(self._priority_snapshots) < 1:
+            return
+
+        # Pick 3 evenly-spaced snapshots: early, mid, late
+        n = len(self._priority_snapshots)
+        indices = [0, n // 2, n - 1] if n >= 3 else list(range(n))
+        snapshots = [self._priority_snapshots[i] for i in indices]
+
+        fig, axes = plt.subplots(1, len(snapshots), figsize=(7 * len(snapshots), 6))
+        if len(snapshots) == 1:
+            axes = [axes]
+
+        for ax, snap in zip(axes, snapshots):
+            p_per = snap['p_per']
+            p_cons = snap['p_consequence']
+            cs = snap['consequence_scores']
+            q_upd = snap['q_update']
+
+            # Scatter — color by consequence score magnitude
+            sc = ax.scatter(p_per, p_cons, c=cs, cmap='plasma',
+                            alpha=0.4, s=4, rasterized=True)
+            plt.colorbar(sc, ax=ax, label='Consequence score')
+
+            # Diagonal reference line (y = x means identical to PER)
+            lim_max = max(p_per.max(), p_cons.max()) * 1.05
+            ax.plot([0, lim_max], [0, lim_max], '--', color='white',
+                    alpha=0.5, linewidth=1, label='y = x  (same as PER)')
+
+            ax.set_xlabel('p_PER(j)  (TD-only priority)')
+            ax.set_ylabel('p_consequence(j)  (combined priority)')
+            ax.set_title(f'Q-update {q_upd:,}\n(N={len(p_per):,} transitions)')
+            ax.legend(fontsize=8)
+            ax.set_xlim(left=0)
+            ax.set_ylim(bottom=0)
+            ax.grid(True, alpha=0.2)
+
+        fig.suptitle(
+            'Priority distribution: consequence-DQN vs PER\n'
+            'Scatter off diagonal = consequence shifts weight to different transitions',
+            fontsize=12,
+        )
+        fig.tight_layout()
+        scatter_path = os.path.join(self.run_dir, 'consequence_priority_scatter.png')
+        fig.savefig(scatter_path, dpi=150, bbox_inches='tight')
         plt.close(fig)
 
     def close(self):

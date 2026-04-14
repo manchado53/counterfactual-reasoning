@@ -32,14 +32,28 @@ def parse_metrics_log(path):
             if len(parts) < 6:
                 continue
             try:
-                rows.append({
-                    'episode': int(parts[0]),
-                    'epsilon': float(parts[1]),
-                    'win_rate': float(parts[2].rstrip('%')),
-                    'avg_allies': float(parts[3]),
-                    'avg_return': float(parts[4]),
-                    'avg_length': float(parts[5]),
-                })
+                if len(parts) >= 7:
+                    # New format: episode updates epsilon win_rate avg_allies avg_return avg_length
+                    rows.append({
+                        'episode': int(parts[0]),
+                        'updates': int(parts[1]),
+                        'epsilon': float(parts[2]),
+                        'win_rate': float(parts[3].rstrip('%')),
+                        'avg_allies': float(parts[4]),
+                        'avg_return': float(parts[5]),
+                        'avg_length': float(parts[6]),
+                    })
+                else:
+                    # Old format: episode epsilon win_rate avg_allies avg_return avg_length
+                    rows.append({
+                        'episode': int(parts[0]),
+                        'updates': None,
+                        'epsilon': float(parts[1]),
+                        'win_rate': float(parts[2].rstrip('%')),
+                        'avg_allies': float(parts[3]),
+                        'avg_return': float(parts[4]),
+                        'avg_length': float(parts[5]),
+                    })
             except (ValueError, IndexError):
                 continue
     return rows
@@ -152,6 +166,7 @@ def plot_learning_curves(groups, scenario, manifest_paths):
 
     colors = plt.cm.tab10.colors
     color_idx = 0
+    x_label = 'Episode'  # default; overridden per group if updates are available
 
     for (key, scen), run_list in sorted(groups.items()):
         if scen != scenario:
@@ -162,38 +177,45 @@ def plot_learning_curves(groups, scenario, manifest_paths):
         color_idx += 1
 
         # Collect timeseries across seeds
-        all_episodes = []
+        all_x = []
         all_win_rates = []
         all_returns = []
 
         for overrides, rows in run_list:
-            episodes = [r['episode'] for r in rows]
+            # Use model updates if available, fall back to episode
+            if rows[0]['updates'] is not None:
+                x_vals = [r['updates'] for r in rows]
+            else:
+                x_vals = [r['episode'] for r in rows]
             win_rates = [r['win_rate'] for r in rows]
             returns = [r['avg_return'] for r in rows]
-            all_episodes.append(episodes)
+            all_x.append(x_vals)
             all_win_rates.append(win_rates)
             all_returns.append(returns)
 
-        # Find common episode range (truncate to shortest)
-        min_len = min(len(ep) for ep in all_episodes)
-        episodes = all_episodes[0][:min_len]
+        # Find common range (truncate to shortest)
+        min_len = min(len(x) for x in all_x)
+        x_axis = all_x[0][:min_len]
         wr_array = np.array([wr[:min_len] for wr in all_win_rates])
         ret_array = np.array([ret[:min_len] for ret in all_returns])
+
+        use_updates = run_list[0][1][0]['updates'] is not None
+        x_label = 'Model Updates' if use_updates else 'Episode'
 
         # Win rate plot
         ax = axes[0]
         mean_wr = wr_array.mean(axis=0)
         std_wr = wr_array.std(axis=0)
-        ax.plot(episodes, mean_wr, color=color, label=label, linewidth=1.5)
-        ax.fill_between(episodes, mean_wr - std_wr, mean_wr + std_wr,
+        ax.plot(x_axis, mean_wr, color=color, label=label, linewidth=1.5)
+        ax.fill_between(x_axis, mean_wr - std_wr, mean_wr + std_wr,
                         color=color, alpha=0.15)
 
         # Return plot
         ax = axes[1]
         mean_ret = ret_array.mean(axis=0)
         std_ret = ret_array.std(axis=0)
-        ax.plot(episodes, mean_ret, color=color, label=label, linewidth=1.5)
-        ax.fill_between(episodes, mean_ret - std_ret, mean_ret + std_ret,
+        ax.plot(x_axis, mean_ret, color=color, label=label, linewidth=1.5)
+        ax.fill_between(x_axis, mean_ret - std_ret, mean_ret + std_ret,
                         color=color, alpha=0.15)
 
     axes[0].set_ylabel('Win Rate (%)')
@@ -201,7 +223,7 @@ def plot_learning_curves(groups, scenario, manifest_paths):
     axes[0].legend(fontsize=8)
     axes[0].grid(True, alpha=0.3)
 
-    axes[1].set_xlabel('Episode')
+    axes[1].set_xlabel(x_label)
     axes[1].set_ylabel('Avg Return')
     axes[1].legend(fontsize=8)
     axes[1].grid(True, alpha=0.3)

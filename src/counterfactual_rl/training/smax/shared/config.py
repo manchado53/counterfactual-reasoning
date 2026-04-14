@@ -62,6 +62,9 @@ DEFAULT_CONFIG = {
     'cf_top_k': 10,                   # Top-K actions from beam search
     'cf_gamma': 0.95,                 # Discount factor for rollouts
 
+    # GIF recording
+    'gif_interval': None,   # Save a replay GIF every N episodes (None = disabled)
+
     # Diagnostics
     'diagnostics_enabled': False,      # Log per-scoring-pass diagnostics (expensive: recomputes all 4 metrics)
     'diagnostics_plot_interval': 50,  # Generate diagnostic plot every N scoring passes
