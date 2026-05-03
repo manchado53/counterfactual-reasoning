@@ -228,7 +228,7 @@ def plot_algorithm_comparison(manifest_path, save_path=None):
             'dqn-uniform': 'DQN (uniform)',
         }.get(algo, algo)
 
-        run_dir = f'runs/{job_id}'
+        run_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'runs', job_id)
         jsonl_path = os.path.join(run_dir, 'timing.jsonl')
         if not os.path.exists(jsonl_path):
             print(f"Warning: {jsonl_path} not found, skipping job {job_id}")

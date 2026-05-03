@@ -5,6 +5,7 @@ Import directly from submodules to avoid loading unnecessary dependencies:
   - counterfactual_rl.analysis.multidiscrete_counterfactual (requires PyTorch/SB3)
   - counterfactual_rl.analysis.smax_counterfactual (requires JAX)
   - counterfactual_rl.analysis.smax_vectorized_counterfactual (requires JAX)
+  - counterfactual_rl.analysis.chess_counterfactual (requires JAX + pgx)
   - counterfactual_rl.analysis.metrics (no special deps)
 """
 

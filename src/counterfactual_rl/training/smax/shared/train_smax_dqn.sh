@@ -1,17 +1,19 @@
 #!/bin/bash
 #SBATCH --job-name="SMAX DQN Training"
-#SBATCH --output=logs/train_%j.out
+#SBATCH --output=/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/training/smax/shared/logs/train_%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=manchadoa@msoe.edu
-#SBATCH --partition=dgx
+#SBATCH --partition=teaching
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --account=undergrad_research
+#SBATCH --gres=gpu:t4:1
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
-#SBATCH --time=04:00:00
+#SBATCH --time=14:00:00
+#SBATCH --exclude=dh-node16,dh-node17,dh-node18
 
 # Create directories
-mkdir -p logs
+mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/training/smax/shared/logs
 
 # Set matplotlib backend for headless
 export MPLBACKEND=Agg
@@ -36,25 +38,24 @@ done
 
 export LD_LIBRARY_PATH="${PIP_LIBS}${SYS_LIBS:+${SYS_LIBS}:}${LD_LIBRARY_PATH}"
 
-# === Diagnostic (remove after confirming it works) ===
-echo "LD_LIBRARY_PATH (first 3 entries):"
-echo "$LD_LIBRARY_PATH" | tr ':' '\n' | head -5
-echo ""
-~/.conda/envs/counterfactual/bin/python -c "
-import ctypes, os, sys
-# Try loading the critical libraries directly
-for lib_name in ['libcuda.so.1', 'libcudart.so.12', 'libcudnn.so.9', 'libcublasLt.so.12', 'libnvrtc.so.12']:
-    try:
-        ctypes.CDLL(lib_name)
-        print(f'  OK: {lib_name}')
-    except OSError as e:
-        print(f'  FAIL: {lib_name} -> {e}')
-" 2>&1
-echo "=== End diagnostic ==="
+# === GPU diagnostic ===
+echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+echo "SLURM_JOB_GPUS=$SLURM_JOB_GPUS"
+echo "SLURM_STEP_GPUS=$SLURM_STEP_GPUS"
+echo "GPU_DEVICE_ORDINAL=$GPU_DEVICE_ORDINAL"
+nvidia-smi -L 2>&1 || echo "nvidia-smi not available"
+echo "=== End GPU diagnostic ==="
 echo ""
 
 # Add src to PYTHONPATH
 export PYTHONPATH="${PYTHONPATH}:/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src"
+
+# Log config overrides for traceability (base64-encoded to survive SLURM --export)
+if [ -n "$CONFIG_OVERRIDES_B64" ]; then
+    echo "CONFIG_OVERRIDES: $(echo "$CONFIG_OVERRIDES_B64" | base64 -d)"
+else
+    echo "CONFIG_OVERRIDES: none"
+fi
 
 # Run training (all parameters are in config.py)
 ~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.training.smax.shared.train

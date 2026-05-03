@@ -79,10 +79,10 @@ ALGORITHM_COMPARISON_QUICK = {
     'sweep': {
         'algorithm': ['dqn-uniform', 'dqn', 'consequence-dqn'],
     },
-    'fixed': {'scenario': '3m', 'seed': 0, 'mu': 0.5,
-              'consequence_metric': 'kl_divergence',
-              'n_episodes': 10000, 'epsilon_decay_episodes': 200,
-              'eval_interval': 100, 'score_interval': 50,
+    'fixed': {'scenario': '3m', 'seed': 0, 'mu': 0.25,
+              'consequence_metric': 'wasserstein',
+              'n_episodes': 10000, 'epsilon_decay_episodes': 5000,
+              'eval_interval': 500, 'score_interval': 50,
               'diagnostics_enabled': True},
 }
 
@@ -207,6 +207,45 @@ FULL_ALGORITHM_COMPARISON_10SEEDS = {
     },
 }
 
+# 12a. Priority scatter quick test — single additive run, ~2 min (1 run)
+SCATTER_DIAGNOSTIC_QUICK = {
+    'name': 'scatter_diagnostic_quick',
+    'runs': [{'priority_mixing': 'additive'}],
+    'fixed': {
+        'algorithm': 'consequence-dqn',
+        'scenario': '3m',
+        'seed': 0,
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 200,
+        'epsilon_decay_episodes': 150,
+        'score_interval': 10,
+        'diagnostics_enabled': True,
+        'diagnostics_n_scatter_snapshots': 20,
+    },
+}
+
+# 12. Priority scatter diagnostic — additive vs multiplicative, 25k episodes, 20 scatter snapshots (2 runs)
+SCATTER_DIAGNOSTIC = {
+    'name': 'scatter_diagnostic',
+    'runs': [
+        {'priority_mixing': 'additive'},
+        {'priority_mixing': 'multiplicative'},
+    ],
+    'fixed': {
+        'algorithm': 'consequence-dqn',
+        'scenario': '3m',
+        'seed': 0,
+        'mu': 0.25,
+        'consequence_metric': 'wasserstein',
+        'n_episodes': 25000,
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 200,
+        'diagnostics_enabled': True,
+        'diagnostics_n_scatter_snapshots': 20,
+    },
+}
+
 EXPERIMENTS = {
     'metric_sweep': METRIC_SWEEP,
     'mu_sweep': MU_SWEEP,
@@ -219,6 +258,8 @@ EXPERIMENTS = {
     'full_algorithm_comparison_8m': FULL_ALGORITHM_COMPARISON_8M,
     'bootstrap_validation': BOOTSTRAP_VALIDATION,
     'full_algorithm_comparison_10seeds': FULL_ALGORITHM_COMPARISON_10SEEDS,
+    'scatter_diagnostic': SCATTER_DIAGNOSTIC,
+    'scatter_diagnostic_quick': SCATTER_DIAGNOSTIC_QUICK,
 }
 # Total: 36 + 12 + 9 = 57 runs (+ 2 smoke test + 6 mixing comparison + 12 full_algorithm_comparison)
 #

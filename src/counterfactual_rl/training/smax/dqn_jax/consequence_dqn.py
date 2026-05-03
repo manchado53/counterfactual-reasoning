@@ -357,6 +357,7 @@ class ConsequenceDQN(DQN):
             self.metrics_logger.dir, metric_name=self.consequence_metric,
             plot_interval=self.config.get('diagnostics_plot_interval', 50),
             n_step_slices=self.config.get('diagnostics_n_step_slices', 10),
+            n_scatter_snapshots=self.config.get('diagnostics_n_scatter_snapshots', 10),
         )
 
         np.random.seed(self.config.get('seed', 0))
