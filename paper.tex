@@ -1,0 +1,250 @@
+\documentclass[conference]{IEEEtran}
+%\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{amsmath,amssymb,amsfonts,mathtools,amsthm}
+%\usepackage{appendix}
+%\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[natbib=true]{biblatex}
+\addbibresource{references.bib}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\newcommand{\spr}{s^{\prime}}
+\newcommand{\apr}{a^{\prime}}
+\newcommand{\sS}[1]{s^{(#1)}}
+\newcommand{\st}[1]{s_{#1}}
+\newcommand{\aA}[1]{a^{(#1)}}
+\newcommand{\at}[1]{a_{#1}}
+\newcommand{\rf}[3]{r(#1,#2,#3)}
+\newcommand{\rt}[1]{r_{#1}}
+\newcommand{\argmax}{\operatornamewithlimits{argmax}}
+\newcommand{\argmin}{\operatornamewithlimits{argmin}}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\begin{document}
+
+\title{Consequentialism: Counterfactual Sampling to Speed Learning}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Adrian Manchado}
+\IEEEauthorblockA{\textit{Diercks School of Advanced Computing} \\
+\textit{Milwaukee School of Engineering}\\
+Milwaukee, WI USA \\
+BLARBLAR@msoe.edu}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Jeremy Kedziora}
+\IEEEauthorblockA{\textit{Diercks School of Advanced Computing} \\
+\textit{Milwaukee School of Engineering}\\
+Milwaukee, WI USA \\
+kedziora@msoe.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar.
+\end{abstract}
+
+\begin{IEEEkeywords}
+ Blar blar blar blar
+\end{IEEEkeywords}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+\noindent In this paper, we seek to identify consequential moments within episodes, measure their magnitude, and leverage this information to improve the sample efficiency of reinforcement learning (RL) algorithms.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Related Work}
+
+\noindent\textbf{Prioritized Replay.}
+Deep Q-Networks (DQN) \cite{mnih2013playingatarideepreinforcement} established the experience-replay framework: transitions $(s_t, a_t, r_{t+1}, s_{t+1})$ are stored in a circular buffer and sampled uniformly for stochastic gradient updates to the Q-network.
+Prioritized Experience Replay (PER) \cite{schaul2016prioritizedexperiencereplay} replaced uniform sampling with a distribution weighted by TD error, showing substantial gains in sample efficiency; PER is the direct ancestor of the priority-mixing scheme presented in this work.
+Large Batch Experience Replay (LaBER) \cite{lahire2022largebatch} frames replay sampling as importance sampling for gradient estimation, derives the theoretically optimal sampling distribution, and approximates it by drawing a large candidate batch and retaining the highest-weight subset; their published results across Atari games provide a natural baseline for replay-prioritization comparisons.
+
+\noindent\textbf{Critical and Consequential States.}
+A recurring observation in the RL literature is that episode outcomes are often determined by a small number of key decision points.
+\cite{huang2018establishing} define \emph{critical states} as those in which a policy strongly prefers a narrow subset of actions and demonstrate that surfacing these states to human supervisors improves trust calibration and intervention timing.
+\cite{karino2020identifying} identify critical states via the variance of the Q-function across actions and concentrate exploration on them; CCE can be viewed as a distributional generalization of this scalar variance signal, replacing Q-value variance with a divergence over full return distributions under counterfactual actions.
+\cite{grushin2024criticality} define \emph{true criticality} as the expected reward drop when an agent executes $n$ consecutive random deviations from its policy, then validate proxy criticality metrics against this ground truth; their evaluation methodology provides the closest published framework for assessing priority signals of the kind CCE produces.
+\cite{liu2023learning} train a return-prediction model on video-encoded episodes and apply mask-based sensitivity to localize critical frames (Deep State Identifier), explicitly adopting the same few-states-matter framing as this work; unlike CCE, their method operates offline on pre-collected visual data rather than online on raw state-action pairs.
+
+\noindent\textbf{Adjacent Work.}
+RUDDER \cite{arjona2019rudder} addresses the related but distinct problem of credit assignment under delayed rewards by redistributing the episode return to individual transitions; unlike CCE, RUDDER modifies the effective reward signal and Bellman backup, whereas CCE leaves both unchanged and acts solely on the replay sampling distribution.
+CF-GPS \cite{buesing2019woulda} applies structural causal models to synthesize alternative episode trajectories under counterfactual actions as additional training targets for policy search in POMDPs; CF-GPS uses counterfactuals to generate new training data, while CCE uses them to prioritize which observed transitions to replay.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Background}
+\noindent In reinforcement learning, control problems are modeled as a Markov Decision Process (MDP) \cite{bellman1957dynamic} which is defined by:
+\begin{itemize}
+\item A set of states $S$ that describe the current environmental conditions facing the agent;
+\item A set of actions $A(s)$ that an agent can take;
+\item Probabilities $p(s'\mid a,s$) for transitioning from state $s$ to state $s'$ given action $a$;
+\item A function $r:S\times A\times S \to \mathbb{R}$ so that $r(s^{\prime},a,s)$ supplies the immediate reward associated with this transition.
+\end{itemize} In environments that take place across a finite number of discrete periods $T$, the sequence of periods the agent participates in is referred to as an episode. The goal of the agent is to learn a policy $\pi(a|s)$, which describes the probability that a trained agent should take action $a$ in state $s$, to maximize the sequence of rewards across across an episode: $\sum_{t = 0}^T\gamma^tr(s_{t+1},a_t,s_t)$.  Here $a_t$ and $s_t$ are the action and state at time $t$ and $\gamma\in[0,1]$ is the discount factor on future rewards.  Throughout we will slightly abuse notation to write $r(s_{t+1},a_t,s_t)$ as $r_{t+1}$.
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\subsection{Trajectories and Returns}
+\noindent The choices of an agent via its policy $\pi(\cdot)$ throughout the course of an episode lead to a realized time series of information commonly referred to as a trajectory:
+\begin{align*}
+\tau_{\pi} = s_0,a_0,r_1,s_1,a_1,\hdots,r_{T-1},s_{T-1},a_{T-1},r_T,s_T.
+\end{align*}
+In general, it may be useful to refer to partial trajectories below.  We will denote a slice of a trajectory generated by policy $\pi(\cdot)$, beginning at time $t$, and ending at time $t^{\prime}$ as $\tau_{\pi}^{(t:t^{\prime})}$.  Thus $\tau_{\pi}^{(0:t)}$ will refer to the trajectory data up until time $t$ and $\tau_{\pi}^{(t:T)}$ will refer to the trajectory data from $t$ to the end of the episode. The return at time $t$ associated with a slice from a trajectory of data is the sum of discounted rewards within the trajectory:
+\begin{align*}
+%G(\tau_{\pi}^{(t:t^{\prime})}) &= r_{t+1} + \gamma r_{t+2} + \gamma^2r_{t+3} + \hdots + \gamma^{T-t-1}r_T\\
+G(\tau_{\pi}^{(t:t^{\prime})}) &= \sum_{j=t+1}^{t^{\prime}}\gamma^{j-t-1}r_{j}.
+\end{align*}
+Given this, for any specific time point $t$, the remaining return for an episode generated by $\pi(\cdot)$ can be written as $G(\tau_{\pi}^{(t:T)})$.
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\subsection{Measuring Important Moments}
+\noindent One way to conceptualize the measurement of key moments is to take a counterfactual approach and ask ``what would have happened if" questions of the policy and the data generated by it.  Given a trajectory $\tau_{\pi}$ at any moment $t$ the agent took an historic action $a_t$ according to the distribution associated with $\pi(s_t)$ leading to the realized trajectory with probability:
+\begin{align*}
+p(s_T|s_{T-1},a_{T-1})\prod_{j=t}^{T-1}p(s_{j+1}|s_j,a_j)\pi(a_{j+1}|s_{j+1})
+\end{align*}
+which depends on both the policy and unobserved dynamics of the MDP.  Thus, at time $t$, from the perspective of the agent $\tau_{\pi}^{(t:)}\sim d_{\tau_{\pi}^{(t:)}}(s_t,a_t)$, where $d_{\tau_{\pi}^{(t:)}}(\cdot)$ is a distribution with dependence on the action and state.  Since the remaining return is entirely determined by the remaining trajectory $G(\tau_{\pi}^{(t:)})$ also follows $d_{\tau_{\pi}^{(t:)}}(\cdot)$.  Formally, let:
+\begin{align*}
+    \mathcal{R}(g) = \{\tau^{t:}|G(\tau^{t:})=g\}
+\end{align*}
+be the set of all trajectories beginning at time $t$ whose return will equal $g$. Then:
+\begin{align}
+    d_G^{(\pi)}(g|s_t,a) \equiv \int_{\mathcal{R}(g)}\hspace{-2.5mm}d_{\tau_{\pi}^{(t:)}}(\tau|s_t,a)d\tau.
+\end{align}
+That is, the distribution over future returns $G(\tau_{\pi}^{(t:)})$ is derived from ``adding up" the trajectories that lead to a given return.
+
+Consider an intervention -- an enforced change at time $t$ from the historic action $a_t$ to a feasible, alternative action $a\in A(s_t)$.  Such an intervention leads to a natural comparison of two distributions, the one for the returns derived from historic action $d_G^{(\pi)}(g|s_t,a_t)$ and the one for the unrealized trajectories that would have followed the alternative action $a$, $d_G^{(\pi)}(g|s_t,a)$; here we consider the use of a generic metric, $m(\cdot)$, that quantifies the difference amongst a set of distributions $d_G^{(\pi)}(g|s_t,a_1),\hdots,d_G^{(\pi)}(g|s_t,a_{|A|})$.\footnote{There are many options to compare distributions.  For example, if we used KL-divergence we could set:
+\begin{align*}
+    % d_{KL}(a_t,a) = \sum_gd_G^{(\pi)}(g|s_t,a_t)\ln\left\{\frac{d_G^{(\pi)}(g|s_t,a_t)}{d_G^{(\pi)}(g|s_t,a)}\right\}.
+    m(a_t,a) = \int_{-\infty}^{\infty}d_G^{(\pi)}(g|s_t,a_t)\ln\left\{\frac{d_G^{(\pi)}(g|s_t,a_t)}{d_G^{(\pi)}(g|s_t,a)}\right\}dg.
+\end{align*}  We consider multiple metrics in our experiments below.}
+
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\begin{algorithm}[H]
+\caption{Counterfactual Consequence Estimation}\label{algo:CCE}
+\begin{algorithmic}[1]
+\Require{policy $\pi$, state-action pair $(s_t,a_t)$, and $n\in\mathbb{N}_+$}
+\For{$a \in A(s_t)$}
+\State Use $\pi$ to sample $n$ trajectories $\tau_{\pi,a}^{j,t:}\sim d_{\tau_{\pi}^{(t:)}}(s_t,a)$
+\State For each sampled trajectory $j$ compute $G(\tau_{\pi,a}^{j,t:})$
+\State Estimate $d_G^{(\pi)}(s_t,a)$ from $G(\tau_{\pi,a}^{1,t:}),\hdots,G(\tau_{\pi,a}^{n,t:})$
+\EndFor
+\State Compute $m(\{d_G^{(\pi)}(s_t,a)\}_{a\in A})$
+\end{algorithmic}
+\end{algorithm}
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\section{Variance Reduction in Monte Carlo}
+\noindent Blar blar.
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\section{Consequence Prioritization}
+\noindent One straightforward way to apply the sampling-based method of algorithm \ref{algo:CCE} is to use it as a way to adjust how the agent encounters data to learn from.  For example, \cite{schaul2016prioritizedexperiencereplay} extended the DQN algorithm introduced by \cite{mnih2013playingatarideepreinforcement} with prioritized experience replay, in which the $j$th past transition from the replay buffer is sampled according to:
+\begin{align}
+    p^\delta(j) = \frac{(m^\delta_j+\epsilon)^\beta}{\sum_{i=1}^{|D|}(m^\delta_i + \epsilon)^\beta}\label{eqn:td_priority}
+\end{align}
+where $m^\delta_j = |\delta_j|$ is most recent temporal difference error associated with $j$, and $\epsilon$ ensures that each transition always has a positive probability of being sampled and $\beta$ controls the entropy.
+
+We experiment with augmenting TD priority with measurements of consequence. Given counterfactual consequence estimates from algorithm \ref{algo:CCE}, in analogue with \ref{eqn:td_priority}, we could compute:
+\begin{align}
+    p^C(j) = \frac{(m^C_j+\epsilon)^\beta}{\sum_{i=1}^{|D|}(m^C_i + \epsilon)^\beta}\label{eqn:cce_priority}
+\end{align}
+where $m_j^C = m(\{d^{(\pi)}_G(s_j,a)\}_{a\in A})$, and set the overall priority as:
+\begin{align}
+    p(j) &= \frac{\mu p^C(j) + (1-\mu)p^{\delta}(j)}{\sum_{k=1}^{|D|}
+    \mu p^C(k) + (1-\mu)p^{\delta}(k)}\label{eqn:balance_priority}\\
+    %
+    p(j) &= \frac{p^C(j)^{\mu_C}p^{\delta}(j)^{\mu_{\delta}}}{\sum_{k=1}^{|D|}
+    p^C(k)^{\mu_C}p^{\delta}(k)^{\mu_\delta}}\label{eqn:balance_priority}
+\end{align}
+where $\mu$ controls the relative contribution of consequence estimates to sampling probabilities. This balanced approach puts the highest priority on transitions that are both important (high consequence) and poorly modeled (high TD error).
+
+%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+\begin{algorithm}[H]
+\caption{DQN with balanced consequence-error priority}\label{ABn}
+\begin{algorithmic}[1]
+%\Require{$\mu,\gamma,\alpha\in(0,1)$, $\epsilon,\beta\in\mathbb{R}_{\geq0}$, $B_P,B_L,M,K_{up},K_{tar}\in\mathbb{N}_+$}
+\Require{$\mu,\gamma,\alpha,\epsilon,\beta,M,B_{est}^C,B_{up},K_{up},K_{tar}$}
+\State \textbf{Init:} $Q$ network parameters $\mathbf{w}$, replay buffer $D=\emptyset$
+\State Set $\mathbf{w}^{\prime}=\mathbf{w}$ and $\pi(s)$
+\State Sample $s_0\in S$
+\For{$t = 1,2,3,\hdots$}
+\State Sample $a_t$ according to $\pi(s_t)$, observe $r_{t+1}$ and $s_{t+1}$
+\State Add $(s_t,a_t,r_{t+1},s_{t+1})$ to $D$
+\State Set $m^C_t = \sum_{j=1}^{|D|}m_j/|D|$
+\State Set $m^{\delta}_t = \max_{j=1,\hdots,|D|}\{m_j\}$
+\State \textbf{if} $|D|>M$ \textbf{then} drop the oldest
+\If{$t\mod K_{up}=0$}
+\State Sample $(s_j,a_j,r_j,\spr_j)_{j=1}^{B_{est}^C}$ from $U(D)$
+\State Update $m^C_j$ via algorithm \ref{algo:CCE} and then update $p(j)$
+\State Sample $(s_j,a_j,r_j,\spr_j)_{j=1}^{B_{up}}$ from $D$ via $p(j)$
+\State Compute importance sampling weights so that:
+\begin{align*}
+    w_j = (p(j)|D|)^{-1}
+\end{align*}
+\State Compute TD error:
+\begin{align*}
+\delta_j \gets r_j + \gamma \max_a\left\{Q_{\pi}(\spr_j,a|\mathbf{w}^{\prime})\right\} - Q(s_j,a_j|\mathbf{w})
+\end{align*}
+\State Update TD priorities: $m_j^\delta \gets |\delta_j|$
+\State Update $Q$ network weights:
+\begin{align*}
+\mathbf{w}\leftarrow \mathbf{w} - \alpha\nabla_{\mathbf{w}}\left(\frac{1}{B_L}\sum_{j=1}^{B_L}w_j\delta_j^2\right)
+\end{align*}
+\EndIf
+\State \textbf{if} $t\mod K_{tar}=0$ \textbf{then} $\mathbf{w}^{\prime}\gets\mathbf{w}$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+
+\begin{table}[htbp]
+\caption{Hyperparameters}
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+ \textbf{\textit{Hyperparameter}}& \textbf{\textit{Space}}& \textbf{\textit{Description}} \\
+\hline
+$\mu$ & $[0,1]$ & Weight on consequence metric \\
+$\gamma$ & $[0,1)$ & Discount factor \\
+$\alpha$ & $(0,1]$ & Step size \\
+$\epsilon$ & $\mathbb{R}_{\geq0}$ & Priority shaping parameter \\
+$\beta$ & $\mathbb{R}_{\geq0}$ & Priority shaping parameter \\
+$B_{est}^C$ & $\mathbb{N}_1$ & Batch size for consequence estimates \\
+$B_{up}$ & $\mathbb{N}_1$ & Batch size for $Q$ network update \\
+$M$ & $\mathbb{N}_1$ & Replay buffer memory size \\
+$K_{up}$ & $\mathbb{N}_1$ & Frequency of $Q$ network updates \\
+$K_{tar}$ & $\mathbb{N}_1$ & Fequency of target network updates \\
+\hline
+\end{tabular}
+\label{tab1}
+\end{center}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Experiments}
+\noindent  Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Future Work}
+\noindent Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conclusion}
+\noindent  Blar blar blar blar.  Blar blar blar blar. Blar blar blar blar. Blar blar blar blar. Blar blar blar blar.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{Acknowledgment}
+The authors would like to thank the Milwaukee School of Engineering for supporting this research through computational resources and faculty guidance. This work was completed as part of the undergraduate research curriculum in the Department of Computer Science and Software Engineering.
+
+\newpage
+\printbibliography
+
+\end{document}
