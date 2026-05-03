@@ -1,1 +1,0 @@
-"""SMAX training implementations."""

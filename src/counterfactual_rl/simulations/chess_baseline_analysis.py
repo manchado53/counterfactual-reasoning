@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, __file__.split('src/')[0] + 'src')
 
 import jax
-from counterfactual_rl.training.pgx.dqn_jax.chess_env import GardnerChessEnv
+from counterfactual_rl.envs.chess import GardnerChessEnv
 from counterfactual_rl.analysis.chess_counterfactual import ChessCounterfactualAnalyzer
 
 env = GardnerChessEnv(seed=0, opponent='baseline')

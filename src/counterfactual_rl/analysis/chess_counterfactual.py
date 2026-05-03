@@ -36,7 +36,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from counterfactual_rl.training.pgx.dqn_jax.chess_env import GardnerChessEnv, CHESS_ACTIONS
+from counterfactual_rl.envs.chess import GardnerChessEnv, CHESS_ACTIONS
 from counterfactual_rl.utils.chess_data_structures import ChessConsequenceRecord
 from counterfactual_rl.utils.action_selection import (
     beam_search_top_k_joint_actions,

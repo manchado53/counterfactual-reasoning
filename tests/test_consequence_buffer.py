@@ -6,7 +6,7 @@ Run with:
 
 import sys
 import numpy as np
-from counterfactual_rl.training.smax.dqn_jax.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.agents.shared.consequence_buffers import ConsequenceReplayBuffer
 
 
 def make_transition(i):
