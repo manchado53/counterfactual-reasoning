@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="Chess DQN Training"
-#SBATCH --output=/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/chess/logs/train_%j.out
+#SBATCH --job-name="FrozenLake DQN"
+#SBATCH --output=/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/frozen_lake/logs/train_%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=manchadoa@msoe.edu
 #SBATCH --partition=teaching
@@ -9,16 +9,14 @@
 #SBATCH --gres=gpu:t4:1
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
-#SBATCH --time=14:00:00
+#SBATCH --time=04:00:00
 #SBATCH --exclude=dh-node16,dh-node17,dh-node18
 
-# Create log directory
-mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/chess/logs
+mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/frozen_lake/logs
 
-# Set matplotlib backend for headless
 export MPLBACKEND=Agg
 
-# CUDA/NVIDIA library setup
+# CUDA/NVIDIA library setup (matches train_smax_dqn.sh)
 PIP_LIBS=""
 for nvidia_root in "$HOME/.conda/envs/counterfactual/lib/python3.12/site-packages/nvidia" \
                    "$HOME/.local/lib/python3.12/site-packages/nvidia"; do
@@ -35,13 +33,9 @@ done
 
 export LD_LIBRARY_PATH="${PIP_LIBS}${SYS_LIBS:+${SYS_LIBS}:}${LD_LIBRARY_PATH}"
 
-# === GPU diagnostic ===
 echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 nvidia-smi -L 2>&1 || echo "nvidia-smi not available"
-echo "=== End GPU diagnostic ==="
-echo ""
 
-# Add src to PYTHONPATH
 export PYTHONPATH="${PYTHONPATH}:/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src"
 
 # Log config overrides
@@ -51,7 +45,22 @@ else
     echo "CONFIG_OVERRIDES: none"
 fi
 
-# Run training
-~/.conda/envs/counterfactual/bin/python -m counterfactual_rl.agents.chess.train
+# Algorithm is passed via env vars (defaults shown)
+ALGORITHM="${ALGORITHM:-consequence-dqn}"
+MAP_NAME="${MAP_NAME:-4x4}"
+MIXING="${MIXING:-additive}"
+MU="${MU:-}"
+
+echo "Algorithm: $ALGORITHM  Map: $MAP_NAME  Mixing: $MIXING  MU: ${MU:-default}"
+
+MU_ARG=""
+[ -n "$MU" ] && MU_ARG="--mu $MU"
+
+~/.conda/envs/counterfactual/bin/python \
+    -m counterfactual_rl.agents.frozen_lake.train \
+    --algorithm "$ALGORITHM" \
+    --map "$MAP_NAME" \
+    --mixing "$MIXING" \
+    $MU_ARG
 
 echo "Training completed at $(date)"
