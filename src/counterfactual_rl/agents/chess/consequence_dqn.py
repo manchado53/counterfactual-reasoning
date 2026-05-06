@@ -25,7 +25,7 @@ import pgx
 from tqdm import tqdm
 
 from .dqn import ChessDQN
-from ..shared.consequence_buffers import ConsequenceReplayBuffer
+from .array_buffer import ChessArrayReplayBuffer
 from counterfactual_rl.utils.action_selection import (
     beam_search_top_k_joint_actions,
     convert_mask_to_indices,
@@ -48,11 +48,13 @@ class ChessConsequenceDQN(ChessDQN):
         super().__init__(env, env_info, config)
 
         per_params = self.config.get('PER_parameters', {})
-        self.buffer = ConsequenceReplayBuffer(
+        self.buffer = ChessArrayReplayBuffer(
             capacity=self.config.get('M', 200000),
+            obs_dim=self.obs_dim,
             eps=per_params.get('eps', 0.01),
-            beta=per_params.get('beta', 0.4),
+            beta=per_params.get('beta', 0.25),
             max_priority=per_params.get('maximum_priority', 1.0),
+            store_consequences=True,
             mu=self.config.get('mu', 0.5),
             priority_mixing=self.config.get('priority_mixing', 'additive'),
             mu_c=self.config.get('mu_c', 1.0),
@@ -184,7 +186,7 @@ class ChessConsequenceDQN(ChessDQN):
         ep = self._current_episode
 
         with timer('update.scoring.sample', episode=ep):
-            transitions, indices = self.buffer.sample_uniform(n_score)
+            data, indices = self.buffer.sample_uniform(n_score)
 
         with timer('update.scoring.beam', episode=ep):
             all_actions = []
@@ -193,12 +195,12 @@ class ChessConsequenceDQN(ChessDQN):
             valid_indices = []
             valid_states = []
 
-            for i, (transition, idx) in enumerate(zip(transitions, indices)):
+            for i, idx in enumerate(indices):
                 jax_state = self.buffer.get_jax_state(idx)
                 if jax_state is None:
                     continue
 
-                actual_action = (int(transition['a'][0]),)  # 1-tuple
+                actual_action = (int(data['a'][i, 0]),)  # 1-tuple
 
                 # Valid actions from stored pgx state (n_agents=1 wrapper)
                 legal_mask = np.array(jax_state.legal_action_mask)
@@ -284,9 +286,7 @@ class ChessConsequenceDQN(ChessDQN):
             self.buffer.update_consequence_scores(scored_buffer_indices, scores)
 
             if self.diagnostics_enabled:
-                episode_steps = np.array([
-                    transitions[i].get('episode_step', 0) for i in valid_indices
-                ])
+                episode_steps = np.zeros(len(valid_indices), dtype=int)
                 self.diagnostics.log_scoring_pass(
                     self.q_update_count, scores, returns_np,
                     all_actual_actions, all_actions, all_action_probs, self.buffer,
@@ -307,17 +307,15 @@ class ChessConsequenceDQN(ChessDQN):
             self._score_buffer_transitions()
 
         with timer('update.q_update', episode=ep):
-            transitions, indices, is_weights = self.buffer.sample(self.batch_size)
+            data, indices, is_weights = self.buffer.sample(self.batch_size)
 
-            states = jnp.array(np.array([d['s'] for d in transitions]))
-            next_states = jnp.array(np.array([d["s'"] for d in transitions]))
-            actions = jnp.array(np.array([d['a'] for d in transitions]), dtype=jnp.int32)
-            rewards = jnp.array(np.array([d['r'] for d in transitions]), dtype=jnp.float32)
-            dones = jnp.array(np.array([d['done'] for d in transitions]), dtype=jnp.float32)
-            next_masks = jnp.array(
-                np.array([d['next_masks'] for d in transitions]), dtype=jnp.bool_
-            )
-            weights = jnp.array(is_weights, dtype=jnp.float32)
+            states      = jnp.array(data['s'])
+            next_states = jnp.array(data["s'"])
+            actions     = jnp.array(data['a'],    dtype=jnp.int32)
+            rewards     = jnp.array(data['r'],    dtype=jnp.float32)
+            dones       = jnp.array(data['done'], dtype=jnp.float32)
+            next_masks  = jnp.array(data['next_masks'], dtype=jnp.bool_)
+            weights     = jnp.array(is_weights,   dtype=jnp.float32)
 
             self.params, self.opt_state, loss, td_errors = self._update_step(
                 self.params, self.target_params, self.opt_state,
@@ -328,37 +326,30 @@ class ChessConsequenceDQN(ChessDQN):
     def _add_chunk_to_buffer(self, outputs, N_ENVS: int, T: int):
         """
         Override of ChessDQN._add_chunk_to_buffer.
-        Adds pgx.State and episode_step to each transition for consequence rollouts.
-        """
-        actions_np    = np.array(outputs[0])   # (N, T)
-        rewards_np    = np.array(outputs[1])   # (N, T)
-        ep_ended_np   = np.array(outputs[2])   # (N, T)
-        obs_np        = np.array(outputs[3])   # (N, T, 2875)
-        next_obs_np   = np.array(outputs[4])
-        masks_np      = np.array(outputs[5])   # (N, T, 1225)
-        next_masks_np = np.array(outputs[6])
-        saved_states  = outputs[7]             # pgx.State pytree, leaves (N, T, ...)
+        Also stores pgx.State per transition for consequence rollouts.
 
-        ep_step_counter = np.zeros(N_ENVS, dtype=int)
-        for env_i in range(N_ENVS):
-            for t in range(T):
-                # Slice single pgx.State from the (N, T, ...) pytree
-                jax_state_t = jax.tree.map(lambda x: x[env_i, t], saved_states)
-                transition = {
-                    's':            obs_np[env_i, t],
-                    'a':            actions_np[env_i, t:t+1],
-                    'r':            float(rewards_np[env_i, t]),
-                    "s'":           next_obs_np[env_i, t],
-                    'done':         bool(ep_ended_np[env_i, t]),
-                    'masks':        masks_np[env_i, t:t+1],
-                    'next_masks':   next_masks_np[env_i, t:t+1],
-                    'episode_step': int(ep_step_counter[env_i]),
-                }
-                self.buffer.add(transition, jax_state=jax_state_t)
-                if ep_ended_np[env_i, t]:
-                    ep_step_counter[env_i] = 0
-                else:
-                    ep_step_counter[env_i] += 1
+        pgx states are converted from JAX to numpy in one bulk call, then
+        reshaped to (N*T, ...) and stored via slice assignment — no per-transition loop.
+        """
+        n = N_ENVS * T
+        saved_states = outputs[7]  # pgx.State pytree, leaves (N_ENVS, T, ...)
+
+        # One bulk GPU→CPU copy + reshape per leaf (not one copy per transition)
+        states_flat = jax.tree.map(
+            lambda x: np.array(x).reshape(n, *x.shape[2:]),
+            saved_states,
+        )
+
+        self.buffer.add_batch(
+            obs        = np.array(outputs[3]).reshape(n, -1),
+            next_obs   = np.array(outputs[4]).reshape(n, -1),
+            actions    = np.array(outputs[0]).reshape(n),
+            rewards    = np.array(outputs[1]).reshape(n),
+            dones      = np.array(outputs[2]).reshape(n),
+            masks      = np.array(outputs[5]).reshape(n, 1, -1),
+            next_masks = np.array(outputs[6]).reshape(n, 1, -1),
+            states_flat = states_flat,
+        )
 
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'ChessConsequenceDQN':
         """
@@ -394,6 +385,12 @@ class ChessConsequenceDQN(ChessDQN):
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_win_rate = -1.0
 
+        n_ckpts = self.config.get('n_checkpoints', 100)
+        ckpt_interval = max(1, n_chunks // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
         if verbose:
             print(f"Training ChessConsequenceDQN on Gardner chess (vectorized)")
             print(f"  N_ENVS={N_ENVS} | collect_steps={T} | {N_ENVS*T} transitions/chunk")
@@ -410,7 +407,13 @@ class ChessConsequenceDQN(ChessDQN):
                 outputs = self._run_collect_chunk(N_ENVS, T)
 
             with timer('buffer.add', episode=chunk_idx):
+                # Extract episode stats to numpy before buffer add so we can
+                # free outputs (and its GPU memory) before consequence scoring.
+                ep_ret_np   = np.array(outputs[8])   # (N, T)
+                ep_len_np   = np.array(outputs[9])   # (N, T)
+                ep_ended_np = np.array(outputs[2])   # (N, T)
                 self._add_chunk_to_buffer(outputs, N_ENVS, T)
+                del outputs  # free GPU memory before _update() / consequence rollouts
 
             n_transitions = N_ENVS * T
             prev_steps = self.total_steps
@@ -424,10 +427,7 @@ class ChessConsequenceDQN(ChessDQN):
                 if (prev_steps // self.target_update_freq) < (self.total_steps // self.target_update_freq):
                     self._update_target_network()
 
-            # Episode stats
-            ep_ret_np   = np.array(outputs[8])
-            ep_len_np   = np.array(outputs[9])
-            ep_ended_np = np.array(outputs[2])
+            # Episode stats (already extracted to numpy above)
             for env_i in range(N_ENVS):
                 for t in range(T):
                     if ep_ended_np[env_i, t]:
@@ -446,6 +446,9 @@ class ChessConsequenceDQN(ChessDQN):
 
             if (chunk_idx + 1) % save_every == 0:
                 self.save(last_path)
+
+            if ckpt_interval > 0 and (chunk_idx + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{chunk_idx+1:07d}.pkl'))
 
             if eval_interval and (chunk_idx + 1) % eval_interval == 0:
                 with timer('eval', episode=chunk_idx):
@@ -475,7 +478,7 @@ class ChessConsequenceDQN(ChessDQN):
 
     def _make_metrics_logger(self, env_info, n_episodes, eval_interval, eval_episodes):
         """Create MetricsLogger with chess-compatible env_info."""
-        from ...smax.shared.metrics import MetricsLogger
+        from ..shared.metrics import MetricsLogger
         return MetricsLogger(
             backend='JAX (Chess Consequence)',
             config=self.config,

@@ -94,6 +94,24 @@ SMOKE_TEST = {
               'n_episodes': 200, 'eval_interval': 50},
 }
 
+# 5b. Full algorithm smoke test — all 5 algorithms, 1 seed, small buffer to force scoring (5 runs)
+FULL_SMOKE = {
+    'name': 'full_smoke',
+    'runs': [
+        {'algorithm': 'dqn-uniform'},
+        {'algorithm': 'dqn'},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 0.25},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative'},
+    ],
+    'fixed': {
+        'scenario': '3m', 'seed': 0,
+        'n_episodes': 200, 'eval_interval': 50,
+        'M': 2000, 'score_interval': 50,
+        'consequence_metric': 'wasserstein', 'mu': 0.25,
+    },
+}
+
 # 6. Algorithm comparison on 3s5z — uses scenario preset for architecture (9 runs)
 ALGORITHM_COMPARISON_3S5Z = {
     'name': 'algorithm_comparison_3s5z',
@@ -246,6 +264,93 @@ SCATTER_DIAGNOSTIC = {
     },
 }
 
+# ── Claim 2 experiments ───────────────────────────────────────────────────────
+
+# C2-1. Metric sweep on 3m only — pick consequence_metric by steps-to-threshold (12 runs)
+CLAIM2_METRIC_SWEEP_3M = {
+    'name': 'claim2_metric_sweep_3m',
+    'sweep': {
+        'consequence_metric': ['kl_divergence', 'jensen_shannon',
+                               'total_variation', 'wasserstein'],
+        'seed': [0, 1, 2],
+    },
+    'fixed': {
+        'algorithm': 'consequence-dqn',
+        'scenario': '3m',
+        'mu': 0.25,
+        'priority_mixing': 'additive',
+        'n_episodes': 25000,
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 200,
+    },
+}
+
+# C2-2. Mu sweep on 3m only — pick mu by steps-to-threshold (12 runs)
+#        Fill in consequence_metric after C2-1 completes.
+CLAIM2_MU_SWEEP_3M = {
+    'name': 'claim2_mu_sweep_3m',
+    'sweep': {
+        'mu': [0.1, 0.25, 0.5, 0.75],
+        'seed': [0, 1, 2],
+    },
+    'fixed': {
+        'algorithm': 'consequence-dqn',
+        'scenario': '3m',
+        'priority_mixing': 'additive',
+        'consequence_metric': 'wasserstein',  # UPDATE after metric sweep
+        'n_episodes': 25000,
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 200,
+    },
+}
+
+# C2-3. Main 3m — 5 algorithms × 10 seeds (50 runs)
+#        Fill in mu and consequence_metric after sweeps complete.
+CLAIM2_MAIN_3M = {
+    'name': 'claim2_main_3m',
+    'threshold': 0.60,
+    'env_key': 'smax_3m',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                              'seed': s} for s in range(10)],
+        *[{'algorithm': 'dqn',                                                      'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',            'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',      'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'scenario': '3m',
+        'mu': 0.25,                    # UPDATE after mu sweep
+        'consequence_metric': 'wasserstein',  # UPDATE after metric sweep
+        'n_episodes': 25000,
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 200,
+    },
+}
+
+# C2-4. Main 8m — 5 algorithms × 10 seeds (50 runs)
+CLAIM2_MAIN_8M = {
+    'name': 'claim2_main_8m',
+    'threshold': 0.55,
+    'env_key': 'smax_8m',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                              'seed': s} for s in range(10)],
+        *[{'algorithm': 'dqn',                                                      'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',            'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',      'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'scenario': '8m',
+        'mu': 0.25,                    # UPDATE after mu sweep
+        'consequence_metric': 'wasserstein',  # UPDATE after metric sweep
+        'n_episodes': 50000,
+        'epsilon_decay_episodes': 20000,
+        'score_interval': 200,
+        'cf_n_rollouts': 50,
+        'cf_horizon': 45,
+    },
+}
+
 EXPERIMENTS = {
     'metric_sweep': METRIC_SWEEP,
     'mu_sweep': MU_SWEEP,
@@ -253,6 +358,7 @@ EXPERIMENTS = {
     'algorithm_comparison_quick': ALGORITHM_COMPARISON_QUICK,
     'algorithm_comparison_3s5z': ALGORITHM_COMPARISON_3S5Z,
     'smoke_test': SMOKE_TEST,
+    'full_smoke': FULL_SMOKE,
     'mixing_comparison': MIXING_COMPARISON,
     'full_algorithm_comparison': FULL_ALGORITHM_COMPARISON,
     'full_algorithm_comparison_8m': FULL_ALGORITHM_COMPARISON_8M,
@@ -260,6 +366,11 @@ EXPERIMENTS = {
     'full_algorithm_comparison_10seeds': FULL_ALGORITHM_COMPARISON_10SEEDS,
     'scatter_diagnostic': SCATTER_DIAGNOSTIC,
     'scatter_diagnostic_quick': SCATTER_DIAGNOSTIC_QUICK,
+    # Claim 2
+    'claim2_metric_sweep_3m': CLAIM2_METRIC_SWEEP_3M,
+    'claim2_mu_sweep_3m': CLAIM2_MU_SWEEP_3M,
+    'claim2_main_3m': CLAIM2_MAIN_3M,
+    'claim2_main_8m': CLAIM2_MAIN_8M,
 }
 # Total: 36 + 12 + 9 = 57 runs (+ 2 smoke test + 6 mixing comparison + 12 full_algorithm_comparison)
 #

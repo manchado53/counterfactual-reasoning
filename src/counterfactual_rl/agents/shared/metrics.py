@@ -15,7 +15,11 @@ from .timing import TrainingTimer
 class MetricsLogger:
     """Handles metrics log file creation, writing, plotting, and closing."""
 
-    HEADER_COLUMNS = f"{'episode':>8} {'updates':>10} {'epsilon':>8} {'win_rate':>10} {'avg_allies':>12} {'avg_return':>12} {'avg_length':>12}\n"
+    HEADER_COLUMNS = (
+        f"{'episode':>8} {'updates':>10} {'epsilon':>8} {'win_rate':>10} "
+        f"{'avg_allies':>12} {'avg_return':>12} {'avg_length':>12} "
+        f"{'chess_score':>12} {'draw_rate':>10} {'loss_rate':>10}\n"
+    )
 
     def __init__(self, backend: str, config: dict, env_info: dict,
                  n_episodes: int, eval_interval, eval_episodes: int):
@@ -47,10 +51,14 @@ class MetricsLogger:
         self._avg_lengths = []
 
     def log_eval(self, episode: int, model_updates: int, epsilon: float, metrics: dict):
+        draw_rate = metrics.get('draw_rate', 0.0)
+        loss_rate = metrics.get('loss_rate', 0.0)
+        chess_score = metrics.get('chess_score', metrics['win_rate'] + 0.5 * draw_rate)
         self._file.write(
             f"{episode:>8d} {model_updates:>10d} {epsilon:>8.3f} {metrics['win_rate']:>10.1%} "
             f"{metrics['avg_allies_alive']:>12.2f} {metrics['avg_return']:>12.2f} "
-            f"{metrics['avg_length']:>12.1f}\n"
+            f"{metrics['avg_length']:>12.1f} {chess_score:>12.4f} "
+            f"{draw_rate:>10.4f} {loss_rate:>10.4f}\n"
         )
         self._file.flush()
 

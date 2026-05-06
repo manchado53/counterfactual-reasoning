@@ -49,7 +49,7 @@ class _QNetwork(nn.Module):
 class _MetricsLogger:
     _HEADER = (
         f"{'episode':>8} {'updates':>10} {'epsilon':>8} "
-        f"{'success_rate':>14} {'avg_steps':>10} {'avg_return':>12}\n"
+        f"{'win_rate':>14} {'avg_length':>10} {'avg_return':>12}\n"
     )
 
     def __init__(self, config: dict, n_episodes: int, eval_interval, eval_episodes: int):
@@ -77,30 +77,30 @@ class _MetricsLogger:
         self._file.flush()
 
         self._episodes: list = []
-        self._success_rates: list = []
-        self._avg_steps: list = []
+        self._win_rates: list = []
+        self._avg_lengths: list = []
         self._avg_returns: list = []
 
     def log_eval(self, episode: int, updates: int, epsilon: float, metrics: dict):
         self._file.write(
             f"{episode:>8d} {updates:>10d} {epsilon:>8.3f} "
-            f"{metrics['success_rate']:>14.1%} {metrics['avg_steps']:>10.1f} "
+            f"{metrics['win_rate']:>14.1%} {metrics['avg_length']:>10.1f} "
             f"{metrics['avg_return']:>12.3f}\n"
         )
         self._file.flush()
         self._episodes.append(episode)
-        self._success_rates.append(metrics['success_rate'])
-        self._avg_steps.append(metrics['avg_steps'])
+        self._win_rates.append(metrics['win_rate'])
+        self._avg_lengths.append(metrics['avg_length'])
         self._avg_returns.append(metrics['avg_return'])
 
     def plot_eval_curves(self):
         if not self._episodes:
             return
         fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-        axes[0].plot(self._episodes, self._success_rates)
-        axes[0].set(title='Success Rate', xlabel='Episode', ylabel='Rate')
-        axes[1].plot(self._episodes, self._avg_steps)
-        axes[1].set(title='Avg Steps to Goal', xlabel='Episode')
+        axes[0].plot(self._episodes, self._win_rates)
+        axes[0].set(title='Win Rate', xlabel='Episode', ylabel='Rate')
+        axes[1].plot(self._episodes, self._avg_lengths)
+        axes[1].set(title='Avg Episode Length', xlabel='Episode')
         axes[2].plot(self._episodes, self._avg_returns)
         axes[2].set(title='Avg Return', xlabel='Episode')
         plt.tight_layout()
@@ -280,8 +280,8 @@ class FrozenLakeDQN:
             steps += ep_steps
             total_return += ep_return
         return {
-            'success_rate': wins / n_episodes,
-            'avg_steps': steps / n_episodes,
+            'win_rate':   wins / n_episodes,
+            'avg_length': steps / n_episodes,
             'avg_return': total_return / n_episodes,
         }
 
@@ -303,6 +303,13 @@ class FrozenLakeDQN:
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_success = -1.0
+
+        n_ckpts = self.config.get('n_checkpoints', 100)
+        ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
         np.random.seed(self.config.get('seed', 0))
 
         if verbose:
@@ -318,31 +325,37 @@ class FrozenLakeDQN:
             self._current_episode = episode
             timer.begin_episode(episode)
 
-            self._key, rk = jax.random.split(self._key)
-            _, state = self.env.reset(rk)
-            state = int(state)
+            with timer('env', episode=episode):
+                self._key, rk = jax.random.split(self._key)
+                _, state = self.env.reset(rk)
+                state = int(state)
 
             done = False
             ep_return = 0.0
             ep_steps = 0
 
             while not done:
-                action = self.select_action(state)
-                self._key, sk = jax.random.split(self._key)
-                _, next_state, reward, done, _ = self.env.step(
-                    sk, jnp.int32(state), jnp.int32(action)
-                )
-                next_state = int(next_state)
-                reward = float(reward)
-                done = bool(done)
+                with timer('action', episode=episode):
+                    action = self.select_action(state)
 
-                self.buffer.add({'s': state, 'a': action, 'r': reward, "s'": next_state, 'done': done})
+                with timer('env', episode=episode):
+                    self._key, sk = jax.random.split(self._key)
+                    _, next_state, reward, done, _ = self.env.step(
+                        sk, jnp.int32(state), jnp.int32(action)
+                    )
+                    next_state = int(next_state)
+                    reward = float(reward)
+                    done = bool(done)
+
+                with timer('buffer.add', episode=episode):
+                    self.buffer.add({'s': state, 'a': action, 'r': reward, "s'": next_state, 'done': done})
                 self.total_steps += 1
 
-                if self.total_steps % self.n_steps_per_update == 0:
-                    self._update()
-                if self.total_steps % self.target_update_freq == 0:
-                    self._update_target_network()
+                with timer('update', episode=episode):
+                    if self.total_steps % self.n_steps_per_update == 0:
+                        self._update()
+                    if self.total_steps % self.target_update_freq == 0:
+                        self._update_target_network()
 
                 state = next_state
                 ep_return += reward
@@ -361,11 +374,16 @@ class FrozenLakeDQN:
             if (episode + 1) % save_every == 0:
                 self.save(last_path)
 
+            if ckpt_interval > 0 and (episode + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{episode+1:07d}.pkl'))
+
             if eval_interval and (episode + 1) % eval_interval == 0:
-                metrics = self.evaluate(eval_episodes)
-                self.metrics_logger.log_eval(episode + 1, self.total_steps, self.epsilon, metrics)
-                if metrics['success_rate'] > best_success:
-                    best_success = metrics['success_rate']
+                with timer('eval', episode=episode):
+                    metrics = self.evaluate(eval_episodes)
+                q_updates = self.total_steps // self.n_steps_per_update
+                self.metrics_logger.log_eval(episode + 1, q_updates, self.epsilon, metrics)
+                if metrics['win_rate'] > best_success:
+                    best_success = metrics['win_rate']
                     self.save(best_path)
                     if verbose:
                         print(f"\n  New best: {best_success:.1%} success rate at ep {episode + 1}")
@@ -391,6 +409,7 @@ class FrozenLakeDQN:
             'episode_returns': self.episode_returns,
             'episode_lengths': self.episode_lengths,
             'total_steps': self.total_steps,
+            'epsilon': self.epsilon,
         }
         with open(path, 'wb') as f:
             pickle.dump(ckpt, f)
@@ -406,4 +425,5 @@ class FrozenLakeDQN:
         self.episode_returns = ckpt.get('episode_returns', [])
         self.episode_lengths = ckpt.get('episode_lengths', [])
         self.total_steps = ckpt.get('total_steps', 0)
+        self.epsilon = ckpt.get('epsilon', self.epsilon_start)
         self._build_jit_fns()

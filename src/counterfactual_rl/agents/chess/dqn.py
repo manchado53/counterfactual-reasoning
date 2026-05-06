@@ -28,8 +28,8 @@ import optax
 import pgx
 
 from .policies import ChessQNetwork
+from .array_buffer import ChessArrayReplayBuffer
 from counterfactual_rl.envs.chess import GardnerChessEnv, CHESS_ACTIONS
-from ..shared.buffers import PrioritizedReplayBuffer
 from ..shared.metrics import MetricsLogger
 
 
@@ -96,10 +96,11 @@ class ChessDQN:
 
         # Replay buffer
         per = self.config.get('PER_parameters', {})
-        self.buffer = PrioritizedReplayBuffer(
+        self.buffer = ChessArrayReplayBuffer(
             capacity=self.config.get('M', 200000),
+            obs_dim=self.obs_dim,
             eps=per.get('eps', 0.01),
-            beta=per.get('beta', 0.4),
+            beta=per.get('beta', 0.25),
             max_priority=per.get('maximum_priority', 1.0),
             uniform=(self.config.get('algorithm') == 'dqn-uniform'),
         )
@@ -317,15 +318,15 @@ class ChessDQN:
         if not self.buffer.can_sample(self.batch_size):
             return
 
-        transitions, indices, is_weights = self.buffer.sample(self.batch_size)
+        data, indices, is_weights = self.buffer.sample(self.batch_size)
 
-        states = jnp.array(np.array([d['s'] for d in transitions]))
-        next_states = jnp.array(np.array([d["s'"] for d in transitions]))
-        actions = jnp.array(np.array([d['a'] for d in transitions]), dtype=jnp.int32)
-        rewards = jnp.array(np.array([d['r'] for d in transitions]), dtype=jnp.float32)
-        dones = jnp.array(np.array([d['done'] for d in transitions]), dtype=jnp.float32)
-        next_masks = jnp.array(np.array([d['next_masks'] for d in transitions]), dtype=jnp.bool_)
-        weights = jnp.array(is_weights, dtype=jnp.float32)
+        states      = jnp.array(data['s'])
+        next_states = jnp.array(data["s'"])
+        actions     = jnp.array(data['a'],    dtype=jnp.int32)
+        rewards     = jnp.array(data['r'],    dtype=jnp.float32)
+        dones       = jnp.array(data['done'], dtype=jnp.float32)
+        next_masks  = jnp.array(data['next_masks'], dtype=jnp.bool_)
+        weights     = jnp.array(is_weights,   dtype=jnp.float32)
 
         self.params, self.opt_state, loss, td_errors = self._update_step(
             self.params, self.target_params, self.opt_state,
@@ -338,28 +339,19 @@ class ChessDQN:
 
     def _add_chunk_to_buffer(self, outputs, N_ENVS: int, T: int):
         """
-        Convert collected chunk to numpy and add all transitions to buffer.
-        Called by learn() and overridden by ChessConsequenceDQN to also store pgx states.
+        Convert collected chunk to numpy and add all transitions to buffer in one batch.
+        O(1) Python overhead via numpy slice assignment (no per-transition loop).
         """
-        actions_np  = np.array(outputs[0])    # (N, T)
-        rewards_np  = np.array(outputs[1])    # (N, T)
-        ep_ended_np = np.array(outputs[2])    # (N, T) bool
-        obs_np      = np.array(outputs[3])    # (N, T, 2875)
-        next_obs_np = np.array(outputs[4])    # (N, T, 2875)
-        masks_np      = np.array(outputs[5])  # (N, T, 1225)
-        next_masks_np = np.array(outputs[6])  # (N, T, 1225)
-
-        for env_i in range(N_ENVS):
-            for t in range(T):
-                self.buffer.add({
-                    's':          obs_np[env_i, t],
-                    'a':          actions_np[env_i, t:t+1],    # (1,) to match original
-                    'r':          float(rewards_np[env_i, t]),
-                    "s'":         next_obs_np[env_i, t],
-                    'done':       bool(ep_ended_np[env_i, t]),
-                    'masks':      masks_np[env_i, t:t+1],      # (1, 1225)
-                    'next_masks': next_masks_np[env_i, t:t+1],
-                })
+        n = N_ENVS * T
+        self.buffer.add_batch(
+            obs        = np.array(outputs[3]).reshape(n, -1),      # (N*T, 2875)
+            next_obs   = np.array(outputs[4]).reshape(n, -1),
+            actions    = np.array(outputs[0]).reshape(n),          # (N*T,)
+            rewards    = np.array(outputs[1]).reshape(n),
+            dones      = np.array(outputs[2]).reshape(n),
+            masks      = np.array(outputs[5]).reshape(n, 1, -1),   # (N*T, 1, 1225)
+            next_masks = np.array(outputs[6]).reshape(n, 1, -1),
+        )
 
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'ChessDQN':
         """
@@ -392,6 +384,12 @@ class ChessDQN:
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_win_rate = -1.0
 
+        n_ckpts = self.config.get('n_checkpoints', 100)
+        ckpt_interval = max(1, n_chunks // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
         if verbose:
             print(f"Training ChessDQN on Gardner chess (vectorized)")
             print(f"  N_ENVS={N_ENVS} | collect_steps={T} | {N_ENVS*T} transitions/chunk")
@@ -407,7 +405,11 @@ class ChessDQN:
                 outputs = self._run_collect_chunk(N_ENVS, T)
 
             with timer('buffer.add', episode=chunk_idx):
+                ep_ret_np   = np.array(outputs[8])   # (N, T)
+                ep_len_np   = np.array(outputs[9])   # (N, T)
+                ep_ended_np = np.array(outputs[2])   # (N, T)
                 self._add_chunk_to_buffer(outputs, N_ENVS, T)
+                del outputs  # free GPU memory before updates
 
             n_transitions = N_ENVS * T
             prev_steps = self.total_steps
@@ -421,10 +423,7 @@ class ChessDQN:
                 if (prev_steps // self.target_update_freq) < (self.total_steps // self.target_update_freq):
                     self._update_target_network()
 
-            # Episode stats: ep_returns/ep_lengths are nonzero only at episode ends
-            ep_ret_np = np.array(outputs[8])   # (N, T)
-            ep_len_np = np.array(outputs[9])   # (N, T)
-            ep_ended_np = np.array(outputs[2]) # (N, T)
+            # Episode stats (already extracted to numpy above)
             for env_i in range(N_ENVS):
                 for t in range(T):
                     if ep_ended_np[env_i, t]:
@@ -444,6 +443,9 @@ class ChessDQN:
 
             if (chunk_idx + 1) % save_every == 0:
                 self.save(last_path)
+
+            if ckpt_interval > 0 and (chunk_idx + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{chunk_idx+1:07d}.pkl'))
 
             if eval_interval and (chunk_idx + 1) % eval_interval == 0:
                 with timer('eval', episode=chunk_idx):
@@ -491,7 +493,7 @@ class ChessDQN:
             ep_len = 0
             while not done:
                 action = self.select_action(obs, masks)
-                obs, state, r, done = self.env.step(state, int(action[0]))
+                obs, state, r, done = self.env.step(state, action[0])
                 masks = self.env.get_legal_mask(state)
                 ep_ret += r
                 ep_len += 1
@@ -511,7 +513,7 @@ class ChessDQN:
             'loss_rate':        losses / n_episodes,
             'avg_return':       total_return / n_episodes,
             'avg_length':       total_length / n_episodes,
-            'avg_allies_alive': draws / n_episodes,  # MetricsLogger compat column
+            'avg_allies_alive': 0.0,
         }
 
     def _record_game(self, chunk_idx: int, seed: int = 99, max_steps: int = 200):
@@ -585,6 +587,7 @@ class ChessDQN:
             'episode_returns': self.episode_returns,
             'episode_lengths': self.episode_lengths,
             'total_steps':     self.total_steps,
+            'epsilon':         self.epsilon,
         }
         with open(path, 'wb') as f:
             pickle.dump(checkpoint, f)
@@ -601,5 +604,6 @@ class ChessDQN:
         self.episode_returns = checkpoint.get('episode_returns', [])
         self.episode_lengths = checkpoint.get('episode_lengths', [])
         self.total_steps = checkpoint.get('total_steps', 0)
+        self.epsilon = checkpoint.get('epsilon', self.epsilon_start)
         self._build_jit_fns()
         self._build_vectorized_collect_fn()

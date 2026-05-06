@@ -258,6 +258,12 @@ class DQN:
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_win_rate = -1.0
 
+        n_ckpts = self.config.get('n_checkpoints', 100)
+        ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
         np.random.seed(self.config.get('seed', 0))
 
         devices = jax.devices()
@@ -348,6 +354,9 @@ class DQN:
                 if verbose:
                     print(f"\nSaved checkpoint at episode {episode + 1}")
 
+            if ckpt_interval > 0 and (episode + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{episode+1:07d}.pkl'))
+
             if eval_interval and (episode + 1) % eval_interval == 0:
                 with timer('eval', episode=episode):
                     metrics = evaluate(self, n_episodes=eval_episodes, parallel=True)
@@ -425,6 +434,7 @@ class DQN:
             'episode_returns': self.episode_returns,
             'episode_lengths': self.episode_lengths,
             'total_steps': self.total_steps,
+            'epsilon': self.epsilon,
         }
         with open(path, 'wb') as f:
             pickle.dump(checkpoint, f)
@@ -443,6 +453,7 @@ class DQN:
         self.episode_returns = checkpoint.get('episode_returns', [])
         self.episode_lengths = checkpoint.get('episode_lengths', [])
         self.total_steps = checkpoint.get('total_steps', 0)
+        self.epsilon = checkpoint.get('epsilon', self.epsilon_start)
 
         # Rebuild JIT functions with loaded params
         self._build_jit_fns()

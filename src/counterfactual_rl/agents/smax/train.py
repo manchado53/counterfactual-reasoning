@@ -39,13 +39,11 @@ def main():
     if metric_override:
         config['consequence_metric'] = metric_override
 
-    # Dynamic import based on algorithm and backend
+    # Dynamic import based on algorithm
     if config['algorithm'] == 'consequence-dqn':
-        from ..dqn_jax.consequence_dqn import ConsequenceDQN as DQN
-    elif config['backend'] == 'jax':
-        from ..dqn_jax.dqn import DQN
+        from .consequence_dqn import ConsequenceDQN as DQN
     else:
-        from ..dqn_pytorch.dqn import DQN
+        from .dqn import DQN
 
     # Create environment
     env, key, env_info = create_smax_env(

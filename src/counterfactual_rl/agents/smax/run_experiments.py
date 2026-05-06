@@ -39,6 +39,10 @@ def submit_experiment(experiment_name, dry_run=False):
             print(f"  [{i+1:3d}] CONFIG_OVERRIDES_B64={encoded}")
             print(f"         -> {overrides}")
         print(f"\n{len(runs)} jobs (dry run — nothing submitted)")
+        threshold = experiment.get('threshold')
+        if threshold is not None:
+            print(f"\nAnalysis job would fire after all training:")
+            print(f"  env={experiment['env_key']}  threshold={threshold}")
         return
 
     # Submit all jobs
@@ -124,6 +128,36 @@ def submit_experiment(experiment_name, dry_run=False):
         else:
             print(f"Warning: failed to submit timing job: {result.stderr.strip()}")
             print(f"Run manually: python -m counterfactual_rl.training.smax.shared.timing.plot --manifest {manifest_path}")
+
+        # Submit Claim 2 analysis job if this experiment has a registered threshold
+        threshold = experiment.get('threshold')
+        env_key = experiment.get('env_key')
+        if threshold is not None and env_key is not None:
+            repo_root = os.path.abspath(os.path.join(script_dir, '..', '..', '..', '..'))
+            analysis_script = os.path.join(
+                repo_root, 'src', 'counterfactual_rl', 'analysis', 'claim2', 'run_analysis.sh'
+            )
+            out_dir = os.path.join(repo_root, 'docs', 'figures', experiment_name)
+            os.makedirs(out_dir, exist_ok=True)
+            analysis_cmd = [
+                'sbatch',
+                f'--dependency=afterany:{dependency}',
+                (f'--export=ANALYSIS_MANIFEST={manifest_path},'
+                 f'ANALYSIS_ENV={env_key},'
+                 f'ANALYSIS_THRESHOLD={threshold},'
+                 f'ANALYSIS_OUT={out_dir}'),
+                analysis_script,
+            ]
+            result = subprocess.run(analysis_cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                analysis_job_id = result.stdout.strip().split()[-1]
+                print(f"Analysis job {analysis_job_id} queued "
+                      f"(env={env_key}, threshold={threshold})")
+            else:
+                print(f"Warning: failed to submit analysis job: {result.stderr.strip()}")
+                print(f"Run manually: python -m counterfactual_rl.analysis.claim2.run_analysis "
+                      f"--manifest {manifest_path} --env {env_key} "
+                      f"--threshold {threshold} --out {out_dir}")
 
 
 if __name__ == '__main__':

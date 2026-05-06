@@ -16,6 +16,9 @@ Override any config key via --override KEY=VALUE (repeatable).
 
 import argparse
 import ast
+import base64
+import json
+import os
 
 from .config import DEFAULT_CONFIG
 
@@ -67,6 +70,11 @@ def main():
             config[key.strip()] = ast.literal_eval(raw_val.strip())
         except (ValueError, SyntaxError):
             config[key.strip()] = raw_val.strip()
+
+    # Env-var overrides take precedence (used by run_experiments.py batch submission)
+    env_b64 = os.environ.get('CONFIG_OVERRIDES_B64')
+    if env_b64:
+        config.update(json.loads(base64.b64decode(env_b64).decode()))
 
     # Select and run agent
     if config['algorithm'] == 'consequence-dqn':

@@ -10,6 +10,8 @@ class PrioritizedReplayBuffer:
 
     Samples transitions based on TD-error priorities, with importance
     sampling weights to correct for the non-uniform sampling.
+
+    Internally uses a circular buffer with pre-allocated arrays for O(1) add/eviction.
     """
 
     def __init__(
@@ -20,94 +22,65 @@ class PrioritizedReplayBuffer:
         max_priority: float = 1.0,
         uniform: bool = False
     ):
-        """
-        Args:
-            capacity: Maximum buffer size
-            eps: Small constant added to priorities to ensure non-zero sampling
-            beta: Exponent for priority-based sampling (0 = uniform, 1 = full prioritization)
-            max_priority: Initial priority for new transitions
-            uniform: If True, sample uniformly (ignore priorities)
-        """
         self.capacity = capacity
         self.eps = eps
         self.beta = beta
         self.max_priority = max_priority
         self.uniform = uniform
 
-        self.buffer: List[Dict] = []
-        self.priorities: List[float] = []
+        # Circular buffer: pre-allocated to capacity, no shifting on eviction
+        self.buffer: List[Any] = [None] * capacity
+        self.priorities: np.ndarray = np.zeros(capacity, dtype=np.float64)
+
+        self._write_pos: int = 0
+        self._size: int = 0
 
     def __len__(self) -> int:
-        return len(self.buffer)
+        return self._size
 
     def add(self, transition: Dict):
-        """
-        Add a transition with maximum priority.
-
-        Args:
-            transition: Dict with keys like 's', 'a', 'r', "s'", 'done', etc.
-        """
-        self.buffer.append(transition)
-        priority = (self.max_priority + self.eps) ** self.beta
-        self.priorities.append(priority)
-
-        # Remove oldest if over capacity
-        if len(self.buffer) > self.capacity:
-            self.buffer.pop(0)
-            self.priorities.pop(0)
+        """Add a transition with maximum priority. O(1) — writes at _write_pos."""
+        pos = self._write_pos
+        self.buffer[pos] = transition
+        self.priorities[pos] = (self.max_priority + self.eps) ** self.beta
+        self._write_pos = (pos + 1) % self.capacity
+        self._size = min(self._size + 1, self.capacity)
 
     def sample(self, batch_size: int) -> Tuple[List[Dict], np.ndarray, np.ndarray]:
         """
         Sample a batch of transitions based on priorities.
 
-        Args:
-            batch_size: Number of transitions to sample
-
         Returns:
             Tuple of (transitions, indices, importance_sampling_weights)
         """
-        if len(self.buffer) < batch_size:
-            raise ValueError(f"Not enough samples in buffer ({len(self.buffer)} < {batch_size})")
+        if self._size < batch_size:
+            raise ValueError(f"Not enough samples in buffer ({self._size} < {batch_size})")
 
         if self.uniform:
-            indices = np.random.choice(len(self.buffer), size=batch_size)
+            indices = np.random.choice(self._size, size=batch_size)
             transitions = [self.buffer[idx] for idx in indices]
             weights = np.ones(batch_size)
             return transitions, indices, weights
 
-        probs = np.array(self.priorities, dtype=np.float64)
+        probs = self.priorities[:self._size].copy()
         probs /= probs.sum()
-        indices = np.random.choice(len(self.buffer), size=batch_size, p=probs)
+        indices = np.random.choice(self._size, size=batch_size, p=probs)
 
         transitions = [self.buffer[idx] for idx in indices]
 
-        # Compute importance sampling weights
-        prob_uniform = 1.0 / len(self.buffer)
-        weights = np.array([prob_uniform / probs[idx] for idx in indices])
+        # Importance sampling weights: w_j = 1 / (p(j) * N)
+        weights = 1.0 / (probs[indices] * self._size)
 
         return transitions, indices, weights
 
     def update_priority(self, index: int, td_error: float):
-        """
-        Update priority for a transition based on TD error.
-
-        Args:
-            index: Index of transition in buffer
-            td_error: Temporal difference error
-        """
+        """Update priority for a transition based on TD error."""
         if self.uniform:
             return
-        priority = (abs(td_error) + self.eps) ** self.beta
-        self.priorities[index] = priority
+        self.priorities[index] = (abs(td_error) + self.eps) ** self.beta
 
     def update_priorities(self, indices: np.ndarray, td_errors: np.ndarray):
-        """
-        Update priorities for multiple transitions.
-
-        Args:
-            indices: Array of indices
-            td_errors: Array of TD errors
-        """
+        """Update priorities for multiple transitions."""
         if self.uniform:
             return
         for idx, td_error in zip(indices, td_errors):
@@ -115,4 +88,4 @@ class PrioritizedReplayBuffer:
 
     def can_sample(self, batch_size: int) -> bool:
         """Check if buffer has enough samples."""
-        return len(self.buffer) >= batch_size
+        return self._size >= batch_size

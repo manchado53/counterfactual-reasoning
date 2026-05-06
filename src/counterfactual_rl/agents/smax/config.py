@@ -40,6 +40,7 @@ DEFAULT_CONFIG = {
     # Training
     'n_episodes': 50000,
     'save_every': 500,
+    'n_checkpoints': 100,
 
     # Periodic evaluation during training
     'eval_interval': 100,    # Evaluate every N episodes (None = disabled)

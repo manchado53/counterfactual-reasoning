@@ -115,19 +115,23 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
         if n_score == 0:
             return
 
-        transitions, indices = self.buffer.sample_uniform(n_score)
+        timer = self.metrics_logger.timer
+        ep = self._current_episode
 
-        # Collect states that have saved jax_state
-        valid_states = []
-        valid_actions_taken = []
-        valid_indices = []
-        for i, (t, idx) in enumerate(zip(transitions, indices)):
-            s = self.buffer.get_jax_state(idx)
-            if s is None:
-                continue
-            valid_states.append(jnp.int32(s))
-            valid_actions_taken.append(int(t['a']))
-            valid_indices.append(i)
+        with timer('update.scoring.sample', episode=ep):
+            transitions, indices = self.buffer.sample_uniform(n_score)
+
+            # Collect states that have saved jax_state
+            valid_states = []
+            valid_actions_taken = []
+            valid_indices = []
+            for i, (t, idx) in enumerate(zip(transitions, indices)):
+                s = self.buffer.get_jax_state(idx)
+                if s is None:
+                    continue
+                valid_states.append(jnp.int32(s))
+                valid_actions_taken.append(int(t['a']))
+                valid_indices.append(i)
 
         if not valid_states:
             return
@@ -140,35 +144,34 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             print("Compiling consequence rollout function (one-time cost)...")
             self._build_rollout_fn()
 
-        # states_array: (B,)  actions: (4,)  keys: (B, 4, N, 2)
         states_array = jnp.array(valid_states, dtype=jnp.int32)
-
         self._key, subkey = jax.random.split(self._key)
         keys_flat = jax.random.split(subkey, B * 4 * N)
         keys_array = keys_flat.reshape(B, 4, N, 2)
 
-        returns = self._compiled_rollout_fn(
-            self.params, states_array, _ALL_ACTIONS, keys_array
-        )
-        returns = jax.block_until_ready(returns)
-        returns_np = np.array(returns)  # (B, 4, N)
-
-        # Compute consequence score per transition
-        scores = np.zeros(B)
-        for i in range(B):
-            taken_action = valid_actions_taken[i]
-            return_distributions = {(a,): returns_np[i, a] for a in range(4)}
-            scores[i] = compute_consequence_metric(
-                action=(taken_action,),
-                return_distributions=return_distributions,
-                metric=self.consequence_metric,
-                aggregation=self.consequence_aggregation,
+        with timer('update.scoring.rollouts', episode=ep, batch_size=B):
+            returns = self._compiled_rollout_fn(
+                self.params, states_array, _ALL_ACTIONS, keys_array
             )
+            returns = jax.block_until_ready(returns)
+            returns_np = np.array(returns)  # (B, 4, N)
 
-        scores = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+        with timer('update.scoring.metrics', episode=ep):
+            scores = np.zeros(B)
+            for i in range(B):
+                taken_action = valid_actions_taken[i]
+                return_distributions = {(a,): returns_np[i, a] for a in range(4)}
+                scores[i] = compute_consequence_metric(
+                    action=(taken_action,),
+                    return_distributions=return_distributions,
+                    metric=self.consequence_metric,
+                    aggregation=self.consequence_aggregation,
+                )
+            scores = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
 
-        scored_indices = indices[np.array(valid_indices)]
-        self.buffer.update_consequence_scores(scored_indices, scores)
+        with timer('update.scoring.buffer_update', episode=ep):
+            scored_indices = indices[np.array(valid_indices)]
+            self.buffer.update_consequence_scores(scored_indices, scores)
 
     def _update(self):
         if not self.buffer.can_sample(self.batch_size):
@@ -180,19 +183,22 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
                 and len(self.buffer) >= self.n_score_sample):
             self._score_buffer_transitions()
 
-        transitions, indices, weights = self.buffer.sample(self.batch_size)
-        states  = jnp.array([t['s']    for t in transitions], dtype=jnp.int32)
-        actions = jnp.array([t['a']    for t in transitions], dtype=jnp.int32)
-        rewards = jnp.array([t['r']    for t in transitions], dtype=jnp.float32)
-        nexts   = jnp.array([t["s'"]   for t in transitions], dtype=jnp.int32)
-        dones   = jnp.array([t['done'] for t in transitions], dtype=jnp.float32)
-        wts     = jnp.array(weights, dtype=jnp.float32)
+        ep = self._current_episode
+        timer = self.metrics_logger.timer
+        with timer('update.q_update', episode=ep):
+            transitions, indices, weights = self.buffer.sample(self.batch_size)
+            states  = jnp.array([t['s']    for t in transitions], dtype=jnp.int32)
+            actions = jnp.array([t['a']    for t in transitions], dtype=jnp.int32)
+            rewards = jnp.array([t['r']    for t in transitions], dtype=jnp.float32)
+            nexts   = jnp.array([t["s'"]   for t in transitions], dtype=jnp.int32)
+            dones   = jnp.array([t['done'] for t in transitions], dtype=jnp.float32)
+            wts     = jnp.array(weights, dtype=jnp.float32)
 
-        self.params, self.opt_state, td_errors = self._update_step(
-            self.params, self.target_params, self.opt_state,
-            states, actions, rewards, nexts, dones, wts,
-        )
-        self.buffer.update_priorities(indices, np.array(td_errors))
+            self.params, self.opt_state, td_errors = self._update_step(
+                self.params, self.target_params, self.opt_state,
+                states, actions, rewards, nexts, dones, wts,
+            )
+            self.buffer.update_priorities(indices, np.array(td_errors))
 
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'FrozenLakeConsequenceDQN':
         n_episodes = n_episodes or self.config['n_episodes']
@@ -215,6 +221,13 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_success = -1.0
+
+        n_ckpts = self.config.get('n_checkpoints', 100)
+        ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
         np.random.seed(self.config.get('seed', 0))
 
         if verbose:
@@ -233,9 +246,10 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             self._current_episode = episode
             timer.begin_episode(episode)
 
-            self._key, rk = jax.random.split(self._key)
-            _, state = self.env.reset(rk)
-            state = int(state)
+            with timer('env', episode=episode):
+                self._key, rk = jax.random.split(self._key)
+                _, state = self.env.reset(rk)
+                state = int(state)
 
             done = False
             ep_return = 0.0
@@ -244,25 +258,30 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             while not done:
                 saved_state = state  # save before step for counterfactual rollouts
 
-                action = self.select_action(state)
-                self._key, sk = jax.random.split(self._key)
-                _, next_state, reward, done, _ = self.env.step(
-                    sk, jnp.int32(state), jnp.int32(action)
-                )
-                next_state = int(next_state)
-                reward = float(reward)
-                done = bool(done)
+                with timer('action', episode=episode):
+                    action = self.select_action(state)
 
-                self.buffer.add(
-                    {'s': state, 'a': action, 'r': reward, "s'": next_state, 'done': done},
-                    jax_state=saved_state,
-                )
+                with timer('env', episode=episode):
+                    self._key, sk = jax.random.split(self._key)
+                    _, next_state, reward, done, _ = self.env.step(
+                        sk, jnp.int32(state), jnp.int32(action)
+                    )
+                    next_state = int(next_state)
+                    reward = float(reward)
+                    done = bool(done)
+
+                with timer('buffer.add', episode=episode):
+                    self.buffer.add(
+                        {'s': state, 'a': action, 'r': reward, "s'": next_state, 'done': done},
+                        jax_state=saved_state,
+                    )
                 self.total_steps += 1
 
-                if self.total_steps % self.n_steps_per_update == 0:
-                    self._update()
-                if self.total_steps % self.target_update_freq == 0:
-                    self._update_target_network()
+                with timer('update', episode=episode):
+                    if self.total_steps % self.n_steps_per_update == 0:
+                        self._update()
+                    if self.total_steps % self.target_update_freq == 0:
+                        self._update_target_network()
 
                 state = next_state
                 ep_return += reward
@@ -281,14 +300,18 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             if (episode + 1) % save_every == 0:
                 self.save(last_path)
 
+            if ckpt_interval > 0 and (episode + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{episode+1:07d}.pkl'))
+
             if eval_interval and (episode + 1) % eval_interval == 0:
-                metrics = self.evaluate(eval_episodes)
+                with timer('eval', episode=episode):
+                    metrics = self.evaluate(eval_episodes)
                 self.metrics_logger.log_eval(episode + 1, self.q_update_count, self.epsilon, metrics)
-                if metrics['success_rate'] > best_success:
-                    best_success = metrics['success_rate']
+                if metrics['win_rate'] > best_success:
+                    best_success = metrics['win_rate']
                     self.save(best_path)
                     if verbose:
-                        print(f"\n  New best: {best_success:.1%} success rate at ep {episode + 1}")
+                        print(f"\n  New best: {best_success:.1%} win rate at ep {episode + 1}")
 
             timer.flush_episode()
 
