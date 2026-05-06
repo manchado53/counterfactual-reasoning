@@ -15,6 +15,8 @@ import sys
 from datetime import date
 from itertools import product
 
+from counterfactual_rl.agents.shared.slurm_throttle import wait_for_slot
+
 
 # ── Experiment definitions ────────────────────────────────────────────────────
 
@@ -51,11 +53,12 @@ CLAIM2_MAIN = {
     ],
     'fixed': {
         'map_name': '8x8',
-        'n_episodes': 30000,                  # adjust after pilot
-        'mu': 0.25,                           # UPDATE after SMAX mu sweep
-        'consequence_metric': 'wasserstein',  # UPDATE after SMAX metric sweep
+        'n_episodes': 30000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
         'epsilon_decay_episodes': 10000,
         'score_interval': 300,
+        'early_stop_win_rate': 0.97,
     },
 }
 
@@ -79,7 +82,22 @@ FULL_SMOKE = {
         'map_name': '8x8', 'seed': 0,
         'n_episodes': 500, 'eval_interval': 50, 'eval_episodes': 20,
         'buffer_capacity': 2000, 'score_interval': 50,
-        'consequence_metric': 'wasserstein', 'mu': 0.25,
+        'consequence_metric': 'total_variation', 'mu': 0.25,
+    },
+}
+
+# Claim 1 — DQN+PER checkpointed runs for oracle correlation analysis
+CLAIM1_DQN = {
+    'name': 'claim1_dqn',
+    'runs': [
+        {'algorithm': 'dqn', 'seed': 0},
+        {'algorithm': 'dqn', 'seed': 1},
+        {'algorithm': 'dqn', 'seed': 2},
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 15000,
+        'early_stop_win_rate': 0.99,
     },
 }
 
@@ -87,6 +105,7 @@ EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
     'pilot': PILOT,
+    'claim1_dqn': CLAIM1_DQN,
     'claim2_main': CLAIM2_MAIN,
 }
 
@@ -104,7 +123,7 @@ def generate_runs(experiment):
 
 # ── Submission ────────────────────────────────────────────────────────────────
 
-def submit_experiment(experiment_name, dry_run=False):
+def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
     if experiment_name not in EXPERIMENTS:
         print(f"Error: unknown experiment '{experiment_name}'")
         print(f"Available: {', '.join(EXPERIMENTS.keys())}")
@@ -136,6 +155,8 @@ def submit_experiment(experiment_name, dry_run=False):
     os.makedirs(exp_dir, exist_ok=True)
 
     for i, overrides in enumerate(runs):
+        if max_concurrent is not None:
+            wait_for_slot(max_concurrent)
         encoded = base64.b64encode(json.dumps(overrides).encode()).decode()
         cmd = ['sbatch', f'--export=CONFIG_OVERRIDES_B64={encoded}', script_path]
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -189,5 +210,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('experiment', help=f'One of: {", ".join(EXPERIMENTS.keys())}')
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--max-concurrent', type=int, default=None,
+                        help='Max jobs in squeue at once (default: no limit)')
     args = parser.parse_args()
-    submit_experiment(args.experiment, dry_run=args.dry_run)
+    submit_experiment(args.experiment, dry_run=args.dry_run, max_concurrent=args.max_concurrent)

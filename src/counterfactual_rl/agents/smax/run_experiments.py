@@ -15,9 +15,10 @@ import sys
 from datetime import date
 
 from experiments import EXPERIMENTS, generate_runs
+from counterfactual_rl.agents.shared.slurm_throttle import wait_for_slot
 
 
-def submit_experiment(experiment_name, dry_run=False):
+def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
     if experiment_name not in EXPERIMENTS:
         print(f"Error: unknown experiment '{experiment_name}'")
         print(f"Available: {', '.join(EXPERIMENTS.keys())}")
@@ -54,6 +55,9 @@ def submit_experiment(experiment_name, dry_run=False):
     os.makedirs(exp_dir, exist_ok=True)
 
     for i, overrides in enumerate(runs):
+        if max_concurrent is not None and not dry_run:
+            wait_for_slot(max_concurrent)
+
         overrides_json = json.dumps(overrides)
         encoded = base64.b64encode(overrides_json.encode()).decode()
         cmd = [
@@ -164,6 +168,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Submit experiment sweeps to SLURM')
     parser.add_argument('experiment', help=f'Experiment name: {", ".join(EXPERIMENTS.keys())}')
     parser.add_argument('--dry-run', action='store_true', help='Print commands without submitting')
+    parser.add_argument('--max-concurrent', type=int, default=None,
+                        help='Max jobs in squeue at once (default: no limit)')
     args = parser.parse_args()
 
-    submit_experiment(args.experiment, dry_run=args.dry_run)
+    submit_experiment(args.experiment, dry_run=args.dry_run, max_concurrent=args.max_concurrent)

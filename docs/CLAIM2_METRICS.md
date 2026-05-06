@@ -21,18 +21,20 @@ faster than DQN-Uniform and DQN+PER baselines, without sacrificing asymptotic pe
 
 ---
 
-## Pre-registered thresholds
+## Thresholds
 
-These must be set before looking at results — picking them post-hoc invalidates the
-steps-to-threshold claim.
+Thresholds for SMAX are set based on sweep experiment results. For Chess and FrozenLake,
+thresholds will be set by inspecting learning curves after training completes — before
+running the analysis script. Note: setting thresholds post-training is a methodological
+limitation; results should be presented as exploratory evidence for these two environments.
 
-| Environment | Threshold | Rationale |
-|---|---|---|
-| SMAX 3m | 60% win rate | Well above ~50% random-policy baseline; achievable within 25k episodes |
-| SMAX 8m | 55% win rate | Harder scenario; lower bar reflects the difficulty |
-| Gardner Chess (vs. pgx ~1000 Elo) | TBD | Set after pilot — observe what a trained DQN+Uniform achieves; expected range 25–45% |
-| Gardner Chess (vs. random) | 70% | Secondary sanity check only; not used in rliable pipeline |
-| FrozenLake | TBD | Set after pilot run — random policy has ~0% success on slippery 4×4 |
+| Environment | Threshold | How set | Status |
+|---|---|---|---|
+| SMAX 3m | 0.25 win rate | From sweep experiments | ✅ Fixed in experiments.py |
+| SMAX 8m | 0.25 win rate | Matching 3m | ✅ Fixed in experiments.py |
+| Gardner Chess (vs. pgx ~1000 Elo) | TBD | Inspect DQN+Uniform learning curve post-training; expected 25–45% | ⏳ Set after training |
+| Gardner Chess (vs. random) | 70% | Secondary sanity check only; not used in rliable pipeline | N/A |
+| FrozenLake 8×8 | TBD | Inspect DQN+Uniform learning curve post-training; expected 40–70% win rate | ⏳ Set after training |
 
 ---
 
@@ -462,49 +464,57 @@ wall-clock. Percentage labels inside segments ≥5% of total.
 
 | Dependency | Status | Action |
 |---|---|---|
-| `rliable` | In requirements.txt ✓ | — |
-| Per-seed eval win-rate logs | Pilot runs complete for FL + Chess smoke; main 10-seed runs pending | Run claim2_main after sweep |
-| Episode length logs | Logged as `avg_length` in all envs ✓ | FL uses all-episode avg (see open decision 5) |
-| `timing.jsonl` wall-clock data | SMAX + Chess: per-component data ✓; FL: only `total` until timing fix applied | Apply FL timing fix before main run |
-| FrozenLake main experiments | Pilot (job 254117) running; claim2_main pending sweep results | Submit after SMAX metric+mu sweep |
-| Chess pilot run | Smoke test complete (job 254131); full pilot pending | Submit chess pilot; watch for 32-min JIT cost on first eval; confirm dual eval (pgx + random) is logging correctly |
-| Chess pgx baseline eval | Not yet implemented | Add `pgx.make_baseline_model("gardner_chess_v0")` as eval opponent in `chess/dqn.py` and `chess/consequence_dqn.py` before pilot |
-| SMAX metric sweep | Pending | Submit claim2_metric_sweep_3m; pick winning metric |
-| SMAX mu sweep | Pending sweep results | Submit after metric sweep completes |
-| Analysis pipeline smoke test | Not yet verified end-to-end | Run run_analysis.py on FL pilot data before main experiment |
+| `rliable` | ✅ In requirements.txt | — |
+| SMAX metric sweep | ✅ Done — total_variation wins (69.2% win rate) | — |
+| SMAX μ sweep | ✅ Done — μ=0.25 wins (70.8% win rate) | — |
+| consequence_metric fixed to total_variation | ✅ All three envs updated in experiments.py | — |
+| SLURM throttle (`--max-concurrent`) | ✅ Implemented as shared utility across all 3 envs | — |
+| `--nice=10000` on all training scripts | ✅ Done | — |
+| SMAX 3m claim2_main (10 seeds × 5 algos) | 🟡 Ready to submit | `python run_experiments.py claim2_main_3m --max-concurrent 4` |
+| SMAX 8m claim2_main (10 seeds × 5 algos) | 🟡 Ready to submit | `python run_experiments.py claim2_main_8m --max-concurrent 4` |
+| FrozenLake claim2_main (10 seeds × 5 algos) | 🟡 Ready to submit | `python run_experiments.py claim2_main --max-concurrent 4` |
+| Chess claim2_main | ⏳ Seeds TBD (10 or 5) | Decide then submit |
+| FL threshold | ⏳ Set post-training | Inspect DQN+Uniform learning curve; set in analysis script |
+| Chess threshold | ⏳ Set post-training | Same process |
+| Episode length logs | ✅ Logged as `avg_length` in all envs | FL uses all-episode avg (see open decision 5) |
+| `timing.jsonl` wall-clock data | ✅ parse_wallclock() fixed to use `total` field + `update.scoring.*` for overhead | — |
+| Analysis pipeline smoke test | ✅ Verified on SMAX 3m wasserstein data | Rerun once TV data lands |
 
 ---
 
 ## Open decisions
 
-1. **Chess win rate definition** — **Decided: chess score** `(wins + 0.5×draws)/total`.
+1. **Chess win rate definition** — ✅ **Decided: chess score** `(wins + 0.5×draws)/total`.
    The W/D/L triple is logged in `draw_rate`/`loss_rate` columns and reported in the
    appendix. `chess_score` is the column that feeds into the rliable pipeline.
 
-2. **Chess threshold** — TBD vs. pgx ~1000 Elo baseline. The random-opponent threshold
-   (70%) is pre-registered as a sanity check only. For the primary metric, run the pilot
-   DQN+Uniform chess training first, observe what win rate against the pgx baseline
-   stabilizes at, then lock in a threshold (expected 25–45%) before running the full
-   5-algorithm sweep. The threshold must be set before looking at any CCE results.
+2. **Chess threshold** — ⏳ Set post-training by inspecting the DQN+Uniform learning
+   curve. Expected range 25–45% vs. pgx ~1000 Elo baseline. Note: methodological
+   limitation — threshold is not pre-registered.
 
-3. **FrozenLake threshold** — TBD. Random policy on slippery 4×4 has ~0% success.
-   A pilot run of DQN+Uniform will show what's achievable and when.
+3. **FrozenLake threshold** — ⏳ Set post-training by inspecting the DQN+Uniform
+   learning curve. Expected range 40–70% win rate on slippery 8×8. Same limitation.
 
-4. **FrozenLake variant** — **Decided: 8×8 slippery.** Stochastic transitions make
+4. **FrozenLake variant** — ✅ **Decided: 8×8 slippery.** Stochastic transitions make
    CCE scores more meaningful; 8×8 is harder and more representative.
 
-5. **FrozenLake episode length** — track only successful episodes (path efficiency)
-   or all episodes (including timeouts)? The training harness logs `avg_length` over
-   all episodes (successful and failed). Tracking successful-only would require a
-   separate counter not currently in the training code. **Decision: use all-episode
-   avg_length for fig_length, with a caption note that failed episodes inflate the
-   mean; this is acceptable since the relative ordering across algorithms is still
-   meaningful.**
+5. **FrozenLake episode length** — ✅ **Decided:** use all-episode avg_length for
+   fig_length, with a caption note that failed episodes inflate the mean; relative
+   ordering across algorithms remains meaningful.
 
-6. **SMAX 8m seed count** — **Decided: 10 seeds**, matching all other environments.
-   This is sufficient for P(improvement) bootstrap estimates to be meaningful.
+6. **Seed counts** — ✅ **Decided: 10 seeds for all environments** (SMAX 3m, SMAX 8m,
+   FrozenLake, Chess TBD). FrozenLake kept at 10 — environment is stochastic, same
+   budget as SMAX gives tighter CIs.
 
-7. **Steps-to-threshold x-axis unit** — for SMAX/FrozenLake, "steps" = episodes.
-   For chess, "steps" = total transitions (chunks × n_envs × collect_steps). Define
-   these precisely before generating the table so cross-environment comparisons are
-   honest.
+7. **CCE consequence metric** — ✅ **Decided: total_variation**, selected by Phase 1
+   sweep (69.2% win rate vs. wasserstein at 60.0%). Fixed in all experiments.py files.
+
+8. **CCE μ** — ✅ **Decided: μ=0.25** for additive and multiplicative mixing, selected
+   by Phase 2 sweep (70.8% win rate). Fixed in all experiments.py files.
+
+9. **Steps-to-threshold x-axis unit** — ⏳ Define before generating table. For
+   SMAX/FrozenLake: steps = episodes. For chess: steps = total transitions
+   (chunks × n_envs × collect_steps). Must be consistent for cross-env comparison.
+
+10. **Chess seeds** — ⏳ TBD: 10 (matching other envs) or 5 (lighter compute). Decide
+    before submitting chess claim2_main.

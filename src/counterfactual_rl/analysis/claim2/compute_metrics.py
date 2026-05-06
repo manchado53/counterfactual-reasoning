@@ -166,9 +166,13 @@ def wallclock_to_threshold(
 def parse_wallclock_components(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
     """Per-component timing breakdown averaged over seeds.
 
+    Skips parent-level 'update' timer (its children cover its time) and 'total'
+    to avoid double-counting nested timers in fig5c stacked bars.
+
     Returns:
         {alg: {component_name: avg_hours_per_run}}
     """
+    _SKIP = {'total', 'update'}
     results = {}
     for alg, dirs in run_dirs.items():
         comp_totals: Dict[str, float] = {}
@@ -185,7 +189,7 @@ def parse_wallclock_components(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
                         continue
                     comp = entry.get('component', '')
                     dur = entry.get('duration_s', 0.0)
-                    if comp == 'total':
+                    if comp in _SKIP:
                         continue
                     comp_totals[comp] = comp_totals.get(comp, 0.0) + dur
             n_runs += 1
@@ -197,6 +201,10 @@ def parse_wallclock_components(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
 def parse_wallclock(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
     """Parse timing.jsonl files and return wall-clock sums per algorithm.
 
+    Uses the single 'total' entry as ground-truth wall-clock.
+    scoring_hours = sum of update.scoring.* leaf timers (CCE overhead only).
+    training_hours = total_hours - scoring_hours.
+
     Args:
         run_dirs: {alg: [list of run directory paths]}
 
@@ -205,11 +213,7 @@ def parse_wallclock(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
     """
     results = {}
     for alg, dirs in run_dirs.items():
-        _TRAINING_COMPS = {
-            'env', 'action', 'collect', 'buffer.add',
-            'update', 'update.q_update', 'eval',
-        }
-        training_s, scoring_s, total_s = 0.0, 0.0, 0.0
+        scoring_s, total_s = 0.0, 0.0
         n_runs = 0
         for d in dirs:
             timing_path = os.path.join(d, 'timing.jsonl')
@@ -225,18 +229,16 @@ def parse_wallclock(run_dirs: Dict[str, list]) -> Dict[str, Dict]:
                     dur = entry.get('duration_s', 0.0)
                     if comp == 'total':
                         total_s += dur
-                    elif 'scoring' in comp:
+                    elif comp.startswith('update.scoring.'):
                         scoring_s += dur
-                    elif comp in _TRAINING_COMPS:
-                        training_s += dur
             n_runs += 1
         if n_runs > 0:
-            classified_s = training_s + scoring_s
-            actual_total = total_s / n_runs if total_s > 0 else classified_s / n_runs
+            avg_total = total_s / n_runs / 3600
+            avg_scoring = scoring_s / n_runs / 3600
             results[alg] = {
-                'training_hours': training_s / 3600 / n_runs,
-                'scoring_hours': scoring_s / 3600 / n_runs,
-                'total_hours': actual_total / 3600,
+                'training_hours': avg_total - avg_scoring,
+                'scoring_hours': avg_scoring,
+                'total_hours': avg_total,
             }
     return results
 

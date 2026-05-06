@@ -11,6 +11,7 @@
 #SBATCH --mem=32G
 #SBATCH --time=14:00:00
 #SBATCH --exclude=dh-node16,dh-node17,dh-node18
+#SBATCH --nice=10000
 
 # Create log directory
 mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/chess/logs

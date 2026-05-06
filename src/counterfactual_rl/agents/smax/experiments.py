@@ -319,8 +319,8 @@ CLAIM2_MAIN_3M = {
     ],
     'fixed': {
         'scenario': '3m',
-        'mu': 0.25,                    # UPDATE after mu sweep
-        'consequence_metric': 'wasserstein',  # UPDATE after metric sweep
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
         'n_episodes': 25000,
         'epsilon_decay_episodes': 10000,
         'score_interval': 200,
@@ -341,8 +341,8 @@ CLAIM2_MAIN_8M = {
     ],
     'fixed': {
         'scenario': '8m',
-        'mu': 0.25,                    # UPDATE after mu sweep
-        'consequence_metric': 'wasserstein',  # UPDATE after metric sweep
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
         'n_episodes': 50000,
         'epsilon_decay_episodes': 20000,
         'score_interval': 200,

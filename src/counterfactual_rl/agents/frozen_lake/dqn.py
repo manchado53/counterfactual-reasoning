@@ -303,6 +303,7 @@ class FrozenLakeDQN:
         last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_success = -1.0
+        early_stop_win_rate = self.config.get('early_stop_win_rate', None)
 
         n_ckpts = self.config.get('n_checkpoints', 100)
         ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
@@ -387,6 +388,12 @@ class FrozenLakeDQN:
                     self.save(best_path)
                     if verbose:
                         print(f"\n  New best: {best_success:.1%} success rate at ep {episode + 1}")
+                if early_stop_win_rate is not None and metrics['win_rate'] >= early_stop_win_rate:
+                    if ckpt_interval > 0:
+                        self.save(os.path.join(ckpt_dir, f'ckpt_{episode+1:07d}.pkl'))
+                    if verbose:
+                        print(f"\n  Early stop: win rate {metrics['win_rate']:.1%} >= {early_stop_win_rate:.1%}")
+                    break
 
             timer.flush_episode()
 
