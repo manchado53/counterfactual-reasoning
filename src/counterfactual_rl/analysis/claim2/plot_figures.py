@@ -50,7 +50,7 @@ def fig1_iqm_curves(
             ax.axhline(threshold, color='red', linestyle='--', linewidth=1, alpha=0.7)
 
         ax.set_title(env_name)
-        ax.set_xlabel('Steps')
+        ax.set_xlabel('Environment steps')
         ax.set_ylabel('IQM Win Rate')
         ax.set_ylim(-0.02, 1.05)
         ax.grid(True, alpha=0.3)
@@ -236,7 +236,7 @@ def fig_length_curves(
             ax.plot(x, iqm_vals, label=alg, color=color, linewidth=1.5)
             ax.fill_between(x, ci_lo, ci_hi, alpha=0.15, color=color)
         ax.set_title(env_name)
-        ax.set_xlabel('Steps')
+        ax.set_xlabel('Environment steps')
         ax.set_ylabel('Avg episode length (steps)')
         ax.grid(True, alpha=0.3)
 
@@ -385,7 +385,7 @@ def fig_allies_curves(
             color = COLORS.get(alg, 'black')
             ax.plot(steps[:len(vals)], vals, label=alg, color=color, linewidth=1.5)
         ax.set_title(env_name)
-        ax.set_xlabel('Steps')
+        ax.set_xlabel('Environment steps')
         ax.set_ylabel('Mean Allies Alive')
         ax.grid(True, alpha=0.3)
 

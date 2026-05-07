@@ -7,9 +7,9 @@ Output shapes:
     raw_wdl[alg]     (n_seeds, n_checkpoints, 3)  [win_rate, draw_rate, loss_rate] (chess)
     eval_steps[alg]  (n_checkpoints,)             cumulative env steps at each checkpoint
 
-Steps-to-threshold unit convention:
-    smax_3m / smax_8m : eval_steps[t] = episode number (one episode = one collection chunk)
-    frozen_lake       : eval_steps[t] = episode number
+Steps-to-threshold unit convention (environment steps):
+    smax_3m / smax_8m : eval_steps[t] = updates * 4  (n_steps_per_update=4)
+    frozen_lake       : eval_steps[t] = updates * 4  (n_steps_per_update=4)
     chess             : eval_steps[t] = chunk_idx * n_envs * collect_steps
                                        = chunk_idx * 256 * 256  (from config defaults)
 """
@@ -40,6 +40,8 @@ _FL_COLS = {
 
 # Chess-specific: n_envs * collect_steps per chunk (from config defaults)
 _CHESS_TRANSITIONS_PER_CHUNK = 256 * 256  # n_envs=256, collect_steps=256
+# FL and SMAX: Q-updates × steps_per_update = env steps
+_FL_SMAX_STEPS_PER_UPDATE = 4  # n_steps_per_update / n_steps_for_Q_update in both envs
 
 
 def _detect_env(log_path: str) -> str:
@@ -68,6 +70,7 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     win_rates, avg_lengths, avg_allies_list = [], [], []
     draw_rates, loss_rates, chess_scores = [], [], []
     episodes = []
+    updates_list = []
 
     with open(log_path) as f:
         for line in f:
@@ -80,10 +83,12 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
             parts = line.split()
             try:
                 ep = int(parts[cols['episode']])
+                upd = int(parts[cols['updates']])
                 wr_str = parts[cols['win_rate']].rstrip('%')
                 wr = float(wr_str) / 100.0 if '%' in parts[cols['win_rate']] else float(wr_str)
                 al = float(parts[cols['avg_length']])
                 episodes.append(ep)
+                updates_list.append(upd)
                 win_rates.append(wr)
                 avg_lengths.append(al)
 
@@ -110,10 +115,11 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
         raise ValueError(f"No eval rows found in {log_path}")
 
     ep_arr = np.array(episodes, dtype=np.float64)
+    upd_arr = np.array(updates_list, dtype=np.float64)
     if env_type == 'chess':
         eval_steps = ep_arr * _CHESS_TRANSITIONS_PER_CHUNK
     else:
-        eval_steps = ep_arr  # episodes directly
+        eval_steps = upd_arr * _FL_SMAX_STEPS_PER_UPDATE
 
     primary = np.array(chess_scores if env_type == 'chess' else win_rates)
     wdl = np.stack([win_rates, draw_rates, loss_rates], axis=1)  # (n, 3)

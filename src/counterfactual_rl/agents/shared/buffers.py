@@ -86,6 +86,12 @@ class PrioritizedReplayBuffer:
         for idx, td_error in zip(indices, td_errors):
             self.update_priority(idx, td_error)
 
+    def add_batch(self, transitions: Dict):
+        """Add N transitions at once. transitions maps field names to 1-D arrays of length N."""
+        n = len(next(iter(transitions.values())))
+        for i in range(n):
+            self.add({k: v[i] for k, v in transitions.items()})
+
     def can_sample(self, batch_size: int) -> bool:
         """Check if buffer has enough samples."""
         return self._size >= batch_size

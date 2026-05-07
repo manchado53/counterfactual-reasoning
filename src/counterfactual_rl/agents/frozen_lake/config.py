@@ -32,4 +32,9 @@ DEFAULT_CONFIG = {
     'cf_horizon': 20,
     'cf_n_rollouts': 20,
     'cf_gamma': 0.99,
+
+    # Vectorized training (lax.scan + vmap)
+    'vectorized': False,
+    'n_envs': 256,
+    'collect_steps': 128,
 }

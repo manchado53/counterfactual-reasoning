@@ -94,6 +94,14 @@ class ConsequenceReplayBuffer:
 
         self._cached_probs = None
 
+    def add_batch(self, transitions: Dict, jax_states=None):
+        """Add N transitions at once. transitions maps field names to 1-D arrays of length N."""
+        n = len(next(iter(transitions.values())))
+        for i in range(n):
+            t = {k: v[i] for k, v in transitions.items()}
+            js = int(jax_states[i]) if jax_states is not None else None
+            self.add(t, jax_state=js)
+
     def _compute_priorities(self) -> np.ndarray:
         """Compute combined priorities (Equations 2-5)."""
         if self._cached_probs is not None:

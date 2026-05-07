@@ -77,7 +77,14 @@ def main():
         config.update(json.loads(base64.b64decode(env_b64).decode()))
 
     # Select and run agent
-    if config['algorithm'] == 'consequence-dqn':
+    if config.get('vectorized', False):
+        if config['algorithm'] == 'consequence-dqn':
+            from .consequence_dqn_vectorized import FrozenLakeConsequenceDQNVectorized
+            agent = FrozenLakeConsequenceDQNVectorized(config)
+        else:
+            from .dqn_vectorized import FrozenLakeDQNVectorized
+            agent = FrozenLakeDQNVectorized(config)
+    elif config['algorithm'] == 'consequence-dqn':
         from .consequence_dqn import FrozenLakeConsequenceDQN
         agent = FrozenLakeConsequenceDQN(config)
     else:
