@@ -15,7 +15,7 @@ DEFAULT_CONFIG = {
     'n_layers': 2,
     'n_episodes': 30000,
     'eval_interval': 300,
-    'eval_episodes': 50,
+    'eval_episodes': 100,
     'save_every': 500,
     'n_checkpoints': 100,
     'seed': 0,
@@ -29,7 +29,7 @@ DEFAULT_CONFIG = {
     'n_score_sample': 128,
     'consequence_metric': 'jensen_shannon',
     'consequence_aggregation': 'weighted_mean',
-    'cf_horizon': 10,
+    'cf_horizon': 20,
     'cf_n_rollouts': 20,
     'cf_gamma': 0.99,
 }

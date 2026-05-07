@@ -37,9 +37,30 @@ PILOT = {
     'runs': [{'algorithm': 'dqn-uniform', 'seed': 0, 'n_episodes': 30000, 'map_name': '8x8'}],
 }
 
+# Claim 2 main — remaining 43 jobs (dqn-uniform seeds 0-6 already submitted)
+CLAIM2_MAIN_REMAINING = {
+    'name': 'claim2_main',  # same name so manifests merge into same experiment dir
+    'threshold': None,
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                               'seed': s} for s in range(7, 10)],
+        *[{'algorithm': 'dqn',                                                       'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',             'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',       'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 30000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 10000,
+        'score_interval': 300,
+        'early_stop_win_rate': 0.97,
+    },
+}
+
 # Claim 2 main — 5 algorithms × 10 seeds
-# UPDATE mu and consequence_metric after SMAX sweeps complete.
-# UPDATE threshold after pilot completes.
 CLAIM2_MAIN = {
     'name': 'claim2_main',
     'threshold': None,   # set after pilot
@@ -53,12 +74,11 @@ CLAIM2_MAIN = {
     ],
     'fixed': {
         'map_name': '8x8',
-        'n_episodes': 30000,
+        'n_episodes': 15000,
         'mu': 0.25,
         'consequence_metric': 'total_variation',
-        'epsilon_decay_episodes': 10000,
-        'score_interval': 300,
-        'early_stop_win_rate': 0.97,
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
     },
 }
 
@@ -107,6 +127,7 @@ EXPERIMENTS = {
     'pilot': PILOT,
     'claim1_dqn': CLAIM1_DQN,
     'claim2_main': CLAIM2_MAIN,
+    'claim2_main_remaining': CLAIM2_MAIN_REMAINING,
 }
 
 

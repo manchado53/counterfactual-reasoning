@@ -56,7 +56,7 @@ DEFAULT_CONFIG = {
     'mu_delta': 1.0,                  # Multiplicative: TD-error exponent
     'score_interval': 200,              # Score every N Q-updates (1 = matches paper)
     'n_score_sample': 256,            # B^C_est: transitions scored per pass
-    'consequence_metric': 'wasserstein',  # 'kl_divergence''jensen_shannon''total_variation''wasserstein'
+    'consequence_metric': 'total_variation',  # 'kl_divergence''jensen_shannon''total_variation''wasserstein'
     'consequence_aggregation': 'weighted_mean',
     'cf_horizon': 30,                 # Rollout horizon
     'cf_n_rollouts': 30,              # Rollouts per action

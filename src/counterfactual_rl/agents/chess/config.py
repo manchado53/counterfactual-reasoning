@@ -53,13 +53,13 @@ DEFAULT_CHESS_CONFIG = {
     'algorithm': 'consequence-dqn',
 
     # Consequence-weighted PER (Algorithm 2)
-    'mu': 0.5,
+    'mu': 0.25,
     'priority_mixing': 'additive',
     'mu_c': 1.0,
     'mu_delta': 1.0,
     'score_interval': 1000,
     'n_score_sample': 128,
-    'consequence_metric': 'wasserstein',
+    'consequence_metric': 'total_variation',
     'consequence_aggregation': 'weighted_mean',
 
     # Counterfactual rollouts
