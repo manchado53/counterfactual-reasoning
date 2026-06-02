@@ -16,6 +16,15 @@ Before the user clears context, append a dated entry to its LOG — especially D
 - Transition notes: `~/UR-RL/transition-smax.md`
 - Key docs: `~/UR-RL/counterfactual-reasoning/docs/`
 
+## Code Layout (`src/counterfactual_rl/`)
+- `envs/` — JAX env implementations (frozen_lake, smax, chess). Connect Four uses `pgx` directly.
+- `agents/<env>/` — per-env trainers: `config.py`, `dqn.py` / `consequence_dqn.py`, `train.py`,
+  `run_experiments.py` (SLURM sweeps → manifests under `experiments/<month>/`).
+- `agents/shared/` — shared buffers, consequence scoring, metrics logger, SLURM throttle, timing.
+  Run outputs: `agents/<env>/runs/<job_id>/` (legacy: `agents/shared/runs/`).
+- `analysis/claim1/` & `analysis/claim2/` — figure pipelines (oracle, scoring, rliable, plots).
+- `paper/` — `paper.tex` (the paper) + `repro/` (rebuilds figures from cached arrays).
+
 ## SMAX / JaxMARL
 When working with SMAX, JaxMARL, or related multi-agent RL environments:
 1. Use the WebFetch tool to check https://github.com/FLAIROx/JaxMARL/tree/main/jaxmarl/environments/smax for relevant documentation
@@ -27,8 +36,13 @@ When working with SMAX, JaxMARL, or related multi-agent RL environments:
 - Multi-agent reinforcement learning
 - Counterfactual reasoning and explainability methods
 
-## Gardner Chess (pgx) — Planned Environment
-We are adding Gardner chess (5×5 chess variant) as a second environment to demonstrate the counterfactual consequence reasoning algorithm beyond SMAX.
+## Gardner Chess (pgx) — TRIED & DROPPED
+Gardner chess was tried as a second environment and **dropped**: the Claim-1 oracle
+(AlphaZero `gardner_chess_v0`, ~1000 Elo) is too weak to be ground truth, and Claim-2
+showed no improvement. **Connect Four** (`pgx.make("connect_four")`) is the active
+second-environment effort. The pgx facts and gotchas below still apply to Connect Four.
+See `lab-notebook.md` for current scope. The chess-specific facts below are historical
+reference only (in case chess is ever revisited).
 
 **Library**: `pgx` — JAX-native, vectorized board game environments (NeurIPS 2023)
 **Environment name**: `"gardner_chess"` via `pgx.make("gardner_chess")`
