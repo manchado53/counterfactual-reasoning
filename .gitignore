@@ -75,3 +75,10 @@ replays/
 
 # repro bundle: keep manifests/cache/scripts, ignore throwaway regenerated figs
 paper/repro/regen/
+
+# Claim-1 analysis caches & checkpoints (regenerable outputs; the committed
+# copies live in paper/repro/cache/). Keeps ~206 MB of .pkl/.ckpt out of git.
+src/counterfactual_rl/analysis/claim1/**/*.pkl
+src/counterfactual_rl/analysis/claim1/**/checkpoints/
+# duplicate of the tracked root baselines/gardner_chess_v0.ckpt
+src/counterfactual_rl/agents/chess/baselines/
