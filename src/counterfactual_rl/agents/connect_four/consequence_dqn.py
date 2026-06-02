@@ -1,0 +1,473 @@
+"""
+Connect4ConsequenceDQN — Algorithm 2 for Connect Four.
+
+Extends Connect4DQN with consequence-weighted prioritized replay.
+Adapted from chess/consequence_dqn.py with these key differences:
+
+  - pgx env: 'connect_four' (action space 7, not 1225)
+  - CF rollout opponent: random via random normal logits (same as chess)
+  - cf_top_k=7 by default (all actions — no need to select top-K)
+  - No baseline eval (connect_four has no pgx baseline model)
+
+Seat convention: the agent is ALWAYS player 0. Connect4DQN's collection/eval loops
+normalize this — if pgx assigns the opponent as first mover (current_player == 1),
+the opponent plays one "pre-move" before anything is stored, so every saved state
+has current_player == 0. Hence rewards[0] is always the agent's reward.
+Do NOT change agent_player to state.current_player — that re-breaks rewards.
+"""
+
+import os
+import numpy as np
+from typing import Dict, Optional
+
+import jax
+import jax.numpy as jnp
+import pgx
+from tqdm import tqdm
+
+from .dqn import Connect4DQN, C4_ACTIONS
+from ..chess.array_buffer import ChessArrayReplayBuffer
+from counterfactual_rl.utils.action_selection import (
+    beam_search_top_k_joint_actions,
+    convert_mask_to_indices,
+)
+from counterfactual_rl.analysis.metrics import compute_consequence_metric
+from ..shared.consequence_diagnostics import ConsequenceDiagnostics
+
+
+class Connect4ConsequenceDQN(Connect4DQN):
+    """
+    Consequence-weighted DQN (Algorithm 2) for Connect Four.
+
+    Inherits all Connect4DQN internals and overrides:
+    - Buffer: ConsequenceReplayBuffer (Equations 2-4 priorities)
+    - _update(): adds consequence scoring before Q-update
+    - learn(): stores JAX pgx.State in buffer for counterfactual rollouts
+    """
+
+    def __init__(self, env_info: Dict, config: Optional[Dict] = None):
+        super().__init__(env_info, config)
+
+        per_params = self.config.get('PER_parameters', {})
+        self.buffer = ChessArrayReplayBuffer(
+            capacity=self.config.get('M', 100_000),
+            obs_dim=self.obs_dim,
+            mask_dim=C4_ACTIONS,
+            eps=per_params.get('eps', 0.01),
+            beta=per_params.get('beta', 0.25),
+            max_priority=per_params.get('maximum_priority', 1.0),
+            store_consequences=True,
+            mu=self.config.get('mu', 0.25),
+            priority_mixing=self.config.get('priority_mixing', 'additive'),
+            mu_c=self.config.get('mu_c', 1.0),
+            mu_delta=self.config.get('mu_delta', 1.0),
+        )
+
+        self.score_interval = self.config.get('score_interval', 150)
+        self.n_score_sample = self.config.get('n_score_sample', 256)
+        self.consequence_metric = self.config.get('consequence_metric', 'total_variation')
+        self.consequence_aggregation = self.config.get('consequence_aggregation', 'weighted_mean')
+
+        self.cf_horizon = self.config.get('cf_horizon', 30)
+        self.cf_n_rollouts = self.config.get('cf_n_rollouts', 16)
+        self.cf_top_k = self.config.get('cf_top_k', 7)
+        self.cf_gamma = self.config.get('cf_gamma', 0.99)
+
+        self.q_update_count = 0
+        self.diagnostics_enabled = self.config.get('diagnostics_enabled', False)
+        self._compiled_batched_fn = None
+
+    def _build_batched_rollout_fn(self):
+        """
+        Build triple-vmapped JIT function for batched Connect Four consequence scoring.
+
+        Parallelism:
+            vmap over B transitions (states)
+              vmap over K actions (different agent first moves)
+                vmap over N rollouts (different RNG keys for opponent)
+                  lax.scan over H horizon steps
+
+        Each horizon step = agent greedy move + opponent random move.
+        Opponent uses random normal logits (same as chess) — deterministic per key,
+        random in distribution, JIT-compatible.
+
+        State invariant: every stored state has current_player == 0 (the agent).
+        Connect4DQN normalizes this at collection time via an opponent pre-move,
+        so agent_player is always 0 here, never state.current_player.
+        """
+        pgx_env = pgx.make('connect_four')
+        network = self.network
+        horizon = self.cf_horizon
+        gamma = self.cf_gamma
+
+        def policy_fn(params, obs_flat, legal_mask_1d):
+            """Greedy agent policy. Returns scalar int32 action."""
+            q = network.apply(params, obs_flat)   # (1, 7)
+            return jnp.argmax(jnp.where(legal_mask_1d, q[0], -jnp.inf))
+
+        opponent = self.config.get('opponent', 'random')
+        if opponent == 'rule_based':
+            from .opponent import rule_based_action  # import outside traced scope
+            def opp_step(state, rng_key):
+                return pgx_env.step(state, rule_based_action(state, rng_key))
+        elif opponent == 'mcts':
+            from functools import partial
+            from .opponent_mcts import mcts_action as _mcts_fn
+            _mcts_action = partial(_mcts_fn, n_sims=self.config.get('mcts_n_sims', 32))
+            def opp_step(state, rng_key):
+                return pgx_env.step(state, _mcts_action(state, rng_key))
+        else:
+            def opp_step(state, rng_key):
+                logits = jax.random.normal(rng_key, (C4_ACTIONS,))
+                masked = jnp.where(state.legal_action_mask, logits, -jnp.inf)
+                return pgx_env.step(state, jnp.argmax(masked))
+
+        def single_rollout(params, state, first_action, rng_key):
+            """
+            One rollout from 'state' with agent's first_action.
+
+            Returns cumulative discounted return for the agent (float32 scalar).
+            The agent is always player 0: stored states are seat-normalized at
+            collection time (opponent pre-move), so current_player == 0 here.
+            """
+            # Agent is always player 0 by the seat-normalization invariant.
+            agent_player = jnp.int32(0)
+
+            # Agent's first move
+            s1 = pgx_env.step(state, first_action)
+            r1 = s1.rewards[agent_player]
+            done1 = s1.terminated | s1.truncated
+
+            # Opponent responds
+            rng_key, opp_key = jax.random.split(rng_key)
+            s2 = jax.lax.cond(done1, lambda: s1, lambda: opp_step(s1, opp_key))
+            r2 = jnp.where(done1, 0.0, s2.rewards[agent_player])
+            done2 = done1 | s2.terminated | s2.truncated
+
+            init_carry = (s2, rng_key, r1 + r2, jnp.float32(gamma), done2)
+
+            def scan_step(carry, _):
+                s, key, cum, disc, done = carry
+                key, opp_k = jax.random.split(key)
+
+                # Agent greedy (frozen to 0 if already done)
+                aw = jax.lax.cond(
+                    done,
+                    lambda: jnp.int32(0),
+                    lambda: policy_fn(params, s.observation.reshape(-1), s.legal_action_mask),
+                )
+                sw = jax.lax.cond(done, lambda: s, lambda: pgx_env.step(s, aw))
+                rw = jnp.where(done, 0.0, sw.rewards[agent_player])
+                dw = done | sw.terminated | sw.truncated
+
+                # Opponent random
+                so = jax.lax.cond(dw, lambda: sw, lambda: opp_step(sw, opp_k))
+                ro = jnp.where(dw, 0.0, so.rewards[agent_player])
+                do = dw | so.terminated | so.truncated
+
+                new_cum = cum + disc * (rw + ro)
+                new_disc = jnp.where(do, disc, disc * gamma)
+                return (so, key, new_cum, new_disc, do), None
+
+            final_carry, _ = jax.lax.scan(scan_step, init_carry, xs=None, length=horizon - 1)
+            return final_carry[2]  # cumulative return
+
+        # Triple vmap: B transitions × K actions × N rollouts
+        f = jax.vmap(single_rollout, in_axes=(None, None, None, 0))  # N
+        f = jax.vmap(f,              in_axes=(None, None, 0, 0))      # K
+        f = jax.vmap(f,              in_axes=(None, 0, 0, 0))         # B
+        self._compiled_batched_fn = jax.jit(f)
+
+    def _score_buffer_transitions(self):
+        """Algorithm 2, lines 11-12: Batched consequence scoring for Connect Four."""
+        n_score = min(self.n_score_sample, len(self.buffer))
+        if n_score == 0:
+            return
+
+        timer = self.metrics_logger.timer
+        ep = self._current_episode
+
+        with timer('update.scoring.sample', episode=ep):
+            data, indices = self.buffer.sample_uniform(n_score)
+
+        with timer('update.scoring.beam', episode=ep):
+            all_actions = []
+            all_action_probs = []
+            all_actual_actions = []
+            valid_indices = []
+            valid_states = []
+
+            for i, idx in enumerate(indices):
+                jax_state = self.buffer.get_jax_state(idx)
+                if jax_state is None:
+                    continue
+
+                actual_action = (int(data['a'][i, 0]),)
+
+                legal_mask = np.array(jax_state.legal_action_mask)
+                valid_actions_wrapped = [[j for j, v in enumerate(legal_mask) if v]]
+
+                actions_to_eval, joint_probs = beam_search_top_k_joint_actions(
+                    valid_actions=valid_actions_wrapped,
+                    k=self.cf_top_k,
+                    return_probs=True,
+                )
+
+                if actual_action not in actions_to_eval:
+                    actions_to_eval = [actual_action] + actions_to_eval[:self.cf_top_k - 1]
+                    if actual_action not in joint_probs:
+                        min_prob = min(joint_probs.values()) if joint_probs else 0.01
+                        joint_probs[actual_action] = min_prob * 0.5
+
+                while len(actions_to_eval) < self.cf_top_k:
+                    actions_to_eval.append(actual_action)
+
+                valid_indices.append(i)
+                valid_states.append(jax_state)
+                all_actions.append(actions_to_eval)
+                all_action_probs.append(joint_probs)
+                all_actual_actions.append(actual_action)
+
+        if not valid_states:
+            return
+
+        B = len(valid_states)
+        K = self.cf_top_k
+        N = self.cf_n_rollouts
+
+        with timer('update.scoring.stack', episode=ep):
+            batched_states = jax.tree.map(lambda *xs: jnp.stack(xs, axis=0), *valid_states)
+
+            actions_array = jnp.array(
+                [[a[0] for a in trans_actions] for trans_actions in all_actions],
+                dtype=jnp.int32,
+            )
+
+            self._key, subkey = jax.random.split(self._key)
+            keys_flat = jax.random.split(subkey, B * K * N)
+            keys_array = keys_flat.reshape(B, K, N, 2)
+
+            if self._compiled_batched_fn is None:
+                print("Compiling batched rollout function (one-time cost)...")
+                self._build_batched_rollout_fn()
+
+        with timer('update.scoring.rollouts', episode=ep, batch_size=B):
+            returns_array = self._compiled_batched_fn(
+                self.params, batched_states, actions_array, keys_array
+            )
+            returns_array = jax.block_until_ready(returns_array)
+            returns_np = np.array(returns_array)  # (B, K, N)
+
+        with timer('update.scoring.metrics', episode=ep):
+            scores = np.zeros(B)
+            for i in range(B):
+                actual_action = all_actual_actions[i]
+                actions_list = all_actions[i]
+                action_probs = all_action_probs[i]
+
+                return_distributions = {}
+                for j, action_tuple in enumerate(actions_list):
+                    if action_tuple not in return_distributions:
+                        return_distributions[action_tuple] = returns_np[i, j]
+
+                scores[i] = compute_consequence_metric(
+                    actual_action,
+                    return_distributions,
+                    metric=self.consequence_metric,
+                    action_probs=action_probs,
+                    aggregation=self.consequence_aggregation,
+                )
+
+            scores = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
+
+        with timer('update.scoring.buffer_update', episode=ep):
+            scored_buffer_indices = indices[np.array(valid_indices)]
+            self.buffer.update_consequence_scores(scored_buffer_indices, scores)
+
+            if self.diagnostics_enabled:
+                episode_steps = np.zeros(len(valid_indices), dtype=int)
+                self.diagnostics.log_scoring_pass(
+                    self.q_update_count, scores, returns_np,
+                    all_actual_actions, all_actions, all_action_probs, self.buffer,
+                    episode_steps=episode_steps,
+                )
+
+    def _update(self):
+        """Perform update with consequence scoring (Algorithm 2, lines 10-18)."""
+        if not self.buffer.can_sample(self.batch_size):
+            return
+
+        self.q_update_count += 1
+        ep = self._current_episode
+        timer = self.metrics_logger.timer
+
+        if (self.q_update_count % self.score_interval == 0
+                and len(self.buffer) >= self.n_score_sample):
+            self._score_buffer_transitions()
+
+        with timer('update.q_update', episode=ep):
+            data, indices, is_weights = self.buffer.sample(self.batch_size)
+
+            states      = jnp.array(data['s'])
+            next_states = jnp.array(data["s'"])
+            actions     = jnp.array(data['a'],    dtype=jnp.int32)
+            rewards     = jnp.array(data['r'],    dtype=jnp.float32)
+            dones       = jnp.array(data['done'], dtype=jnp.float32)
+            next_masks  = jnp.array(data['next_masks'], dtype=jnp.bool_)
+            weights     = jnp.array(is_weights,   dtype=jnp.float32)
+
+            self.params, self.opt_state, loss, td_errors = self._update_step(
+                self.params, self.target_params, self.opt_state,
+                states, actions, rewards, next_states, dones, next_masks, weights,
+            )
+            self.buffer.update_priorities(indices, np.array(td_errors))
+
+    def _add_chunk_to_buffer(self, outputs, N_ENVS: int, T: int):
+        """Override: also stores pgx.State per transition for consequence rollouts."""
+        n = N_ENVS * T
+        saved_states = outputs[7]  # pgx.State pytree, leaves (N_ENVS, T, ...)
+
+        states_flat = jax.tree.map(
+            lambda x: np.array(x).reshape(n, *x.shape[2:]),
+            saved_states,
+        )
+
+        self.buffer.add_batch(
+            obs        = np.array(outputs[3]).reshape(n, -1),
+            next_obs   = np.array(outputs[4]).reshape(n, -1),
+            actions    = np.array(outputs[0]).reshape(n),
+            rewards    = np.array(outputs[1]).reshape(n),
+            dones      = np.array(outputs[2]).reshape(n),
+            masks      = np.array(outputs[5]).reshape(n, 1, -1),
+            next_masks = np.array(outputs[6]).reshape(n, 1, -1),
+            states_flat=states_flat,
+        )
+
+    def learn(self, n_chunks: Optional[int] = None, verbose: bool = True) -> 'Connect4ConsequenceDQN':
+        n_chunks = n_chunks or self.config['n_chunks']
+        N_ENVS = self.n_envs
+        T = self.collect_steps
+        save_every = self.config.get('save_every', 10)
+        eval_interval = self.config.get('eval_interval', 1)
+        eval_episodes = self.config.get('eval_episodes', 200)
+
+        decay_chunks = max(1, int(self.exploration_fraction * n_chunks))
+
+        log_env_info = {**self.env_info, 'scenario': 'connect_four'}
+        self.metrics_logger = self._make_metrics_logger(
+            log_env_info, n_chunks, eval_interval, eval_episodes
+        )
+        timer = self.metrics_logger.timer
+        timer.start('total')
+
+        self.diagnostics = ConsequenceDiagnostics(
+            self.metrics_logger.dir, metric_name=self.consequence_metric,
+            plot_interval=self.config.get('diagnostics_plot_interval', 100),
+            n_step_slices=self.config.get('diagnostics_n_step_slices', 10),
+            n_scatter_snapshots=self.config.get('diagnostics_n_scatter_snapshots', 10),
+        )
+
+        last_path = os.path.join(self.metrics_logger.dir, 'last.pkl')
+        best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
+        best_win_rate = -1.0
+
+        n_ckpts = self.config.get('n_checkpoints', 10)
+        ckpt_interval = max(1, n_chunks // n_ckpts) if n_ckpts > 0 else 0
+        ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
+        if ckpt_interval > 0:
+            os.makedirs(ckpt_dir, exist_ok=True)
+
+        if verbose:
+            print(f"Training Connect4ConsequenceDQN [VECTORIZED]")
+            print(f"  n_envs={N_ENVS}  collect_steps={T}  ({N_ENVS*T} transitions/chunk)")
+            print(f"  Epsilon: {self.epsilon_start} → {self.epsilon_end} over {decay_chunks} chunks")
+            print(f"  Metric: {self.consequence_metric} | Mixing: {self.config.get('priority_mixing')}")
+            print(f"  CF rollouts: {self.cf_n_rollouts} | Horizon: {self.cf_horizon} | Top-K: {self.cf_top_k}")
+            print(f"  JAX backend: {jax.default_backend()}  |  Devices: {jax.devices()}")
+            print(f"  Run dir: {self.metrics_logger.dir}")
+
+        pbar = tqdm(range(n_chunks), disable=not verbose)
+        for chunk_idx in pbar:
+            self._current_episode = chunk_idx
+            timer.begin_episode(chunk_idx)
+
+            with timer('collect', episode=chunk_idx):
+                outputs = self._run_collect_chunk(N_ENVS, T)
+
+            with timer('buffer.add', episode=chunk_idx):
+                ep_ret_np   = np.array(outputs[8])
+                ep_len_np   = np.array(outputs[9])
+                ep_ended_np = np.array(outputs[2])
+                self._add_chunk_to_buffer(outputs, N_ENVS, T)
+                del outputs
+
+            n_transitions = N_ENVS * T
+            prev_steps = self.total_steps
+            self.total_steps += n_transitions
+
+            with timer('update', episode=chunk_idx):
+                n_updates = (self.total_steps // self.n_steps_for_Q_update) - \
+                            (prev_steps // self.n_steps_for_Q_update)
+                q_start = prev_steps // self.n_steps_for_Q_update
+                target_freq_q = max(1, self.target_update_freq // self.n_steps_for_Q_update)
+                for i in range(n_updates):
+                    self._update()
+                    if (q_start + i) % target_freq_q == 0:
+                        self._update_target_network()
+
+            for env_i in range(N_ENVS):
+                for t in range(T):
+                    if ep_ended_np[env_i, t]:
+                        self.episode_returns.append(float(ep_ret_np[env_i, t]))
+                        self.episode_lengths.append(int(ep_len_np[env_i, t]))
+
+            # Chunk-based epsilon decay
+            decay_progress = min(1.0, chunk_idx / decay_chunks)
+            self.epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) * decay_progress
+
+            if len(self.episode_returns) >= 100:
+                avg_r = np.mean(self.episode_returns[-100:])
+                pbar.set_description(
+                    f"chunk={chunk_idx} | AvgR(100)={avg_r:.2f} | ε={self.epsilon:.3f}"
+                )
+
+            if (chunk_idx + 1) % save_every == 0:
+                self.save(last_path)
+
+            if ckpt_interval > 0 and (chunk_idx + 1) % ckpt_interval == 0:
+                self.save(os.path.join(ckpt_dir, f'ckpt_{chunk_idx+1:07d}.pkl'))
+
+            if eval_interval and (chunk_idx + 1) % eval_interval == 0:
+                with timer('eval', episode=chunk_idx):
+                    metrics = self.evaluate(n_episodes=eval_episodes, seed=chunk_idx)
+                self.metrics_logger.log_eval(
+                    chunk_idx + 1, self.q_update_count, self.epsilon, metrics
+                )
+                if metrics['win_rate'] > best_win_rate:
+                    best_win_rate = metrics['win_rate']
+                    self.save(best_path)
+                    if verbose:
+                        print(f"\nNew best win rate: {best_win_rate:.1%}")
+
+            timer.flush_episode()
+
+        self.save(last_path)
+        timer.stop('total')
+        self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
+        self.diagnostics.close()
+        self.metrics_logger.close()
+        if verbose:
+            print(f"Training complete. Run saved to {self.metrics_logger.dir}")
+        return self
+
+    def _make_metrics_logger(self, env_info, n_chunks, eval_interval, eval_episodes):
+        from ..shared.metrics import MetricsLogger
+        return MetricsLogger(
+            backend='JAX (Connect Four Consequence)',
+            config=self.config,
+            env_info=env_info,
+            n_episodes=n_chunks,
+            eval_interval=eval_interval,
+            eval_episodes=eval_episodes,
+            run_root=os.path.dirname(os.path.abspath(__file__)),
+        )
