@@ -25,13 +25,15 @@ def iqm_curves(raw: Dict[str, np.ndarray], reps: int = 50000) -> Dict[str, Tuple
         {alg: (iqm_vals, ci_lo, ci_hi)} each shape (n_checkpoints,)
     """
     algs = list(raw.keys())
-    n_checkpoints = next(iter(raw.values())).shape[2]
+    n_checkpoints = min(v.shape[2] for v in raw.values())
 
     iqm_vals = {a: [] for a in algs}
     ci_lo = {a: [] for a in algs}
     ci_hi = {a: [] for a in algs}
 
     for t in range(n_checkpoints):
+        if t % 10 == 0:
+            print(f"  iqm_curves: checkpoint {t}/{n_checkpoints}", flush=True)
         scores_t = {a: raw[a][:, :, t] for a in algs}
         point, ci = rly.get_interval_estimates(scores_t, rl_metrics.aggregate_iqm, reps=reps)
         for a in algs:
@@ -125,6 +127,40 @@ def prob_improvement(
                         float(np.squeeze(ci[alg][0])),
                         float(np.squeeze(ci[alg][1])))
     return results
+
+
+def prob_improvement_curves(
+    raw: Dict[str, np.ndarray],
+    baseline: str = 'DQN+PER',
+    reps: int = 50000,
+) -> Dict[str, Tuple]:
+    """P(algorithm > baseline) at each checkpoint over time.
+
+    Returns:
+        {alg: (points, ci_lo, ci_hi)} each shape (n_checkpoints,)
+    """
+    algs = list(raw.keys())
+    n_checkpoints = min(v.shape[2] for v in raw.values())
+
+    if baseline not in raw:
+        return {}
+
+    base = raw[baseline]
+    results = {a: ([], [], []) for a in algs if a != baseline}
+
+    for t in range(n_checkpoints):
+        if t % 10 == 0:
+            print(f"  prob_improve_curves: checkpoint {t}/{n_checkpoints}", flush=True)
+        base_t = base[:, :, t]
+        for alg in results:
+            scores_t = raw[alg][:, :, t]
+            p_fn = lambda x, y=base_t: rl_metrics.probability_of_improvement(x, y)
+            point, ci = rly.get_interval_estimates({alg: scores_t}, p_fn, reps=reps)
+            results[alg][0].append(float(np.squeeze(point[alg])))
+            results[alg][1].append(float(np.squeeze(ci[alg][0])))
+            results[alg][2].append(float(np.squeeze(ci[alg][1])))
+
+    return {a: (np.array(v[0]), np.array(v[1]), np.array(v[2])) for a, v in results.items()}
 
 
 def iqm_length_curves(raw_length: Dict[str, np.ndarray], reps: int = 50000) -> Dict[str, Tuple]:
@@ -268,12 +304,22 @@ def compute_all(
     wc = parse_wallclock(run_dirs) if run_dirs else {}
     thresh = steps_to_threshold(raw, eval_steps, threshold)
 
+    print("Computing IQM curves...", flush=True)
+    _iqm_curves = iqm_curves(raw, reps=reps)
+    print("Computing final IQM...", flush=True)
+    _final_iqm = final_iqm(raw, reps=reps)
+    print("Computing P(improvement)...", flush=True)
+    _prob_improve = prob_improvement(raw, reps=reps)
+    print("Computing P(improvement) curves...", flush=True)
+    _prob_improve_curves = prob_improvement_curves(raw, reps=reps)
+
     result = {
-        'iqm_curves':   iqm_curves(raw, reps=reps),
-        'final_iqm':    final_iqm(raw, reps=reps),
-        'steps_thresh': thresh,
-        'prob_improve': prob_improvement(raw, reps=reps),
-        'wallclock':    wc,
+        'iqm_curves':        _iqm_curves,
+        'final_iqm':         _final_iqm,
+        'steps_thresh':      thresh,
+        'prob_improve':      _prob_improve,
+        'prob_improve_curves': _prob_improve_curves,
+        'wallclock':         wc,
     }
 
     if raw_length is not None:

@@ -12,6 +12,7 @@ Steps-to-threshold unit convention (environment steps):
     frozen_lake       : eval_steps[t] = updates * 4  (n_steps_per_update=4)
     chess             : eval_steps[t] = chunk_idx * n_envs * collect_steps
                                        = chunk_idx * 256 * 256  (from config defaults)
+    connect_four      : eval_steps[t] = updates * 4  (same formula; updates = chunk * 2688)
 """
 
 import json
@@ -38,6 +39,15 @@ _FL_COLS = {
     'win_rate': 3, 'avg_length': 4, 'avg_return': 5,
 }
 
+# Connect Four (shared MetricsLogger with wr_first/wr_second added):
+#   episode  updates  epsilon  win_rate  wr_first  wr_second  avg_allies  avg_return  avg_length  chess_score  draw_rate  loss_rate
+_C4_COLS = {
+    'episode': 0, 'updates': 1, 'epsilon': 2,
+    'win_rate': 3, 'wr_first': 4, 'wr_second': 5,
+    'avg_allies': 6, 'avg_return': 7, 'avg_length': 8,
+    'chess_score': 9, 'draw_rate': 10, 'loss_rate': 11,
+}
+
 # Chess-specific: n_envs * collect_steps per chunk (from config defaults)
 _CHESS_TRANSITIONS_PER_CHUNK = 256 * 256  # n_envs=256, collect_steps=256
 # FL and SMAX: Q-updates × steps_per_update = env steps
@@ -45,7 +55,7 @@ _FL_SMAX_STEPS_PER_UPDATE = 4  # n_steps_per_update / n_steps_for_Q_update in bo
 
 
 def _detect_env(log_path: str) -> str:
-    """Return 'chess', 'frozen_lake', or 'smax' based on header comments."""
+    """Return 'chess', 'frozen_lake', 'connect_four', or 'smax' based on header comments."""
     with open(log_path) as f:
         for line in f:
             if not line.startswith('#'):
@@ -54,6 +64,8 @@ def _detect_env(log_path: str) -> str:
                 return 'frozen_lake'
             if 'gardner_chess' in line.lower() or 'Chess' in line:
                 return 'chess'
+            if 'connect_four' in line.lower() or 'Connect Four' in line:
+                return 'connect_four'
     return 'smax'
 
 
@@ -65,7 +77,12 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     wdl has shape (n_checkpoints, 3).
     """
     env_type = _detect_env(log_path)
-    cols = _FL_COLS if env_type == 'frozen_lake' else _SHARED_COLS
+    if env_type == 'frozen_lake':
+        cols = _FL_COLS
+    elif env_type == 'connect_four':
+        cols = _C4_COLS
+    else:
+        cols = _SHARED_COLS
 
     win_rates, avg_lengths, avg_allies_list = [], [], []
     draw_rates, loss_rates, chess_scores = [], [], []
@@ -92,8 +109,9 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
                 win_rates.append(wr)
                 avg_lengths.append(al)
 
-                if env_type != 'frozen_lake':
-                    avg_allies_list.append(float(parts[cols['avg_allies']]))
+                if env_type not in ('frozen_lake',):
+                    allies_raw = float(parts[cols['avg_allies']])
+                    avg_allies_list.append(0.0 if np.isnan(allies_raw) else allies_raw)
                     if len(parts) > cols.get('chess_score', 99):
                         draw_rates.append(float(parts[cols['draw_rate']]))
                         loss_rates.append(float(parts[cols['loss_rate']]))
@@ -119,6 +137,7 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     if env_type == 'chess':
         eval_steps = ep_arr * _CHESS_TRANSITIONS_PER_CHUNK
     else:
+        # connect_four, frozen_lake, smax: updates * 4 = env steps
         eval_steps = upd_arr * _FL_SMAX_STEPS_PER_UPDATE
 
     primary = np.array(chess_scores if env_type == 'chess' else win_rates)
@@ -134,12 +153,24 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     )
 
 
+def _agents_dir() -> str:
+    return os.path.join(os.path.dirname(__file__), '..', '..', 'agents')
+
+
 def _find_run_dir(job_id: str, env: str) -> Optional[str]:
-    """Locate the run directory for a given SLURM job ID."""
+    """Locate the run directory for a given SLURM job ID.
+
+    Runs now land in per-agent folders (agents/<env>/runs). 'shared_legacy' covers
+    the pre-change pile in agents/shared/runs so older jobs still resolve. Job ids
+    are unique, so search order is irrelevant.
+    """
+    agents = _agents_dir()
     base_dirs = {
-        'smax': os.path.join(os.path.dirname(__file__), '..', '..', 'agents', 'shared', 'runs'),
-        'chess': os.path.join(os.path.dirname(__file__), '..', '..', 'agents', 'chess', 'runs'),
-        'frozen_lake': os.path.join(os.path.dirname(__file__), '..', '..', 'agents', 'frozen_lake', 'runs'),
+        'smax':          os.path.join(agents, 'smax', 'runs'),
+        'chess':         os.path.join(agents, 'chess', 'runs'),
+        'frozen_lake':   os.path.join(agents, 'frozen_lake', 'runs'),
+        'connect_four':  os.path.join(agents, 'connect_four', 'runs'),
+        'shared_legacy': os.path.join(agents, 'shared', 'runs'),
     }
     for env_name, base in base_dirs.items():
         candidate = os.path.normpath(os.path.join(base, job_id))
@@ -210,15 +241,26 @@ def load_manifest(
         except ValueError as e:
             print(f"Warning: {e}")
 
-    # Align checkpoint lengths across seeds (truncate to shortest)
+    # Align checkpoint lengths across seeds.
+    # Pad shorter seeds (e.g. early-stopped runs) by repeating their last value
+    # so the full training window is preserved for all seeds.
     result_raw, result_len, result_all, result_wdl, result_steps = {}, {}, {}, {}, {}
+
+    def _pad(arr, n):
+        """Forward-fill arr to length n along axis 0."""
+        if arr.shape[0] >= n:
+            return arr[:n]
+        pad = np.repeat(arr[[-1]], n - arr.shape[0], axis=0)
+        return np.concatenate([arr, pad], axis=0)
+
     for alg, seed_data in per_alg.items():
-        n_ckpts = min(d[0].shape[0] for d in seed_data)
-        result_raw[alg] = np.stack([d[0][:n_ckpts] for d in seed_data])[:, np.newaxis, :]
-        result_len[alg] = np.stack([d[1][:n_ckpts] for d in seed_data])[:, np.newaxis, :]
-        result_all[alg] = np.stack([d[2][:n_ckpts] for d in seed_data])[:, np.newaxis, :]
-        result_wdl[alg] = np.stack([d[3][:n_ckpts] for d in seed_data])
-        result_steps[alg] = seed_data[0][4][:n_ckpts]
+        n_ckpts = max(d[0].shape[0] for d in seed_data)
+        result_raw[alg] = np.stack([_pad(d[0], n_ckpts) for d in seed_data])[:, np.newaxis, :]
+        result_len[alg] = np.stack([_pad(d[1], n_ckpts) for d in seed_data])[:, np.newaxis, :]
+        result_all[alg] = np.stack([_pad(d[2], n_ckpts) for d in seed_data])[:, np.newaxis, :]
+        result_wdl[alg] = np.stack([_pad(d[3], n_ckpts) for d in seed_data])
+        longest = max(range(len(seed_data)), key=lambda i: seed_data[i][0].shape[0])
+        result_steps[alg] = seed_data[longest][4][:n_ckpts]
 
     env_type = next(iter(env_types.values())) if env_types else 'smax'
     return {

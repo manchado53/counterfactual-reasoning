@@ -46,8 +46,7 @@ def fig1_iqm_curves(
             ax.plot(x, iqm_vals, label=alg, color=color, linewidth=1.5)
             ax.fill_between(x, ci_lo, ci_hi, alpha=0.15, color=color)
 
-        if threshold is not None:
-            ax.axhline(threshold, color='red', linestyle='--', linewidth=1, alpha=0.7)
+        # threshold line intentionally omitted
 
         ax.set_title(env_name)
         ax.set_xlabel('Environment steps')
@@ -168,6 +167,46 @@ def fig4_prob_improvement(
         ax.set_xlim(0, 1.0)
         ax.grid(True, axis='x', alpha=0.3)
 
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Saved {out_path}")
+
+
+def fig4b_prob_improvement_curves(
+    prob_curves_by_env: Dict[str, Dict],
+    steps_by_env: Dict[str, np.ndarray],
+    out_path: str,
+):
+    """Fig 4b: P(algorithm > DQN+PER) over training time."""
+    envs = list(prob_curves_by_env.keys())
+    fig, axes = plt.subplots(1, len(envs), figsize=(5 * len(envs), 3.5))
+    if len(envs) == 1:
+        axes = [axes]
+
+    for ax, env_name in zip(axes, envs):
+        data = prob_curves_by_env[env_name]
+        x = steps_by_env[env_name]
+        n = min(len(x), min(len(v[0]) for v in data.values()))
+        x = x[:n]
+
+        for alg in _alg_order(data):
+            pts, lo, hi = data[alg]
+            pts, lo, hi = pts[:n], lo[:n], hi[:n]
+            color = COLORS.get(alg, 'gray')
+            ax.plot(x, pts, label=alg, color=color, linewidth=1.5)
+            ax.fill_between(x, lo, hi, alpha=0.15, color=color)
+
+        ax.axhline(0.5, color='black', linestyle='--', linewidth=1, alpha=0.5)
+        ax.set_xlabel('Environment steps')
+        ax.set_ylabel('P(alg > DQN+PER)')
+        ax.set_title(env_name)
+        ax.set_ylim(0, 1)
+        ax.grid(True, alpha=0.3)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=len(handles),
+               bbox_to_anchor=(0.5, -0.15), frameon=False)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)

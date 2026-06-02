@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:t4:1
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH --exclude=dh-node16,dh-node17,dh-node18
 
 mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/analysis/claim2/logs
@@ -45,6 +45,7 @@ mkdir -p "$ANALYSIS_OUT"
     --manifest "$ANALYSIS_MANIFEST" \
     --env "$ANALYSIS_ENV" \
     --threshold "$ANALYSIS_THRESHOLD" \
-    --out "$ANALYSIS_OUT"
+    --out "$ANALYSIS_OUT" \
+    --reps "${ANALYSIS_REPS:-50000}"
 
 echo "Analysis completed at $(date)"

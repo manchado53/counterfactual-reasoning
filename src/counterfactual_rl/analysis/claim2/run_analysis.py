@@ -29,6 +29,7 @@ from .plot_figures import (
     fig2_final_iqm,
     fig3_steps_to_threshold,
     fig4_prob_improvement,
+    fig4b_prob_improvement_curves,
     fig5a_wallclock_breakdown,
     fig5b_wallclock_to_threshold,
     fig5c_component_breakdown,
@@ -38,10 +39,12 @@ from .plot_figures import (
 )
 
 ENV_THRESHOLDS = {
-    'smax_3m':     0.60,
-    'smax_8m':     0.55,
-    'chess':       None,       # set after pilot
-    'frozen_lake': None,       # set after pilot
+    'smax_3m':              0.60,
+    'smax_8m':              0.55,
+    'chess':                None,   # set after pilot
+    'frozen_lake':          None,   # set after pilot (stochastic / slippery)
+    'frozen_lake_no_slip':  0.75,   # deterministic 8x8; threshold between 0% (fail) and 95% (success)
+    'connect_four':         0.70,   # vs rule-based opponent; random = 0%, trained agents ~75-82%
 }
 
 
@@ -124,6 +127,12 @@ def main():
     fig4_prob_improvement(
         {env_name: results['prob_improve']},
         os.path.join(args.out, f'fig4_prob_improve_{args.env}.png'),
+    )
+
+    fig4b_prob_improvement_curves(
+        {env_name: results['prob_improve_curves']},
+        {env_name: next(iter(eval_steps.values()))},
+        os.path.join(args.out, f'fig4b_prob_improve_curves_{args.env}.png'),
     )
 
     # Allies alive (SMAX only)
