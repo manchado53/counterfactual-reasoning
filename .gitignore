@@ -46,6 +46,14 @@ models/
 logs/
 *.log
 
+# LaTeX build artifacts
+*.aux
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+*.synctex.gz
+
 # OS
 .DS_Store
 Thumbs.db
