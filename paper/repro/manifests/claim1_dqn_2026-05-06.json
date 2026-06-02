@@ -1,0 +1,23 @@
+{
+  "255145": {
+    "map_name": "8x8",
+    "n_episodes": 15000,
+    "early_stop_win_rate": 0.99,
+    "algorithm": "dqn",
+    "seed": 0
+  },
+  "255146": {
+    "map_name": "8x8",
+    "n_episodes": 15000,
+    "early_stop_win_rate": 0.99,
+    "algorithm": "dqn",
+    "seed": 1
+  },
+  "255147": {
+    "map_name": "8x8",
+    "n_episodes": 15000,
+    "early_stop_win_rate": 0.99,
+    "algorithm": "dqn",
+    "seed": 2
+  }
+}

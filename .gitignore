@@ -70,5 +70,8 @@ replays/
 
 **/videos
 
-# 
+#
 **/experiments/
+
+# repro bundle: keep manifests/cache/scripts, ignore throwaway regenerated figs
+paper/repro/regen/
