@@ -345,7 +345,7 @@ CLAIM2_MAIN_8M = {
         'consequence_metric': 'total_variation',
         'n_episodes': 50000,
         'epsilon_decay_episodes': 20000,
-        'score_interval': 200,
+        'score_interval': 400,
         'cf_n_rollouts': 50,
         'cf_horizon': 45,
     },

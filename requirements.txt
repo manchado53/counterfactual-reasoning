@@ -26,3 +26,6 @@ rich>=10.0.0
 # Analysis / evaluation
 rliable>=1.0.0
 statsmodels>=0.13.0
+
+# Gardner chess (pgx — JAX-native board games)
+pgx>=2.3.0

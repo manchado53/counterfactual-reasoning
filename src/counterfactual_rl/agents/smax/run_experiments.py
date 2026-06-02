@@ -56,7 +56,7 @@ def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
 
     for i, overrides in enumerate(runs):
         if max_concurrent is not None and not dry_run:
-            wait_for_slot(max_concurrent)
+            wait_for_slot(max_concurrent, job_ids=set(manifest.keys()))
 
         overrides_json = json.dumps(overrides)
         encoded = base64.b64encode(overrides_json.encode()).decode()
