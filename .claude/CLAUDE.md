@@ -1,77 +1,73 @@
 # Counterfactual Reasoning Research
 
-## Overview
-Undergraduate research project on counterfactual reasoning in multi-agent reinforcement learning, using the SMAX environment from JaxMARL.
+## What this is
+Research on **CCE (Counterfactual Consequence Estimation)** — a replay-priority signal that
+scores a transition by how much the *action choice* changed the outcome (total variation among
+per-action return distributions from policy rollouts), mixed with TD-error priority (additive
+Eq4 / multiplicative Eq5). Aim: publish (ICLR) that CCE **(C1)** finds the moments that matter
+and **(C2)** speeds learning, across environments — FrozenLake (single-agent), SMAX
+(multi-agent), Connect Four. Goal/status → `lab-notebook.md`.
 
 ## Lab Notebook (READ FIRST)
-At the start of every session, read `lab-notebook.md` in the project root — it holds the
-current STATUS, NEXT steps, dead ends, and the per-environment pre-flight checklist.
-Before the user clears context, append a dated entry to its LOG — especially DEAD ENDS
-(what failed + why). The LOG is append-only; only rewrite the STATUS and NEXT sections.
-
-## Project Structure
-- Main research directory: `~/UR-RL/counterfactual-reasoning/`
-- SMAX examples: `~/UR-RL/SmaxExample.py`, `~/UR-RL/SMAX.SH`
-- Related SMAC work: `~/UR-RL/playing-with-smac/`
-- Transition notes: `~/UR-RL/transition-smax.md`
-- Key docs: `~/UR-RL/counterfactual-reasoning/docs/`
+Start every session by reading `lab-notebook.md` (project root): current STATUS, NEXT, dead
+ends, per-env pre-flight checklist. Before the user clears context, append a dated LOG entry
+(especially DEAD ENDS). LOG is append-only; only rewrite STATUS and NEXT.
 
 ## Code Layout (`src/counterfactual_rl/`)
-- `envs/` — JAX env implementations (frozen_lake, smax, chess). Connect Four uses `pgx` directly.
-- `agents/<env>/` — per-env trainers: `config.py`, `dqn.py` / `consequence_dqn.py`, `train.py`,
-  `run_experiments.py` (SLURM sweeps → manifests under `experiments/<month>/`).
-- `agents/shared/` — shared buffers, consequence scoring, metrics logger, SLURM throttle, timing.
-  Run outputs: `agents/<env>/runs/<job_id>/` (legacy: `agents/shared/runs/`).
+- `envs/` — JAX envs (frozen_lake, smax, chess). Connect Four uses `pgx` directly.
+- `agents/<env>/` — trainers: `config.py`, `dqn.py`/`consequence_dqn.py` (+ `*_vectorized.py`),
+  `train.py`, `run_experiments.py` (SLURM sweeps → manifests under `experiments/<month>/`).
+- `agents/shared/` — buffers, consequence scoring, metrics logger, slurm_throttle, timing.
+  Run outputs: `agents/<env>/runs/<job_id>/` (legacy `agents/shared/runs/`).
 - `analysis/claim1/` & `analysis/claim2/` — figure pipelines (oracle, scoring, rliable, plots).
-- `paper/` — `paper.tex` (the paper) + `repro/` (rebuilds figures from cached arrays).
+- `paper/` — `paper.tex` + `repro/` (rebuilds figures from cache). `docs/_archive/` = don't cite.
 
-## SMAX / JaxMARL
-When working with SMAX, JaxMARL, or related multi-agent RL environments:
-1. Use the WebFetch tool to check https://github.com/FLAIROx/JaxMARL/tree/main/jaxmarl/environments/smax for relevant documentation
-2. Follow any links on that page pertinent to the specific question
-3. Base answers on the fetched documentation rather than general knowledge
+## Environments
+- **FrozenLake** (`envs/frozen_lake.py`): OUR custom JAX reimpl of Gymnasium FrozenLake-v1
+  (not an import). Exposes `env.P` (Gymnasium-style transition dict) — the Claim-1 oracle uses
+  it. Maps `4x4`/`8x8` built in (others via `desc=`). `is_slippery` defaults True (slippery =
+  3 equiprob outcomes `[(a-1)%4,a,(a+1)%4]`); reward 1.0 only on first landing G. jit/vmap-safe.
+- **SMAX / JaxMARL** (multi-agent): `make('HeuristicEnemySMAX', ...)`; `won_battle_bonus=10` is
+  hard-coded; per-scenario arch presets in `smax/config.py`. Fetch docs before relying on API:
+  https://github.com/FLAIROx/JaxMARL/tree/main/jaxmarl/environments/smax
+- **pgx** (Connect Four — active 2nd env): JAX board games; opponent = random/rule_based/mcts.
+  Fetch https://www.sotets.uk/pgx/api/ , /api_usage/ . Gardner chess (also pgx) tried & **dropped**.
 
-## Tech Stack
-- JAX, JaxMARL, SMAX environment
-- Multi-agent reinforcement learning
-- Counterfactual reasoning and explainability methods
+## pgx Gotchas (CRITICAL — Connect Four)
+- pgx **randomizes the first player** (`env.init(key)` → current_player 0/1, ~50/50).
+- Always `rewards[state.current_player]`, NEVER `rewards[0]` — else reward sign flips in ~50% of
+  envs and nothing learns. (Cost all C4 runs 05-07→05-13. Fix: `agent_player =
+  state.current_player` at episode start, `rewards[agent_player]` throughout.)
+- Observations already from current player's perspective — no manual flip.
+- Exception: the chess wrapper seat-normalizes so the DQN always sees white (`current_player==0`)
+  and reads `rewards[0]` — opposite convention from Connect Four.
 
-## Gardner Chess (pgx) — TRIED & DROPPED
-Gardner chess was tried as a second environment and **dropped**: the Claim-1 oracle
-(AlphaZero `gardner_chess_v0`, ~1000 Elo) is too weak to be ground truth, and Claim-2
-showed no improvement. **Connect Four** (`pgx.make("connect_four")`) is the active
-second-environment effort. The pgx facts and gotchas below still apply to Connect Four.
-See `lab-notebook.md` for current scope. The chess-specific facts below are historical
-reference only (in case chess is ever revisited).
+## Training gotchas (these have bitten us)
+- Vectorized trainers fire eval / save / target-sync via CROSSING logic `total//f > prev//f`,
+  NEVER `% f == 0` (the counter jumps past boundaries). Target freq is set in env steps but
+  applied in gradient steps: `target_freq_q = max(1, C // n_steps_for_Q_update)`.
+- Sparse boolean obs (Connect Four): use **LeakyReLU** and `use_layer_norm=False` — plain ReLU /
+  LayerNorm zero the conv gradient and Q diverges.
+- Config keys differ: FL uses `alpha/n_episodes/map_name`, trains by episodes; board games use
+  `C/M/n_chunks/exploration_fraction`, train by chunks. Don't mix them.
 
-**Library**: `pgx` — JAX-native, vectorized board game environments (NeurIPS 2023)
-**Environment name**: `"gardner_chess"` via `pgx.make("gardner_chess")`
+## CCE config knobs (same names across envs)
+`algorithm` (dqn-uniform / dqn=PER / consequence-dqn) · `consequence_metric` (default
+total_variation; KL is unbounded, can be inf) · `priority_mixing` additive(Eq4)/multiplicative(Eq5)
+· `mu` (0=TD … 1=consequence; `mu_c`/`mu_delta` for multiplicative) · `consequence_aggregation`
+(weighted_mean) · `score_interval` (per Q-update — tied to buffer turnover, easy to misset) ·
+`n_score_sample` · `cf_horizon`/`cf_n_rollouts`/`cf_top_k`/`cf_gamma` (separate from training
+`gamma`) · `diagnostics_enabled` (expensive; default False).
 
-When working with pgx or Gardner chess:
-1. Use the WebFetch tool to check https://www.sotets.uk/pgx/gardner_chess/ for the environment spec
-2. Check https://www.sotets.uk/pgx/api/ for the full API reference
-3. Check https://www.sotets.uk/pgx/api_usage/ for usage patterns and vmap examples
-4. Base answers on the fetched documentation rather than general knowledge
-
-**Key facts (verify against docs before using):**
-- Observation shape: `(5, 5, 115)` float32 — AlphaZero-style board representation
-- Action space: 1,225 discrete actions (`legal_action_mask` is a `(1225,)` bool on the state)
-- Rewards: sparse ±1 at game end only, `state.rewards` shape `(2,)` one per player
-- Perspective: observations auto-flip for the current player — pgx handles this internally
-- Pre-trained opponent: `pgx.make_baseline_model("gardner_chess_v0")` (~1000 Elo AlphaZero baseline)
-- Vectorized API: `jax.vmap(env.init)`, `jax.vmap(env.step)` — no key needed for step (deterministic)
-- Open issue #1174: pawn move behavior under investigation — check before relying on pawn logic
-
-## pgx Gotchas
-
-**pgx randomizes the first player.** `env.init(key)` randomly assigns `current_player` to 0 or 1 based on the key — roughly 50/50. This affects Connect Four, Gardner Chess, and any other pgx two-player game.
-
-**Always use `rewards[state.current_player]`**, never `rewards[0]`, when training a single agent. Using `rewards[0]` flips the reward sign in ~50% of episodes, preventing any learning (agent sees -1 for wins, +1 for losses in half its envs).
-
-**Observations are already from the current player's perspective** — `state.observation` channel 0 is always the current player's pieces, channel 1 is the opponent's. No manual flip needed.
-
-This bug cost us all C4 runs from 2026-05-07 to 2026-05-13. Confirmed fix: `agent_player = state.current_player` at episode start, then `rewards[agent_player]` throughout.
+## How to run
+- Config override (universal): base64-JSON in env var `CONFIG_OVERRIDES_B64`; merge order
+  DEFAULT < SCENARIO_PRESET < CONFIG_OVERRIDES_B64.
+- One job: `python -m counterfactual_rl.agents.<env>.train [--algorithm/--mu/--seed/--override K=V]`
+- Sweep: `python -m counterfactual_rl.agents.<env>.run_experiments <name> [--dry-run] [--max-concurrent N]`
+  (names in each `run_experiments.py`; SMAX in `smax/experiments.py`). **Always --dry-run first.**
+- Analysis: `…analysis.claim1.frozen_lake.run_analysis` · `…analysis.claim2.run_analysis --manifest <p> --env <n>`
 
 ## Cluster (Rosie / SLURM)
-- Check running jobs: `squeue -u $USER`
-- **After every `sbatch` submission, immediately start a Monitor** on the job's `.out` log file without waiting to be asked. Use a grep filter that catches: training progress, eval metrics, errors, and completion. Keep it persistent so it runs for the life of the session.
+- Check jobs: `squeue -u $USER`. `agents/shared/slurm_throttle.py` caps concurrency (`--max-concurrent`).
+- After every `sbatch`, immediately start a persistent Monitor on the job's `.out`
+  (grep: training progress, eval metrics, errors, completion) — don't wait to be asked.
