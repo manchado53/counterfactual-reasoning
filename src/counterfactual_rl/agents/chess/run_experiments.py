@@ -24,7 +24,7 @@ from counterfactual_rl.agents.shared.slurm_throttle import wait_for_slot
 PILOT = {
     'name': 'pilot',
     'runs': [{'algorithm': 'dqn-uniform', 'seed': 0}],
-    'fixed': {'n_episodes': 1000},  # 1000 chunks × 13s ≈ 3.6 hrs; n_episodes = chunks for chess
+    'fixed': {'n_chunks': 150},
 }
 
 # Claim 2 main — 5 algorithms × 10 seeds
@@ -42,8 +42,12 @@ CLAIM2_MAIN = {
         *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',      'seed': s} for s in range(10)],
     ],
     'fixed': {
-        'n_episodes': 1000,  # UPDATE after pilot: n_episodes = chunks (13s each); 1000 ≈ 3.6 hrs
-        'mu': 0.25,                           # UPDATE after SMAX mu sweep
+        'n_chunks': 150,
+        'eval_interval': 1,
+        'save_every': 10,
+        'n_checkpoints': 100,
+        'eval_opponent': 'random',
+        'mu': 0.25,
         'consequence_metric': 'total_variation',
     },
 }
@@ -51,7 +55,7 @@ CLAIM2_MAIN = {
 SMOKE_TEST = {
     'name': 'smoke_test',
     'runs': [{'algorithm': 'dqn-uniform', 'seed': 0}],
-    'fixed': {'n_episodes': 70, 'eval_interval': 25, 'eval_episodes': 10},
+    'fixed': {'n_chunks': 70, 'eval_interval': 25, 'eval_episodes': 10, 'eval_opponent': 'random'},
 }
 
 # Full algorithm smoke test — all 5 algorithms, 1 seed, small buffer to force scoring
@@ -65,9 +69,9 @@ FULL_SMOKE = {
         {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative'},
     ],
     'fixed': {
-        'seed': 0, 'n_episodes': 75, 'eval_interval': 25, 'eval_episodes': 10,
+        'seed': 0, 'n_chunks': 75, 'eval_interval': 25, 'eval_episodes': 10,
         'M': 80000, 'score_interval': 25,
-        'consequence_metric': 'total_variation', 'mu': 0.25,
+        'consequence_metric': 'total_variation', 'mu': 0.25, 'eval_opponent': 'random',
     },
 }
 
@@ -125,7 +129,7 @@ def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
 
     for i, overrides in enumerate(runs):
         if max_concurrent is not None:
-            wait_for_slot(max_concurrent)
+            wait_for_slot(max_concurrent, job_ids=set(manifest.keys()))
         encoded = base64.b64encode(json.dumps(overrides).encode()).decode()
         cmd = ['sbatch', f'--export=CONFIG_OVERRIDES_B64={encoded}', script_path]
         result = subprocess.run(cmd, capture_output=True, text=True)

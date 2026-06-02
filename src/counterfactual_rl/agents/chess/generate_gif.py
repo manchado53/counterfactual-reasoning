@@ -151,7 +151,7 @@ def main():
 
     agent = ChessDQN(env, env_info, config={
         'seed': args.seed,
-        'n_episodes': args.episodes,
+        'n_chunks': args.episodes,
         'eval_interval': None,
         'M': max(500, args.episodes * 20),
         'B': 32,
@@ -162,7 +162,7 @@ def main():
         agent.load(args.load)
     elif args.episodes > 0:
         print(f"Training for {args.episodes} episodes...")
-        agent.learn(n_episodes=args.episodes, verbose=True)
+        agent.learn(n_chunks=args.episodes, verbose=True)
     else:
         print("Using random policy (epsilon=1.0)")
         agent.epsilon = 1.0

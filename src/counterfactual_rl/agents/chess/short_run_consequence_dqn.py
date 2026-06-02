@@ -7,7 +7,7 @@ from counterfactual_rl.agents.chess.consequence_dqn import ChessConsequenceDQN
 
 env, key, info = create_chess_env(seed=0)
 agent = ChessConsequenceDQN(env, info, {
-    'n_episodes':      2,
+    'n_chunks':        2,
     'n_envs':          64,
     'collect_steps':   256,
     'M':               10000,

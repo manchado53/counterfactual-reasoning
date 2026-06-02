@@ -5,7 +5,7 @@ Usage (direct):
     python -m counterfactual_rl.agents.chess.train
 
 Usage (with config overrides):
-    CONFIG_OVERRIDES='{"n_episodes": 5000, "algorithm": "dqn"}' \\
+    CONFIG_OVERRIDES='{"n_chunks": 150, "algorithm": "dqn"}' \\
         python -m counterfactual_rl.agents.chess.train
 
     CONFIG_OVERRIDES_B64=<base64-encoded-json> \\
@@ -13,7 +13,7 @@ Usage (with config overrides):
 
 Config override keys (any key from DEFAULT_CHESS_CONFIG):
     algorithm:   'consequence-dqn' (default) | 'dqn' | 'dqn-uniform'
-    n_episodes:  training episodes
+    n_chunks:    number of collection chunks (each = n_envs x collect_steps transitions)
     seed:        RNG seed
     ... (see config.py for full list)
 """

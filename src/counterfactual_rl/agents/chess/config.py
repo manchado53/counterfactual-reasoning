@@ -20,7 +20,8 @@ DEFAULT_CHESS_CONFIG = {
     'gamma': 0.99,
     'epsilon_start': 1.0,
     'epsilon_end': 0.05,
-    'epsilon_decay_episodes': 20000,
+    'exploration_fraction': 0.5,   # decay over first 50% of total_steps (CleanRL convention)
+    'epsilon_decay_episodes': 20000,  # fallback only; ignored when exploration_fraction is set
     'alpha': 0.0001,
     'hidden_dim': 512,
     'use_layer_norm': True,
@@ -41,13 +42,14 @@ DEFAULT_CHESS_CONFIG = {
     },
 
     # Training
-    'n_episodes': 100000,
-    'save_every': 1000,
+    'n_chunks': 150,
+    'save_every': 10,
     'n_checkpoints': 100,
 
     # Evaluation
-    'eval_interval': 50,
-    'eval_episodes': 50,
+    'eval_interval': 1,
+    'eval_episodes': 100,
+    'eval_opponent': 'random',     # 'random' for training consistency; 'baseline' (pgx ~1000 Elo) once trained vs baseline
 
     # Algorithm selection: 'dqn-uniform', 'dqn', or 'consequence-dqn'
     'algorithm': 'consequence-dqn',
@@ -58,14 +60,14 @@ DEFAULT_CHESS_CONFIG = {
     'mu_c': 1.0,
     'mu_delta': 1.0,
     'score_interval': 1000,
-    'n_score_sample': 128,
+    'n_score_sample': 512,
     'consequence_metric': 'total_variation',
     'consequence_aggregation': 'weighted_mean',
 
     # Counterfactual rollouts
-    'cf_horizon': 10,       # steps; each step = white move + opponent response
-    'cf_n_rollouts': 16,
-    'cf_top_k': 10,
+    'cf_horizon': 20,       # steps; each step = white move + opponent response
+    'cf_n_rollouts': 20,
+    'cf_top_k': 15,
     'cf_gamma': 0.99,
 
     # Vectorized episode collection (lax.scan + vmap)

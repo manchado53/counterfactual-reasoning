@@ -111,26 +111,23 @@ class ChessConsequenceDQN(ChessDQN):
 
         def single_rollout(params, state, first_action, rng_key):
             """
-            One rollout from 'state' (current_player==0) with white's first_action.
+            One rollout from 'state' with agent's first_action.
 
-            Args:
-                params:       network params (passed dynamically, not captured)
-                state:        pgx.State with current_player == 0
-                first_action: int32 scalar — white's first move
-                rng_key:      PRNGKey for all stochastic decisions in this rollout
-
-            Returns:
-                Cumulative discounted return for white (float32 scalar)
+            pgx randomizes who goes first, so agent_player = state.current_player.
+            Returns cumulative discounted return for the agent (float32 scalar).
             """
-            # White's first move
+            # pgx randomizes starting player; use state.current_player throughout.
+            agent_player = state.current_player  # 0 or 1
+
+            # Agent's first move
             s1 = pgx_env.step(state, first_action)
-            r1 = s1.rewards[0]
+            r1 = s1.rewards[agent_player]
             done1 = s1.terminated | s1.truncated
 
             # Opponent responds
             rng_key, opp_key = jax.random.split(rng_key)
             s2 = jax.lax.cond(done1, lambda: s1, lambda: opp_step(s1, opp_key))
-            r2 = jnp.where(done1, 0.0, s2.rewards[0])
+            r2 = jnp.where(done1, 0.0, s2.rewards[agent_player])
             done2 = done1 | s2.terminated | s2.truncated
 
             init_carry = (s2, rng_key, r1 + r2, jnp.float32(gamma), done2)
@@ -139,19 +136,19 @@ class ChessConsequenceDQN(ChessDQN):
                 s, key, cum, disc, done = carry
                 key, opp_k = jax.random.split(key)
 
-                # White greedy (frozen to action 0 if already done)
+                # Agent greedy (frozen to action 0 if already done)
                 aw = jax.lax.cond(
                     done,
                     lambda: jnp.int32(0),
                     lambda: policy_fn(params, s.observation.reshape(-1), s.legal_action_mask),
                 )
                 sw = jax.lax.cond(done, lambda: s, lambda: pgx_env.step(s, aw))
-                rw = jnp.where(done, 0.0, sw.rewards[0])
+                rw = jnp.where(done, 0.0, sw.rewards[agent_player])
                 dw = done | sw.terminated | sw.truncated
 
                 # Opponent responds
                 so = jax.lax.cond(dw, lambda: sw, lambda: opp_step(sw, opp_k))
-                ro = jnp.where(dw, 0.0, so.rewards[0])
+                ro = jnp.where(dw, 0.0, so.rewards[agent_player])
                 do = dw | so.terminated | so.truncated
 
                 new_cum = cum + disc * (rw + ro)
@@ -351,21 +348,25 @@ class ChessConsequenceDQN(ChessDQN):
             states_flat = states_flat,
         )
 
-    def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'ChessConsequenceDQN':
+    def learn(self, n_chunks: Optional[int] = None, verbose: bool = True) -> 'ChessConsequenceDQN':
         """
         Train Consequence-weighted DQN on Gardner chess (Algorithm 2), vectorized.
 
-        Uses the inherited _run_collect_chunk() + _add_chunk_to_buffer() (overridden above
-        to also store pgx.State per transition). Consequence scoring (_score_buffer_transitions)
-        runs every score_interval Q-updates, unchanged from the non-vectorized version.
+        n_chunks: number of collection chunks (each chunk = n_envs × collect_steps transitions).
+        Consequence scoring runs every score_interval Q-updates.
         """
-        n_chunks = n_episodes or self.config['n_episodes']
+        n_chunks = n_chunks or self.config['n_chunks']
         N_ENVS = self.n_envs
         T = self.collect_steps
         save_every = self.config.get('save_every', 1000)
         eval_interval = self.config.get('eval_interval', None)
         eval_episodes = self.config.get('eval_episodes', 50)
         record_interval = self.config.get('record_interval', None)
+        eval_opp = self.config.get('eval_opponent', 'baseline')
+
+        exploration_fraction = self.config.get('exploration_fraction', None)
+        total_steps_budget = n_chunks * N_ENVS * T
+        _decay_steps = exploration_fraction * total_steps_budget if exploration_fraction else None
 
         log_env_info = {**self.env_info, 'scenario': self.env_info.get('env_name', 'gardner_chess')}
         self.metrics_logger = self._make_metrics_logger(
@@ -422,10 +423,12 @@ class ChessConsequenceDQN(ChessDQN):
             with timer('update', episode=chunk_idx):
                 n_updates = (self.total_steps // self.n_steps_for_Q_update) - \
                             (prev_steps // self.n_steps_for_Q_update)
-                for _ in range(n_updates):
+                q_start = prev_steps // self.n_steps_for_Q_update
+                target_freq_q = max(1, self.target_update_freq // self.n_steps_for_Q_update)
+                for i in range(n_updates):
                     self._update()
-                if (prev_steps // self.target_update_freq) < (self.total_steps // self.target_update_freq):
-                    self._update_target_network()
+                    if (q_start + i) % target_freq_q == 0:
+                        self._update_target_network()
 
             # Episode stats (already extracted to numpy above)
             for env_i in range(N_ENVS):
@@ -434,7 +437,10 @@ class ChessConsequenceDQN(ChessDQN):
                         self.episode_returns.append(float(ep_ret_np[env_i, t]))
                         self.episode_lengths.append(int(ep_len_np[env_i, t]))
 
-            decay_progress = min(1.0, len(self.episode_returns) / max(1, self.epsilon_decay_episodes))
+            if _decay_steps is not None:
+                decay_progress = min(1.0, self.total_steps / max(1, _decay_steps))
+            else:
+                decay_progress = min(1.0, len(self.episode_returns) / max(1, self.epsilon_decay_episodes))
             self.epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) * decay_progress
 
             if len(self.episode_returns) >= 100:
@@ -452,7 +458,7 @@ class ChessConsequenceDQN(ChessDQN):
 
             if eval_interval and (chunk_idx + 1) % eval_interval == 0:
                 with timer('eval', episode=chunk_idx):
-                    metrics = self.evaluate(n_episodes=eval_episodes)
+                    metrics = self.evaluate(n_episodes=eval_episodes, opponent=eval_opp)
                 self.metrics_logger.log_eval(
                     chunk_idx + 1, self.q_update_count, self.epsilon, metrics
                 )
@@ -476,14 +482,15 @@ class ChessConsequenceDQN(ChessDQN):
             print(f"Training complete. Run saved to {self.metrics_logger.dir}")
         return self
 
-    def _make_metrics_logger(self, env_info, n_episodes, eval_interval, eval_episodes):
+    def _make_metrics_logger(self, env_info, n_chunks, eval_interval, eval_episodes):
         """Create MetricsLogger with chess-compatible env_info."""
         from ..shared.metrics import MetricsLogger
         return MetricsLogger(
             backend='JAX (Chess Consequence)',
             config=self.config,
             env_info=env_info,
-            n_episodes=n_episodes,
+            n_episodes=n_chunks,
             eval_interval=eval_interval,
             eval_episodes=eval_episodes,
+            run_root=os.path.dirname(os.path.abspath(__file__)),
         )

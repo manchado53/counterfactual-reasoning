@@ -67,6 +67,7 @@ class ChessDQN:
         self.epsilon_start = self.config.get('epsilon_start', 1.0)
         self.epsilon_end = self.config.get('epsilon_end', 0.05)
         self.epsilon_decay_episodes = self.config.get('epsilon_decay_episodes', 20000)
+        self.exploration_fraction = self.config.get('exploration_fraction', None)
         self.epsilon = self.epsilon_start
         self.alpha = self.config.get('alpha', 0.0001)
         self.batch_size = self.config.get('B', 64)
@@ -112,6 +113,8 @@ class ChessDQN:
 
         self._build_jit_fns()
         self._build_vectorized_collect_fn()
+        self._build_vectorized_eval_fn()
+        self._build_vectorized_eval_fn(use_baseline=True)
 
     def _build_jit_fns(self):
         network = self.network
@@ -154,7 +157,7 @@ class ChessDQN:
                 next_q = jax.vmap(network.apply, in_axes=(None, 0))(target_params, next_states)
                 next_q = jnp.where(next_masks, next_q, -jnp.inf)
                 max_next_q = next_q.max(axis=-1).sum(axis=-1)  # (B,)
-                targets = rewards + gamma * max_next_q * (1.0 - dones)
+                targets = rewards + gamma * jnp.where(dones > 0.5, jnp.float32(0.0), max_next_q)
 
                 td_errors = targets - q_taken
                 loss = jnp.mean(weights * td_errors ** 2)
@@ -202,8 +205,9 @@ class ChessDQN:
                 )
                 already_done = jnp.bool_(False)
 
-                # Save state before action (current_player == 0 invariant)
+                # Save state before action. pgx randomizes first player per episode.
                 saved_state = state
+                agent_player = state.current_player     # 0 or 1 — varies per env/episode
                 obs = state.observation.reshape(-1)    # (2875,)
                 mask = state.legal_action_mask          # (1225,)
 
@@ -216,9 +220,9 @@ class ChessDQN:
                 greedy_action = jnp.argmax(jnp.where(mask, q[0], -jnp.inf))
                 white_action = jnp.where(jax.random.uniform(k_eps) < epsilon, random_action, greedy_action)
 
-                # White's move
+                # Agent's move
                 s1 = pgx_env.step(state, white_action)
-                r1 = s1.rewards[0]
+                r1 = s1.rewards[agent_player]
                 done1 = s1.terminated | s1.truncated
 
                 # Opponent random move (pgx freezes terminal states — safe to call on done s1)
@@ -232,7 +236,7 @@ class ChessDQN:
                     jax.random.choice(k_opp, CHESS_ACTIONS, p=safe_opp),
                 )
                 s2 = pgx_env.step(s1, opp_action)
-                r2 = jnp.where(done1, jnp.float32(0.0), s2.rewards[0])
+                r2 = jnp.where(done1, jnp.float32(0.0), s2.rewards[agent_player])
                 done2 = done1 | s2.terminated | s2.truncated
 
                 reward = r1 + r2
@@ -271,6 +275,75 @@ class ChessDQN:
 
         _vmapped = jax.vmap(_collect_single_env, in_axes=(None, None, 0, 0))
         self._collect_fn = jax.jit(_vmapped)
+
+    def _build_vectorized_eval_fn(self, max_eval_steps: int = 300, use_baseline: bool = False):
+        """
+        Build JIT-compiled vectorized evaluation function.
+
+        Architecture: jax.jit(jax.vmap(single_env_eval, in_axes=(None, 0, 0)))
+
+        Each env plays exactly one greedy game (no restarts) via lax.scan.
+        use_baseline=True: opponent uses pgx ~1000 Elo AlphaZero model (Claim 2 primary metric).
+        use_baseline=False: opponent uses uniform-random legal move selection (sanity check).
+        """
+        pgx_env = self.env.pgx_env
+        network = self.network
+
+        if use_baseline:
+            baseline_model = pgx.make_baseline_model("gardner_chess_v0")
+
+        def eval_single_env(params, init_state, env_key):
+            step_keys = jax.random.split(env_key, max_eval_steps)
+            # pgx randomizes who goes first; capture agent's player index from init.
+            agent_player = init_state.current_player
+
+            def step_fn(carry, step_key):
+                state, done, cum_return, ep_len = carry
+
+                # Greedy agent action (frozen to 0 once done)
+                q = network.apply(params, state.observation.reshape(-1))  # (1, 1225)
+                greedy = jnp.argmax(jnp.where(state.legal_action_mask, q[0], -jnp.inf))
+                white_action = jnp.where(done, jnp.int32(0), greedy)
+
+                s1 = pgx_env.step(state, white_action)
+                r1 = jnp.where(done, jnp.float32(0.0), s1.rewards[agent_player])
+                done1 = done | s1.terminated | s1.truncated
+
+                # Opponent move: pgx baseline (greedy) or uniform random
+                if use_baseline:
+                    opp_logits, _ = baseline_model(s1.observation)
+                    opp_action = jnp.where(
+                        done1,
+                        jnp.int32(0),
+                        jnp.argmax(jnp.where(s1.legal_action_mask, opp_logits, -jnp.inf)),
+                    )
+                else:
+                    opp_f = s1.legal_action_mask.astype(jnp.float32)
+                    opp_total = opp_f.sum()
+                    safe_opp = jnp.where(opp_total > 0, opp_f / opp_total,
+                                         jnp.ones(CHESS_ACTIONS) / CHESS_ACTIONS)
+                    opp_action = jnp.where(
+                        done1, jnp.int32(0),
+                        jax.random.choice(step_key, CHESS_ACTIONS, p=safe_opp),
+                    )
+
+                s2 = pgx_env.step(s1, opp_action)
+                r2 = jnp.where(done1, jnp.float32(0.0), s2.rewards[agent_player])
+                done2 = done1 | s2.terminated | s2.truncated
+
+                new_cum = cum_return + r1 + r2
+                new_len = jnp.where(done, ep_len, ep_len + 1)
+                return (s2, done2, new_cum, new_len), None
+
+            init_carry = (init_state, jnp.bool_(False), jnp.float32(0.0), jnp.int32(0))
+            final_carry, _ = jax.lax.scan(step_fn, init_carry, step_keys)
+            return final_carry[2], final_carry[3]  # cum_return, ep_len
+
+        fn = jax.jit(jax.vmap(eval_single_env, in_axes=(None, 0, 0)))
+        if use_baseline:
+            self._eval_fn_baseline = fn
+        else:
+            self._eval_fn = fn
 
     def _run_collect_chunk(self, N_ENVS: int, T: int):
         """
@@ -353,14 +426,13 @@ class ChessDQN:
             next_masks = np.array(outputs[6]).reshape(n, 1, -1),
         )
 
-    def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'ChessDQN':
+    def learn(self, n_chunks: Optional[int] = None, verbose: bool = True) -> 'ChessDQN':
         """
         Train using vectorized episode collection (lax.scan + vmap).
 
-        n_episodes here means number of collection chunks, not individual episodes.
-        Each chunk collects n_envs × collect_steps transitions.
+        n_chunks: number of collection chunks (each chunk = n_envs × collect_steps transitions).
         """
-        n_chunks = n_episodes or self.config['n_episodes']
+        n_chunks = n_chunks or self.config['n_chunks']
         N_ENVS = self.n_envs
         T = self.collect_steps
         save_every = self.config.get('save_every', 1000)
@@ -376,6 +448,7 @@ class ChessDQN:
             n_episodes=n_chunks,
             eval_interval=eval_interval,
             eval_episodes=eval_episodes,
+            run_root=os.path.dirname(os.path.abspath(__file__)),
         )
         timer = self.metrics_logger.timer
         timer.start('total')
@@ -390,10 +463,22 @@ class ChessDQN:
         if ckpt_interval > 0:
             os.makedirs(ckpt_dir, exist_ok=True)
 
+        total_steps_budget = n_chunks * N_ENVS * T
+        if self.exploration_fraction is not None:
+            _decay_steps = self.exploration_fraction * total_steps_budget
+        else:
+            _decay_steps = None
+
+        eval_opp = self.config.get('eval_opponent', 'baseline')
+
         if verbose:
             print(f"Training ChessDQN on Gardner chess (vectorized)")
             print(f"  N_ENVS={N_ENVS} | collect_steps={T} | {N_ENVS*T} transitions/chunk")
-            print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} eps")
+            if _decay_steps:
+                print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {_decay_steps:.0f} steps ({self.exploration_fraction:.0%} of budget)")
+            else:
+                print(f"  Epsilon: {self.epsilon_start} -> {self.epsilon_end} over {self.epsilon_decay_episodes} eps")
+            print(f"  Eval opponent: {eval_opp}")
             print(f"  JAX backend: {jax.default_backend()}")
 
         pbar = tqdm(range(n_chunks), disable=not verbose)
@@ -418,10 +503,12 @@ class ChessDQN:
             with timer('update', episode=chunk_idx):
                 n_updates = (self.total_steps // self.n_steps_for_Q_update) - \
                             (prev_steps // self.n_steps_for_Q_update)
-                for _ in range(n_updates):
+                q_start = prev_steps // self.n_steps_for_Q_update
+                target_freq_q = max(1, self.target_update_freq // self.n_steps_for_Q_update)
+                for i in range(n_updates):
                     self._update()
-                if (prev_steps // self.target_update_freq) < (self.total_steps // self.target_update_freq):
-                    self._update_target_network()
+                    if (q_start + i) % target_freq_q == 0:
+                        self._update_target_network()
 
             # Episode stats (already extracted to numpy above)
             for env_i in range(N_ENVS):
@@ -430,8 +517,11 @@ class ChessDQN:
                         self.episode_returns.append(float(ep_ret_np[env_i, t]))
                         self.episode_lengths.append(int(ep_len_np[env_i, t]))
 
-            # Epsilon decay by episodes completed
-            decay_progress = min(1.0, len(self.episode_returns) / max(1, self.epsilon_decay_episodes))
+            # Epsilon decay: steps-based (exploration_fraction) or episode-based fallback
+            if _decay_steps is not None:
+                decay_progress = min(1.0, self.total_steps / _decay_steps)
+            else:
+                decay_progress = min(1.0, len(self.episode_returns) / max(1, self.epsilon_decay_episodes))
             self.epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) * decay_progress
 
             if len(self.episode_returns) >= 100:
@@ -449,7 +539,7 @@ class ChessDQN:
 
             if eval_interval and (chunk_idx + 1) % eval_interval == 0:
                 with timer('eval', episode=chunk_idx):
-                    metrics = self.evaluate(n_episodes=eval_episodes)
+                    metrics = self.evaluate(n_episodes=eval_episodes, opponent=eval_opp)
                 model_updates = self.total_steps // self.n_steps_for_Q_update
                 self.metrics_logger.log_eval(chunk_idx + 1, model_updates, self.epsilon, metrics)
                 if metrics['win_rate'] > best_win_rate:
@@ -471,48 +561,42 @@ class ChessDQN:
             print(f"Training complete. Run saved to {self.metrics_logger.dir}")
         return self
 
-    def evaluate(self, n_episodes: int = 50, seed: int = 42) -> Dict:
+    def evaluate(self, n_episodes: int = 100, seed: int = 42, opponent: str = 'baseline') -> Dict:
         """
-        Greedy evaluation using the Python episode loop (not vectorized — correctness over speed).
+        Greedy evaluation using vectorized lax.scan + vmap (n_episodes games in parallel).
+
+        opponent: 'baseline' (pgx ~1000 Elo, Claim 2 primary) or 'random' (sanity check).
 
         Returns:
             {'win_rate', 'draw_rate', 'loss_rate', 'avg_return', 'avg_length', 'avg_allies_alive'}
         """
-        saved_epsilon = self.epsilon
-        self.epsilon = 0.0
         key = jax.random.PRNGKey(seed)
-        wins = draws = losses = 0
-        total_return = total_length = 0.0
+        init_keys = jax.random.split(key, n_episodes)
+        _, subkey = jax.random.split(key)
+        eval_keys = jax.random.split(subkey, n_episodes)
 
-        for _ in range(n_episodes):
-            key, reset_key = jax.random.split(key)
-            obs, state = self.env.reset(reset_key)
-            masks = self.env.get_legal_mask(state)
-            done = False
-            ep_ret = 0.0
-            ep_len = 0
-            while not done:
-                action = self.select_action(obs, masks)
-                obs, state, r, done = self.env.step(state, action[0])
-                masks = self.env.get_legal_mask(state)
-                ep_ret += r
-                ep_len += 1
-            if ep_ret > 0:
-                wins += 1
-            elif ep_ret < 0:
-                losses += 1
-            else:
-                draws += 1
-            total_return += ep_ret
-            total_length += ep_len
+        init_states = jax.vmap(self.env.pgx_env.init)(init_keys)
+        if opponent == 'baseline':
+            if not hasattr(self, '_eval_fn_baseline'):
+                self._build_vectorized_eval_fn(use_baseline=True)
+            eval_fn = self._eval_fn_baseline
+        else:
+            eval_fn = self._eval_fn
+        returns, lengths = eval_fn(self.params, init_states, eval_keys)
+        jax.block_until_ready(returns)
 
-        self.epsilon = saved_epsilon
+        returns_np = np.array(returns)
+        lengths_np = np.array(lengths)
+        wins   = int((returns_np > 0).sum())
+        losses = int((returns_np < 0).sum())
+        draws  = n_episodes - wins - losses
+
         return {
-            'win_rate':         wins / n_episodes,
-            'draw_rate':        draws / n_episodes,
+            'win_rate':         wins   / n_episodes,
+            'draw_rate':        draws  / n_episodes,
             'loss_rate':        losses / n_episodes,
-            'avg_return':       total_return / n_episodes,
-            'avg_length':       total_length / n_episodes,
+            'avg_return':       float(returns_np.mean()),
+            'avg_length':       float(lengths_np.mean()),
             'avg_allies_alive': 0.0,
         }
 
@@ -607,3 +691,5 @@ class ChessDQN:
         self.epsilon = checkpoint.get('epsilon', self.epsilon_start)
         self._build_jit_fns()
         self._build_vectorized_collect_fn()
+        self._build_vectorized_eval_fn()
+        self._build_vectorized_eval_fn(use_baseline=True)
