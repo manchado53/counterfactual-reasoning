@@ -3,6 +3,12 @@
 ## Overview
 Undergraduate research project on counterfactual reasoning in multi-agent reinforcement learning, using the SMAX environment from JaxMARL.
 
+## Lab Notebook (READ FIRST)
+At the start of every session, read `lab-notebook.md` in the project root — it holds the
+current STATUS, NEXT steps, dead ends, and the per-environment pre-flight checklist.
+Before the user clears context, append a dated entry to its LOG — especially DEAD ENDS
+(what failed + why). The LOG is append-only; only rewrite the STATUS and NEXT sections.
+
 ## Project Structure
 - Main research directory: `~/UR-RL/counterfactual-reasoning/`
 - SMAX examples: `~/UR-RL/SmaxExample.py`, `~/UR-RL/SMAX.SH`
@@ -41,6 +47,16 @@ When working with pgx or Gardner chess:
 - Pre-trained opponent: `pgx.make_baseline_model("gardner_chess_v0")` (~1000 Elo AlphaZero baseline)
 - Vectorized API: `jax.vmap(env.init)`, `jax.vmap(env.step)` — no key needed for step (deterministic)
 - Open issue #1174: pawn move behavior under investigation — check before relying on pawn logic
+
+## pgx Gotchas
+
+**pgx randomizes the first player.** `env.init(key)` randomly assigns `current_player` to 0 or 1 based on the key — roughly 50/50. This affects Connect Four, Gardner Chess, and any other pgx two-player game.
+
+**Always use `rewards[state.current_player]`**, never `rewards[0]`, when training a single agent. Using `rewards[0]` flips the reward sign in ~50% of episodes, preventing any learning (agent sees -1 for wins, +1 for losses in half its envs).
+
+**Observations are already from the current player's perspective** — `state.observation` channel 0 is always the current player's pieces, channel 1 is the opponent's. No manual flip needed.
+
+This bug cost us all C4 runs from 2026-05-07 to 2026-05-13. Confirmed fix: `agent_player = state.current_player` at episode start, then `rewards[agent_player]` throughout.
 
 ## Cluster (Rosie / SLURM)
 - Check running jobs: `squeue -u $USER`

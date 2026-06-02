@@ -428,6 +428,191 @@ def fig_c4_precision_at_k():
     print(f'  saved {path}')
 
 
+# ── Gardner Chess mock data ───────────────────────────────────────────────────
+N_CHESS_POSITIONS = 220   # ~200 positions sampled from self-play games
+
+def _chess_mock_data():
+    """
+    Synthetic Gardner chess positions. Game phase bucketed by move number.
+    Oracle = AlphaZero value head divergence across legal moves.
+    CCE    = TV distance between return distributions under different first moves.
+    """
+    # Move numbers: sample from early/mid/endgame distribution
+    move_nums = np.concatenate([
+        RNG.integers(1,  9, 60),    # opening  (moves 1–8)
+        RNG.integers(9, 22, 100),   # middlegame (moves 9–21)
+        RNG.integers(22, 40, 60),   # endgame  (moves 22–39)
+    ])
+    phases = np.where(move_nums <= 8, 'opening',
+              np.where(move_nums <= 21, 'middlegame', 'endgame'))
+
+    # Oracle: middlegame positions tend to be most consequential
+    oracle = np.zeros(N_CHESS_POSITIONS)
+    for i, ph in enumerate(phases):
+        if ph == 'opening':
+            oracle[i] = RNG.uniform(0.02, 0.25)
+        elif ph == 'middlegame':
+            oracle[i] = RNG.uniform(0.05, 0.45)
+        else:
+            oracle[i] = RNG.uniform(0.10, 0.55)
+    oracle = np.clip(oracle, 0, 1)
+
+    # CCE: correlated with oracle (rho ~ 0.72)
+    signal = oracle + RNG.normal(0, 0.08, N_CHESS_POSITIONS)
+    noise  = RNG.normal(0, 0.25, N_CHESS_POSITIONS)
+    cce    = np.clip(0.72 * signal + 0.28 * noise, 0, 1)
+
+    return oracle, cce, phases, move_nums
+
+CHESS_ORACLE, CHESS_CCE, CHESS_PHASES, CHESS_MOVES = _chess_mock_data()
+
+PHASE_COLORS = {'opening': '#2196F3', 'middlegame': '#FF9800', 'endgame': '#F44336'}
+
+
+# ── Figure C5: Gardner Chess CCE vs Oracle scatter ────────────────────────────
+def fig_c5_chess_scatter():
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.suptitle('Figure C5  —  CCE Score vs Oracle Importance (Gardner Chess)\n'
+                 'Each point is one sampled board position.  [MOCK DATA]',
+                 fontsize=10, y=1.03)
+
+    for phase in ['opening', 'middlegame', 'endgame']:
+        mask = CHESS_PHASES == phase
+        ax.scatter(CHESS_ORACLE[mask], CHESS_CCE[mask],
+                   c=PHASE_COLORS[phase], alpha=0.65, s=28,
+                   edgecolors='none', label=phase.capitalize(), zorder=3)
+
+    m, b = np.polyfit(CHESS_ORACLE, CHESS_CCE, 1)
+    x_line = np.linspace(0, 1.0, 100)
+    ax.plot(x_line, m * x_line + b, color='#333', linewidth=1.4,
+            linestyle='--', zorder=4, label='OLS fit')
+
+    rho, pval = spearmanr(CHESS_ORACLE, CHESS_CCE)
+    p_str = 'p < 0.001' if pval < 0.001 else f'p = {pval:.3f}'
+    ax.annotate(f'Spearman ρ = {rho:.3f}\n{p_str}',
+                xy=(0.97, 0.05), xycoords='axes fraction',
+                ha='right', va='bottom', fontsize=9.5,
+                bbox=dict(boxstyle='round,pad=0.35', facecolor='white',
+                          edgecolor='#bbb', alpha=0.9))
+
+    ax.set_xlabel('Oracle importance\n(AlphaZero value-head divergence)', fontsize=9)
+    ax.set_ylabel('CCE score (TV distance)', fontsize=9)
+    ax.set_xlim(-0.02, 0.75)
+    ax.set_ylim(-0.02, 0.75)
+    ax.legend(fontsize=8.5, framealpha=0.9)
+    ax.grid(alpha=0.25, linewidth=0.6)
+    ax.tick_params(labelsize=8)
+
+    fig.tight_layout()
+    path = os.path.join(OUT_DIR, 'fig_c5_chess_scatter.png')
+    fig.savefig(path, dpi=140, bbox_inches='tight')
+    plt.close(fig)
+    print(f'  saved {path}')
+
+
+# ── Figure C6: Chess game timeline with critical moment ───────────────────────
+def fig_c6_chess_timeline():
+    """
+    Single representative game (~30 moves). CCE and oracle score per move.
+    Vertical line at peak CCE move. Simplified board diagram at that moment.
+    """
+    n_moves = 30
+    moves = np.arange(1, n_moves + 1)
+
+    # Oracle: rises through middlegame, falls in endgame
+    oracle_game = np.zeros(n_moves)
+    for i, m in enumerate(moves):
+        if m <= 6:
+            oracle_game[i] = 0.05 + 0.02 * m + RNG.normal(0, 0.02)
+        elif m <= 20:
+            oracle_game[i] = 0.18 + 0.015 * (m - 6) + RNG.normal(0, 0.03)
+        else:
+            oracle_game[i] = 0.38 - 0.01 * (m - 20) + RNG.normal(0, 0.03)
+    oracle_game = np.clip(oracle_game, 0, 1)
+
+    # CCE: correlated with oracle, peak around move 14
+    cce_game = np.clip(oracle_game + RNG.normal(0, 0.04, n_moves), 0, 1)
+    peak_move = int(np.argmax(cce_game))
+
+    fig = plt.figure(figsize=(13, 4.5))
+    fig.suptitle('Figure C6  —  CCE & Oracle Scores Over a Representative Game (Gardner Chess)\n'
+                 '[MOCK DATA]', fontsize=10, y=1.02)
+
+    # Left panel: timeline
+    ax_line = fig.add_subplot(1, 3, (1, 2))
+    ax_line.plot(moves, oracle_game, color='#1565C0', linewidth=1.8,
+                 label='Oracle (value-head divergence)', zorder=3)
+    ax_line.plot(moves, cce_game, color='#E65100', linewidth=1.8,
+                 linestyle='--', label='CCE score (TV distance)', zorder=3)
+    ax_line.fill_between(moves, oracle_game, cce_game,
+                         alpha=0.08, color='#888')
+    ax_line.axvline(moves[peak_move], color='#B71C1C', linewidth=1.2,
+                    linestyle=':', zorder=2)
+    ax_line.text(moves[peak_move] + 0.3, cce_game[peak_move] + 0.02,
+                 f'Peak CCE\n(move {moves[peak_move]})',
+                 fontsize=8, color='#B71C1C', va='bottom')
+
+    # Mark opening/middlegame/endgame bands
+    for start, end, label, color in [(1, 8, 'Opening', '#E3F2FD'),
+                                      (9, 21, 'Middlegame', '#FFF3E0'),
+                                      (22, 30, 'Endgame', '#FCE4EC')]:
+        ax_line.axvspan(start - 0.5, min(end, n_moves) + 0.5,
+                        alpha=0.25, color=color, zorder=0)
+        mid = (start + min(end, n_moves)) / 2
+        ax_line.text(mid, 0.58, label, ha='center', fontsize=7.5,
+                     color='#555', style='italic')
+
+    ax_line.set_xlabel('Move number', fontsize=9)
+    ax_line.set_ylabel('Importance score', fontsize=9)
+    ax_line.set_xlim(0.5, n_moves + 0.5)
+    ax_line.set_ylim(0, 0.65)
+    ax_line.legend(fontsize=8.5, loc='upper left', framealpha=0.9)
+    ax_line.grid(alpha=0.2, linewidth=0.6)
+    ax_line.tick_params(labelsize=8)
+
+    # Right panel: 5×5 board at peak moment
+    ax_board = fig.add_subplot(1, 3, 3)
+    ax_board.set_aspect('equal')
+    ax_board.set_xlim(0, 5)
+    ax_board.set_ylim(0, 5)
+    ax_board.axis('off')
+    ax_board.set_title(f'Board at move {moves[peak_move]}\n(peak CCE moment)',
+                       fontsize=9, fontweight='bold')
+
+    # Draw 5×5 board
+    for r in range(5):
+        for c in range(5):
+            color = '#F0D9B5' if (r + c) % 2 == 0 else '#B58863'
+            ax_board.add_patch(plt.Rectangle((c, r), 1, 1, color=color))
+
+    # Highlight the moved-to square
+    ax_board.add_patch(plt.Rectangle((2, 2), 1, 1, color='#AAD556', alpha=0.7, zorder=2))
+
+    # Mock piece layout at critical moment (plausible mid-game position)
+    pieces = {
+        (4, 0): ('♜', '#111'), (4, 2): ('♛', '#111'), (4, 4): ('♚', '#111'),
+        (3, 1): ('♟', '#111'), (3, 2): ('♟', '#111'), (3, 3): ('♟', '#111'),
+        (1, 1): ('♙', '#fff'), (1, 2): ('♙', '#fff'), (1, 3): ('♙', '#fff'),
+        (0, 0): ('♖', '#fff'), (0, 2): ('♕', '#fff'), (0, 4): ('♔', '#fff'),
+        (2, 2): ('♘', '#fff'),
+    }
+    for (r, c), (symbol, color) in pieces.items():
+        ax_board.text(c + 0.5, r + 0.5, symbol, ha='center', va='center',
+                      fontsize=18, color=color, zorder=3,
+                      fontweight='bold' if color == '#fff' else 'normal')
+
+    # File/rank labels
+    for i in range(5):
+        ax_board.text(i + 0.5, -0.3, 'abcde'[i], ha='center', fontsize=7.5, color='#555')
+        ax_board.text(-0.25, i + 0.5, str(i + 1), va='center', fontsize=7.5, color='#555')
+
+    fig.tight_layout()
+    path = os.path.join(OUT_DIR, 'fig_c6_chess_timeline.png')
+    fig.savefig(path, dpi=140, bbox_inches='tight')
+    plt.close(fig)
+    print(f'  saved {path}')
+
+
 # ── run all ───────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('Generating Claim 1 mock figures...')
@@ -435,4 +620,6 @@ if __name__ == '__main__':
     fig_c2_grid_heatmaps()
     fig_c3_metric_progression()
     fig_c4_precision_at_k()
+    fig_c5_chess_scatter()
+    fig_c6_chess_timeline()
     print(f'\nAll figures written to {OUT_DIR}/')

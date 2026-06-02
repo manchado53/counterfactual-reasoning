@@ -1,5 +1,10 @@
 # Counterfactual Reasoning in Reinforcement Learning
 
+> **⚠ Parts of this README are stale (pre-SMAX-pivot architecture).** For current status,
+> claims, and dead ends see **`lab-notebook.md`**; the paper is **`paper/paper.tex`**;
+> reproduction lives in **`paper/repro/`**. Sections below mentioning SMAC, beam search, or
+> `environments/`/`training/` paths predate the restructure to `agents/` + `envs/`.
+
 A framework for analyzing **consequential states** in reinforcement learning by asking: *"What if the agent had taken a different action?"*
 
 This tool identifies critical decision points in RL episodes by comparing the distribution of future outcomes under the chosen action versus alternative actions.
@@ -328,9 +333,9 @@ Available experiments: `smoke_test`, `metric_sweep`, `algorithm_comparison`, `mu
 |---|---|---|
 | `scenario` | `3s5z` | SMAX map: `3m`, `2s3z`, `5m_vs_6m`, `3s5z`, etc. |
 | `algorithm` | `consequence-dqn` | `dqn-uniform`, `dqn`, or `consequence-dqn` |
-| `mu` | `0.5` | Priority blend: 0 = pure TD, 1 = pure consequence |
+| `mu` | `0.25` | Priority blend: 0 = pure TD, 1 = pure consequence |
 | `priority_mixing` | `additive` | `additive` (Eq 4) or `multiplicative` (Eq 5) |
-| `consequence_metric` | `wasserstein` | `kl_divergence`, `jensen_shannon`, `total_variation`, `wasserstein` |
+| `consequence_metric` | `total_variation` | `kl_divergence`, `jensen_shannon`, `total_variation`, `wasserstein` |
 | `score_interval` | `200` | Q-updates between consequence scoring passes |
 | `cf_horizon` | `30` | Counterfactual rollout horizon |
 | `cf_n_rollouts` | `30` | Rollouts per action per transition |
