@@ -95,6 +95,47 @@ class FrozenLakeDQNVectorized(FrozenLakeDQN):
             'done': dones_np.reshape(n),
         })
 
+    def _build_eval_fn(self):
+        env = self.env
+        network = self.network
+
+        def _eval_single_env(params, init_state, step_keys):
+            def _step(carry, step_key):
+                state, already_done, cum_return, ep_steps = carry
+                action = jnp.argmax(network.apply(params, state))
+                _, next_state, reward, done, _ = env.step(step_key, state, action)
+                new_done = jnp.logical_or(already_done, done)
+                new_steps = ep_steps + jnp.where(already_done, jnp.int32(0), jnp.int32(1))
+                new_cum   = cum_return + jnp.where(already_done, jnp.float32(0.0), reward)
+                return (next_state, new_done, new_cum, new_steps), None
+
+            init = (jnp.int32(init_state), jnp.bool_(False), jnp.float32(0.0), jnp.int32(0))
+            (_, _, final_return, final_steps), _ = jax.lax.scan(_step, init, step_keys)
+            return final_return, final_steps
+
+        self._eval_fn = jax.jit(jax.vmap(_eval_single_env, in_axes=(None, 0, 0)))
+
+    def evaluate(self, n_episodes: int = 100) -> dict:
+        if not hasattr(self, '_eval_fn'):
+            self._build_eval_fn()
+
+        self._key, eval_key = jax.random.split(self._key)
+        all_keys  = jax.random.split(eval_key, n_episodes * 201)
+        init_keys = all_keys[:n_episodes]
+        step_keys = all_keys[n_episodes:].reshape(n_episodes, 200, 2)
+
+        init_states = jax.vmap(lambda k: self.env.reset(k)[1])(init_keys)
+        returns, lengths = self._eval_fn(self.params, init_states, step_keys)
+        jax.block_until_ready(returns)
+
+        returns_np = np.array(returns)
+        lengths_np = np.array(lengths)
+        return {
+            'win_rate':   float(np.mean(returns_np > 0)),
+            'avg_length': float(np.mean(lengths_np.astype(float))),
+            'avg_return': float(np.mean(returns_np)),
+        }
+
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'FrozenLakeDQNVectorized':
         n_episodes    = n_episodes or self.config['n_episodes']
         n_envs        = self.config.get('n_envs', 256)
@@ -182,11 +223,12 @@ class FrozenLakeDQNVectorized(FrozenLakeDQN):
             self.total_steps += n_chunk_steps
             n_q_updates = (self.total_steps // self.n_steps_per_update) - \
                           (prev_steps // self.n_steps_per_update)
-            for _ in range(n_q_updates):
+            q_start = prev_steps // self.n_steps_per_update
+            target_freq_q = max(1, self.target_update_freq // self.n_steps_per_update)
+            for i in range(n_q_updates):
                 self._update()
-            if (self.total_steps // self.target_update_freq) > \
-               (prev_steps // self.target_update_freq):
-                self._update_target_network()
+                if (q_start + i) % target_freq_q == 0:
+                    self._update_target_network()
 
             # Epsilon decay (per completed episode, matches sequential behaviour)
             decay = min(1.0, total_episodes / max(1, self.epsilon_decay_episodes))

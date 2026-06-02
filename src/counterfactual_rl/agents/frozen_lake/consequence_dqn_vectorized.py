@@ -31,6 +31,12 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
         # Delegate to the vectorized DQN implementation
         FrozenLakeDQNVectorized._build_collect_fn(self)
 
+    def _build_eval_fn(self):
+        FrozenLakeDQNVectorized._build_eval_fn(self)
+
+    def evaluate(self, n_episodes: int = 100) -> dict:
+        return FrozenLakeDQNVectorized.evaluate(self, n_episodes)
+
     def _add_chunk_to_buffer(self, outputs):
         """Add chunk transitions to ConsequenceReplayBuffer with jax_states."""
         states_np      = np.array(outputs[0])  # (n_envs, collect_steps) — state BEFORE step
@@ -136,11 +142,12 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
             self.total_steps += n_chunk_steps
             n_q_updates = (self.total_steps // self.n_steps_per_update) - \
                           (prev_steps // self.n_steps_per_update)
-            for _ in range(n_q_updates):
+            q_start = prev_steps // self.n_steps_per_update
+            target_freq_q = max(1, self.target_update_freq // self.n_steps_per_update)
+            for i in range(n_q_updates):
                 self._update()
-            if (self.total_steps // self.target_update_freq) > \
-               (prev_steps // self.target_update_freq):
-                self._update_target_network()
+                if (q_start + i) % target_freq_q == 0:
+                    self._update_target_network()
 
             decay = min(1.0, total_episodes / max(1, self.epsilon_decay_episodes))
             self.epsilon = self.epsilon_start + (self.epsilon_end - self.epsilon_start) * decay

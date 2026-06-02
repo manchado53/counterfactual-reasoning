@@ -79,6 +79,8 @@ CLAIM2_MAIN = {
         'consequence_metric': 'total_variation',
         'epsilon_decay_episodes': 7500,
         'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
     },
 }
 
@@ -121,6 +123,88 @@ CLAIM1_DQN = {
     },
 }
 
+# Vectorized speed test — all 3 algorithm families, 1 seed, short run to benchmark wall-clock
+VEC_SMOKE = {
+    'name': 'vec_smoke',
+    'runs': [
+        {'algorithm': 'dqn-uniform'},
+        {'algorithm': 'dqn'},
+        {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 0.25},
+    ],
+    'fixed': {
+        'map_name': '8x8', 'seed': 0,
+        'n_episodes': 5000, 'eval_interval': 500, 'eval_episodes': 100,
+        'epsilon_decay_episodes': 3000, 'score_interval': 100,
+        'consequence_metric': 'total_variation', 'mu': 0.25,
+        'vectorized': True, 'n_envs': 256, 'collect_steps': 128,
+    },
+}
+
+# Claim 2 CCE-only resubmit — 30 CCE jobs with cf_horizon=200
+# dqn-uniform + dqn already done (jobs 255448-255467); only CCE needs rerunning
+CLAIM2_CCE_RERUN = {
+    'name': 'claim2_main',  # same name → unified manifest
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',             'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',       'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+    },
+}
+
+# CCE-multiplicative only — additive mu=1.0 + mu=0.25 already done (jobs 255495-255528)
+CLAIM2_CCE_MULTIPLICATIVE = {
+    'name': 'claim2_main',  # same name → unified manifest
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+    },
+}
+
+# Claim 2 non-slippery — identical to claim2_main but is_slippery=False
+# Kept separate so it doesn't pollute the slippery manifest.
+CLAIM2_NO_SLIP = {
+    'name': 'claim2_no_slip',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                              'seed': s} for s in range(25)],
+        *[{'algorithm': 'dqn',                                                      'seed': s} for s in range(25)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(25)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',            'seed': s} for s in range(25)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',      'seed': s} for s in range(25)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'is_slippery': False,
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': 0.95,
+    },
+}
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -128,6 +212,10 @@ EXPERIMENTS = {
     'claim1_dqn': CLAIM1_DQN,
     'claim2_main': CLAIM2_MAIN,
     'claim2_main_remaining': CLAIM2_MAIN_REMAINING,
+    'claim2_cce_rerun': CLAIM2_CCE_RERUN,
+    'claim2_cce_multiplicative': CLAIM2_CCE_MULTIPLICATIVE,
+    'claim2_no_slip': CLAIM2_NO_SLIP,
+    'vec_smoke': VEC_SMOKE,
 }
 
 

@@ -51,7 +51,7 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
 
         self.score_interval = self.config.get('score_interval', 100)
         self.n_score_sample = self.config.get('n_score_sample', 128)
-        self.consequence_metric = self.config.get('consequence_metric', 'jensen_shannon')
+        self.consequence_metric = self.config.get('consequence_metric', 'total_variation')
         self.consequence_aggregation = self.config.get('consequence_aggregation', 'weighted_mean')
         self.cf_horizon = self.config.get('cf_horizon', 10)
         self.cf_n_rollouts = self.config.get('cf_n_rollouts', 20)

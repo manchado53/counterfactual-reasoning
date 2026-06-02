@@ -27,7 +27,7 @@ DEFAULT_CONFIG = {
     'mu_delta': 1.0,
     'score_interval': 100,
     'n_score_sample': 128,
-    'consequence_metric': 'jensen_shannon',
+    'consequence_metric': 'total_variation',
     'consequence_aggregation': 'weighted_mean',
     'cf_horizon': 20,
     'cf_n_rollouts': 20,
