@@ -1,4 +1,4 @@
-"""Metrics logging and plotting for SMAX DQN training."""
+"""Metrics logging and plotting for DQN training."""
 
 import os
 from datetime import datetime
@@ -17,21 +17,26 @@ class MetricsLogger:
 
     HEADER_COLUMNS = (
         f"{'episode':>8} {'updates':>10} {'epsilon':>8} {'win_rate':>10} "
+        f"{'wr_first':>10} {'wr_second':>10} "
         f"{'avg_allies':>12} {'avg_return':>12} {'avg_length':>12} "
         f"{'chess_score':>12} {'draw_rate':>10} {'loss_rate':>10}\n"
     )
 
     def __init__(self, backend: str, config: dict, env_info: dict,
-                 n_episodes: int, eval_interval, eval_episodes: int):
+                 n_episodes: int, eval_interval, eval_episodes: int,
+                 run_root: str = None):
         job_id = os.environ.get('SLURM_JOB_ID', 'local')
-        _shared_dir = os.path.dirname(os.path.abspath(__file__))
-        self.dir = os.path.join(_shared_dir, 'runs', job_id)
+        # run_root lets each agent route its runs into its own folder. Defaults to
+        # this shared module's directory for backward compatibility.
+        base = run_root or os.path.dirname(os.path.abspath(__file__))
+        self.dir = os.path.join(base, 'runs', job_id)
         os.makedirs(self.dir, exist_ok=True)
         self.path = os.path.join(self.dir, 'metrics.log')
 
         self.timer = TrainingTimer(self.dir)
         self._file = open(self.path, 'w')
-        self._file.write(f"# SMAX DQN Training Metrics ({backend}) - {datetime.now()}\n")
+        self._scenario = env_info.get('scenario', 'unknown')
+        self._file.write(f"# DQN Training Metrics ({backend}) - {datetime.now()}\n")
         self._file.write(f"# Scenario: {env_info['scenario']}, Obs: {env_info['obs_type']}\n")
         self._file.write(f"# Episodes: {n_episodes}, Eval interval: {eval_interval}, Eval episodes: {eval_episodes}\n")
         self._file.write(f"#\n# === Hyperparameters ===\n")
@@ -54,9 +59,13 @@ class MetricsLogger:
         draw_rate = metrics.get('draw_rate', 0.0)
         loss_rate = metrics.get('loss_rate', 0.0)
         chess_score = metrics.get('chess_score', metrics['win_rate'] + 0.5 * draw_rate)
+        avg_allies = metrics.get('avg_allies_alive', float('nan'))
+        wr_first  = metrics.get('win_rate_first',  float('nan'))
+        wr_second = metrics.get('win_rate_second', float('nan'))
         self._file.write(
             f"{episode:>8d} {model_updates:>10d} {epsilon:>8.3f} {metrics['win_rate']:>10.1%} "
-            f"{metrics['avg_allies_alive']:>12.2f} {metrics['avg_return']:>12.2f} "
+            f"{wr_first:>10.1%} {wr_second:>10.1%} "
+            f"{avg_allies:>12.2f} {metrics['avg_return']:>12.2f} "
             f"{metrics['avg_length']:>12.1f} {chess_score:>12.4f} "
             f"{draw_rate:>10.4f} {loss_rate:>10.4f}\n"
         )
@@ -66,7 +75,7 @@ class MetricsLogger:
         self._updates.append(model_updates)
         self._epsilons.append(epsilon)
         self._win_rates.append(metrics['win_rate'])
-        self._avg_allies.append(metrics['avg_allies_alive'])
+        self._avg_allies.append(avg_allies)
         self._avg_returns.append(metrics['avg_return'])
         self._avg_lengths.append(metrics['avg_length'])
 
@@ -104,12 +113,18 @@ class MetricsLogger:
         ax.set_title('Average Return')
         ax.grid(True, alpha=0.3)
 
-        # Avg Allies Alive
+        # Avg Allies Alive (SMAX) or Avg Episode Length (other envs)
         ax = axes[1, 0]
-        ax.plot(updates, avg_allies, 'o-', color='#FF9800', markersize=2, linewidth=1)
-        ax.set_xlabel('Model Updates')
-        ax.set_ylabel('Avg Allies Alive')
-        ax.set_title('Average Allies Alive')
+        if np.all(np.isnan(avg_allies)):
+            ax.plot(updates, avg_lengths, 'o-', color='#FF9800', markersize=2, linewidth=1)
+            ax.set_xlabel('Model Updates')
+            ax.set_ylabel('Avg Episode Length')
+            ax.set_title('Average Episode Length')
+        else:
+            ax.plot(updates, avg_allies, 'o-', color='#FF9800', markersize=2, linewidth=1)
+            ax.set_xlabel('Model Updates')
+            ax.set_ylabel('Avg Allies Alive')
+            ax.set_title('Average Allies Alive')
         ax.grid(True, alpha=0.3)
 
         # Epsilon + Avg Episode Length (dual axis)
@@ -132,7 +147,7 @@ class MetricsLogger:
         ax.legend(lines_1 + lines_2, labels_1 + labels_2, loc='center right')
         ax.set_title('Epsilon Decay & Episode Length')
 
-        fig.suptitle(f'SMAX DQN Eval Curves', fontsize=14, fontweight='bold')
+        fig.suptitle(f'{self._scenario} Eval Curves', fontsize=14, fontweight='bold')
         plt.tight_layout()
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close(fig)

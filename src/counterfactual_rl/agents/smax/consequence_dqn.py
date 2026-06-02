@@ -350,6 +350,7 @@ class ConsequenceDQN(DQN):
         self.metrics_logger = MetricsLogger(
             backend='JAX (Consequence)', config=self.config, env_info=self.env_info,
             n_episodes=n_episodes, eval_interval=eval_interval, eval_episodes=eval_episodes,
+            run_root=os.path.dirname(os.path.abspath(__file__)),
         )
 
         timer = self.metrics_logger.timer

@@ -209,6 +209,21 @@ def plot_timeseries(jsonl_path, save_dir=None):
     print(f"Saved {save_path}")
 
 
+def _find_run_dir(job_id):
+    """Locate a run dir for job_id across the per-agent folders + legacy shared.
+
+    Runs now land in agents/<env>/runs; 'shared' is the pre-change pile that older
+    jobs still live in. Job ids are unique, so search order is irrelevant.
+    """
+    # __file__ = agents/shared/timing/plot.py -> agents/ is three levels up.
+    agents = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for env in ('smax', 'chess', 'frozen_lake', 'connect_four', 'shared'):
+        candidate = os.path.join(agents, env, 'runs', job_id)
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
 def plot_algorithm_comparison(manifest_path, save_path=None):
     """Compare timing across algorithms from an experiment manifest.
 
@@ -228,7 +243,10 @@ def plot_algorithm_comparison(manifest_path, save_path=None):
             'dqn-uniform': 'DQN (uniform)',
         }.get(algo, algo)
 
-        run_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'runs', job_id)
+        run_dir = _find_run_dir(job_id)
+        if run_dir is None:
+            print(f"Warning: run dir not found for job {job_id}, skipping")
+            continue
         jsonl_path = os.path.join(run_dir, 'timing.jsonl')
         if not os.path.exists(jsonl_path):
             print(f"Warning: {jsonl_path} not found, skipping job {job_id}")
