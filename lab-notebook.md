@@ -60,6 +60,17 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-06-02 — repo + docs cleanup; notebook is now source of truth
+- Stood up this lab-notebook + a CLAUDE.md "read first" rule (durable on-ramp for new agents).
+- Verified all 3 paper datasets exist on disk: FL-det 124/125, FL-stoch 50/50, SMAX-3m 50/50
+  (runs live in `agents/<env>/runs`; legacy SMAX in `agents/shared/runs`).
+- Archived stale/contradicting docs → `docs/_archive/` (PAPER_STATUS, PAPER_CLAIMS, paper.md,
+  CCE_DIAGNOSTICS, mock figure scripts, pre-pivot SMAC/multidiscrete docs). `docs/` is now active reference only.
+- Rewrote CLAIM1/CLAIM2_METRICS as pure metric cookbooks (definitions only, no results).
+- Rewrote CLAUDE.md as a high-signal durable reference (custom FrozenLake, training gotchas, CCE knobs, how-to-run).
+- Disk: `/home` is a SHARED disk at 100% (not a personal quota; our footprint ~640 GB).
+- Commits: 861c0e3 (repro bundle), cb0b9be (docs cleanup), 16c00dd + a7423bf (CLAUDE.md).
+
 ### 2026-06-02 — froze repro bundle + verified paper numbers
 Built paper/repro/ (manifests + .npz caches + C1 checkpoints) + FIGURE_PROVENANCE.md. Commit 861c0e3.
 Verified from cache:
