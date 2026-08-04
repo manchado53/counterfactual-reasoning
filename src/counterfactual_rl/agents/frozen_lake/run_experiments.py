@@ -205,7 +205,99 @@ CLAIM2_NO_SLIP = {
     },
 }
 
+# Claim 2 graded stochasticity — sweep slip_prob to trace the CCE-vs-PER advantage
+# against environment noise (Theorem 3: the advantage should grow as slip falls).
+# Endpoints reproduce known paper results as a built-in sanity check:
+#   slip_prob=0.0    == claim2_no_slip (deterministic, CCE-mul wins big)
+#   slip_prob=0.666  == claim2_main    (full slip, null)
+# Additive-mixing cell dropped per 07/30 meeting -> 4 algos x 10 seeds x 5 levels = 200 runs.
+# `fixed` block matches the paper's FrozenLake runs exactly (see paper/repro/manifests).
+_GRADED_SLIP_LEVELS = [0.0, 0.166, 0.333, 0.5, 0.666]
+_GRADED_SLIP_ALGOS = [
+    {'algorithm': 'dqn-uniform'},                                              # uniform replay
+    {'algorithm': 'dqn'},                                                      # PER
+    {'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0},  # CCE-only
+    {'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative'},       # CCE+TD (mul)
+]
+CLAIM2_GRADED_SLIP = {
+    'name': 'claim2_graded_slip',
+    'env_key': 'frozen_lake',
+    'runs': [
+        {**algo, 'slip_prob': p, 'seed': s}
+        for p in _GRADED_SLIP_LEVELS
+        for algo in _GRADED_SLIP_ALGOS
+        for s in range(10)
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': 0.95,
+    },
+}
+
+# Dense follow-up to claim2_graded_slip (2026-08-03). That sweep put 5 points on the
+# noise axis and only ONE of them moved: CCE-mul beat PER at slip=0 (P=0.65) and tied
+# everywhere else. With one moving point you cannot tell a steep decay from a knife
+# edge at exactly determinism — and those are different papers. So: sample densely
+# where the arms still separate.
+#
+# Where the signal is (from the 2026-08-03 clean numbers, dead seeds dropped):
+#     slip 0.000   uniform 0.33  CCE-only 0.80  PER 0.67  mul 1.00   spread 0.67
+#     slip 0.166   uniform 0.15  CCE-only 0.48  PER 0.99  mul 0.98   spread 0.84
+#     slip 0.333   uniform 0.97  CCE-only 0.96  PER 0.97  mul 0.96   spread 0.01  <- ceiling
+#     slip 0.500   uniform 0.92  CCE-only 0.96  PER 0.93  mul 0.88   spread 0.08  <- ceiling
+#     slip 0.666   uniform 0.66  CCE-only 0.73  PER 0.66  mul 0.71   spread 0.07  <- floor
+# Slip aids exploration, so by 0.333 every arm hits ~0.96 and no gap can appear.
+# The measurable window is 0.0 - 0.25; that is where the extra levels go.
+_GRADED_SLIP_DENSE_MAIN = [0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.133, 0.166,
+                           0.20, 0.25, 0.333, 0.5, 0.666]
+
+# Falsification probe ABOVE the noise peak. Outcome probs are [p/2, 1-p, p/2], so
+# entropy peaks at p=2/3 ([1/3,1/3,1/3]) and FALLS after it: p=0.9 -> [.45,.1,.45]
+# (H=0.95) and p=1.0 -> [.5,0,.5] (H=0.69). Past the peak, slip rises while noise
+# drops, which is the one place "CCE needs LOW NOISE" and "CCE needs DETERMINISM"
+# predict opposite things. Caveat: past 2/3 the intended action becomes the least
+# likely outcome (anti-informative controls), so if every arm collapses here the
+# probe is uninformative rather than evidence either way.
+_GRADED_SLIP_DENSE_PROBE = [0.8, 0.9, 1.0]
+
+_GRADED_SLIP_DENSE_LEVELS = _GRADED_SLIP_DENSE_MAIN + _GRADED_SLIP_DENSE_PROBE
+
+# 20 seeds, not 10: outcomes here are close to all-or-nothing per seed, and at 10
+# seeds the best CI on the headline metric was P=0.65 [0.55, 0.70] — too wide to
+# resolve a slope across neighbouring levels.
+CLAIM2_GRADED_SLIP_DENSE = {
+    'name': 'claim2_graded_slip_dense',
+    'env_key': 'frozen_lake',
+    'runs': [
+        {**algo, 'slip_prob': p, 'seed': s}
+        for p in _GRADED_SLIP_DENSE_LEVELS
+        for algo in _GRADED_SLIP_ALGOS
+        for s in range(20)
+    ],
+    # Identical to CLAIM2_GRADED_SLIP so the shared levels stay comparable and the
+    # endpoints still reproduce the paper's no-slip / full-slip caches.
+    'fixed': {
+        'map_name': '8x8',
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': 0.95,
+    },
+}
+
 EXPERIMENTS = {
+    'claim2_graded_slip_dense': CLAIM2_GRADED_SLIP_DENSE,
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
     'pilot': PILOT,
@@ -215,6 +307,7 @@ EXPERIMENTS = {
     'claim2_cce_rerun': CLAIM2_CCE_RERUN,
     'claim2_cce_multiplicative': CLAIM2_CCE_MULTIPLICATIVE,
     'claim2_no_slip': CLAIM2_NO_SLIP,
+    'claim2_graded_slip': CLAIM2_GRADED_SLIP,
     'vec_smoke': VEC_SMOKE,
 }
 
