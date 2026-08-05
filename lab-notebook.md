@@ -13,7 +13,8 @@ ICLR 2027 (iclr.cc). Deadline ~late Sep 2026 (est.; recheck). ~16 weeks from 202
 ## COVERAGE
 ```
             C1 (finds moments)       C2 (speeds learning)
-FL-det      REDO (was slippery)       WIN ✓ mul 1.00 vs PER 0.46  (25 seeds)
+FL-det      REDO (was slippery)       WIN ✓ 18/20 seeds vs PER 10/20 (20 seeds, 08-04)
+FL slip>0   —                         NULL at every level 0.02-0.133 (20 seeds) <- KNIFE EDGE
 FL-stoch    noise kills score         NULL 0.67–0.75              (10 seeds)
 SMAX-3m     no oracle                 MARGINAL 0.722 vs 0.710     (10 seeds)
 SMAX-8m     —                         UNFINISHED (never ran clean)
@@ -21,19 +22,22 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-08-04)
+## STATUS (2026-08-04, evening)
+Graded-slip dense sweep DONE for the low-slip window (560 runs, 0 failures). Verdict:
+CCE-mul beats PER at slip=0 ONLY — a knife edge, not the graded decay Theorem 3 predicts.
+Honest claim now: CCE's replay benefit is SPECIFIC TO DETERMINISTIC environments.
+
 Data so far = verified + frozen in paper/repro/ (master 861c0e3).
 NOT done experimenting — no claim hits its target scenario count yet.
-IN FLIGHT: graded-slip DENSE sweep, 1280 runs, submitted 2026-08-04 (~8 h to submit,
-throttle-bound; see LOG). Branch `experiment/graded-slip-frozenlake`, worktree
-`.claude/worktrees/graded-slip-frozenlake`, manifest lands at
-`agents/frozen_lake/experiments/2026-08/claim2_graded_slip_dense_2026-08-04/`.
+Graded-slip work lives on `experiment/graded-slip-frozenlake` (worktree
+`.claude/worktrees/graded-slip-frozenlake`), NOT yet merged to master.
 
 ## NEXT
-0. **Graded-slip dense sweep** (running). When it lands:
-   `python -m counterfactual_rl.analysis.claim2.graded_slip --manifest <above> --out docs/figures/graded_slip_dense`
-   Read fig_advantage_vs_noise (does the probe lift?) and fig_steps_to_threshold
-   (does the early-speed edge survive 20 seeds?).
+0. **Decide the paper's framing given the knife edge.** The graded-slip result narrows C2 to
+   deterministic envs. Either (a) own it — "CCE is a determinism-specific replay signal", and
+   make the slip sweep the evidence, or (b) keep hunting for a 2nd env where it holds. Talk to
+   Jeremy: Theorem 3 predicts a slope we did not find, so the theory needs revising either way.
+   DO NOT spend the remaining 683 runs (0.20-0.666 are known ties; probe is answered).
 1. **CCE suitability predictor** — v1 pipeline BUILT + validated (`src/counterfactual_rl/analysis/
    suitability/`, cookbook `docs/SUITABILITY_METRICS.md`). Follow-ups (parked here so they're recoverable):
    - **Run the SLIP SWEEP** (the hero experiment). Env is unblocked: `slip_probability` added to
@@ -78,6 +82,52 @@ throttle-bound; see LOG). Branch `experiment/graded-slip-frozenlake`, worktree
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-04 (later) — DENSE SWEEP ANSWERS IT: **KNIFE EDGE, not a decay.** Thm 3 slope NOT supported
+The submitter was killed at 592/1280 (the parent process exited; manifest never written — recovered
+from the submit log via `recover_manifest`). **All 592 COMPLETED, zero failures** (dh-node12 exclude
+holds; yesterday's rate was 7%). What landed is the 7 dense low-slip levels at the FULL 20 seeds:
+slip 0.0/0.02/0.04/0.06/0.08/0.10/0.133 x 4 arms x 20 = 560 runs. That is exactly the window all the
+signal lives in, so the question is answered even though the tail never ran.
+
+**USE ESCAPE RATE, NOT IQM, IN THIS REGIME.** IQM reads 0.000 across slip 0.02-0.10 while the MEAN
+win rate is ~0.25 — outcomes are bimodal (seed solves or dies), so IQM's middle 50% is all zeros and
+it reports a floor that is not there. Trajectories are PLATEAUED by 60-80% of training, so a bigger
+episode budget would NOT rescue it (I proposed that first; it was wrong). Right metric = fraction of
+seeds solved, i.e. the 07-05 basin-escape framing.
+
+SEEDS SOLVED (final-10% mean win rate >= 0.5, out of 20), + bootstrap 95% CI on mul-PER:
+```
+  slip    uniform  PER  CCE-only  CCE-mul   mul-PER        CI
+  0.000     10     10     13        18       +8/20   [+0.15,+0.65]  <- ONLY significant level
+  0.020      1      5      0         5        0      [-0.25,+0.25]
+  0.040      2      8      1         4       -4      [-0.45,+0.10]
+  0.060      0      6      1         8       +2      [-0.20,+0.40]
+  0.080      1      8      0         7       -1      [-0.35,+0.25]
+  0.100      2     13      1        11       -2      [-0.40,+0.20]
+  0.133      6     14      7        17       +3      [-0.10,+0.40]
+```
+**CCE-mul beats PER at slip=0 and NOWHERE ELSE.** Gone by slip 0.02 and it never comes back.
+
+WHY THE NULL IS TRUSTWORTHY (not a power failure): the SAME measurement cleanly separates uniform
+from PER at those very levels (uniform 0-2/20 vs PER 5-13/20). The instrument discriminates fine; it
+just finds nothing between mul and PER. That is a real null.
+
+CONSEQUENCES:
+- **Theorem 3's smooth slope is NOT supported.** The advantage is not graded in noise; it is a cliff
+  at exact determinism. Entropy at slip 0.02 is only H=0.112 nats and the advantage is ALREADY dead.
+- The honest claim narrows to: **CCE's replay benefit is specific to deterministic environments.**
+- The slip 0.8/0.9/1.0 PROBE is now near-pointless: it was meant to separate "needs LOW noise" from
+  "needs DETERMINISM", and H=0.112 killing the effect already answers that — determinism. Probe
+  levels sit at H=0.69-0.95, far noisier. Don't spend the 240 runs.
+- **CCE-only collapses with any noise** (0-1/20 at slip 0.02-0.10, at or below uniform) while
+  CCE-mul tracks PER. The TD half of the mixture is carrying the method off determinism.
+- Deterministic anchor got STRONGER at 20 seeds: mul IQM 1.00 [1.00,1.00], 18/20 seeds solved,
+  P(mul>PER)=0.70 [0.62,0.75]. Best FL-det result to date.
+
+NOT RESUBMITTED: the remaining 683 runs (0.166 partial, 0.20-0.666, probe). 0.333+ is already known
+ties on 10-seed data and the probe is answered. Figures: `docs/figures/graded_slip_dense/`.
+Manifests: `experiments/2026-08/claim2_graded_slip_dense_2026-08-04/{RECOVERED_partial,COMPLETE_LEVELS}.json`.
 
 ### 2026-08-04 — graded-slip: found a silent seed-contamination bug, launched the DENSE sweep
 Picked up the 08-03 sweep (200 runs, 5 slip levels, 10 seeds). It DID run: 186 completed,
