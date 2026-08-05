@@ -33,7 +33,20 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from .parse_logs import load_manifest, filter_complete_runs
+from .parse_logs import (load_manifest, filter_complete_runs, _find_run_dir,
+                         _parse_single_log)
+
+
+def _alg_label(cfg):
+    """Same labelling load_manifest uses, so real-length bookkeeping lines up."""
+    alg = cfg.get("algorithm", "dqn-uniform")
+    if alg == "dqn-uniform":
+        return "DQN-Uniform"
+    if alg == "dqn":
+        return "DQN+PER"
+    if cfg.get("priority_mixing") == "multiplicative":
+        return "CCE+TD (mul)"
+    return "DQN+CCE-only" if float(cfg.get("mu", 0.25)) >= 1.0 else "CCE+TD (add)"
 
 ALG_ORDER = ["DQN-Uniform", "DQN+PER", "DQN+CCE-only", "CCE+TD (mul)"]
 COLORS = {
@@ -89,15 +102,30 @@ def collect(repo_root):
         with open(sub_path, "w") as f:
             json.dump(sub, f)
         data = load_manifest(sub_path)
+        # How far each seed's REAL evaluation curve goes, before load_manifest
+        # forward-fills it. Needed because early_stop_win_rate ends a run when it
+        # SOLVES, so the best arm has the shortest real curves and the most
+        # padding — plotting the padded tail would flatter exactly the arm we are
+        # trying to judge.
+        real_len = {}
+        for j, cfg in sub.items():
+            rd = _find_run_dir(j, "")
+            _, wr, _, _, _, _ = _parse_single_log(os.path.join(rd, "metrics.log"))
+            real_len.setdefault(_alg_label(cfg), []).append(len(wr))
+
         per_alg = {}
         for alg, arr3 in data["raw"].items():
             arr = arr3[:, 0, :]                       # (n_seeds, T)
             steps = np.asarray(data["eval_steps"][alg], dtype=float)[:arr.shape[1]]
             mean = arr.mean(axis=0)
             lo, hi = _boot_mean_ci(arr)
+            lens = np.array(real_len.get(alg, [arr.shape[1]]))
+            # index up to which at least half the seeds still have real data
+            half = int(np.median(lens))
             per_alg[alg] = {
                 "steps": steps, "mean": mean, "lo": lo, "hi": hi,
                 "n": arr.shape[0], "raw": arr,
+                "real_lens": lens, "half_real_idx": min(half, len(steps)) - 1,
             }
         out[p] = (source, per_alg)
     return out
@@ -114,6 +142,19 @@ def plot(curves, out_dir):
     for i, p in enumerate(slips):
         ax = axes[i // ncol][i % ncol]
         source, per_alg = curves[p]
+
+        # Runs stop early WHEN THEY SOLVE, so a stopped seed is held at its last
+        # (high) value. That imputation is defensible — the run isn't missing at
+        # random, it's missing because it succeeded — but the reader has to know
+        # where it starts. Curves are drawn in full; the region past the point
+        # where half the seeds of some arm have stopped is shaded and marked.
+        x_solid = min(d["steps"][max(d["half_real_idx"], 0)] for d in per_alg.values())
+        x_end = max(d["steps"][-1] for d in per_alg.values())
+
+        if x_solid < x_end:
+            ax.axvspan(x_solid, x_end, color="0.5", alpha=0.10, lw=0, zorder=0)
+            ax.axvline(x_solid, color="0.35", ls=":", lw=1.0, zorder=1)
+
         for alg in ALG_ORDER:
             if alg not in per_alg:
                 continue
@@ -124,6 +165,7 @@ def plot(curves, out_dir):
                             color=COLORS[alg], alpha=0.15, lw=0)
         tag = "20 seeds" if source == "dense" else "10 seeds"
         ax.set_title(f"slip = {p:g}   ({tag})", fontsize=10)
+        ax.set_xlim(0, x_end)
         ax.set_ylim(-0.02, 1.02)
         ax.grid(alpha=0.3)
         ax.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
@@ -136,14 +178,17 @@ def plot(curves, out_dir):
         axes[j // ncol][j % ncol].axis("off")
 
     handles = [plt.Line2D([], [], color=COLORS[a], lw=2.5, label=a) for a in ALG_ORDER]
-    fig.legend(handles=handles, loc="lower right", ncol=1, fontsize=10,
-               bbox_to_anchor=(0.99, 0.06), frameon=True)
-    fig.suptitle("FrozenLake 8x8 — learning curves across the slip axis  "
-                 "(mean over seeds, 95% bootstrap CI)\n"
-                 "slip 0.0-0.133 from the 20-seed dense sweep, 0.166-0.666 from the "
-                 "10-seed coarse sweep; sweeps not pooled",
-                 fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    handles.append(plt.Line2D([], [], color="0.35", ls=":", lw=1.4,
+                              label="past here: most seeds\nhave solved & stopped\n(values forward-filled)"))
+    fig.legend(handles=handles, loc="lower right", ncol=1, fontsize=9,
+               bbox_to_anchor=(0.995, 0.045), frameon=True)
+    fig.suptitle(
+        "FrozenLake 8x8 — learning curves across the slip axis "
+        "(mean win rate over seeds, 95% bootstrap CI)\n"
+        "slip 0.0-0.133: 20-seed dense sweep   |   slip 0.166-0.666: 10-seed coarse "
+        "sweep   |   sweeps not pooled",
+        fontsize=12)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
     path = os.path.join(out_dir, "fig_learning_curves_all_slips.png")
     fig.savefig(path, dpi=150)
     plt.close(fig)
