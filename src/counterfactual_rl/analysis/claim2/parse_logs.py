@@ -55,11 +55,13 @@ _FL_SMAX_STEPS_PER_UPDATE = 4  # n_steps_per_update / n_steps_for_Q_update in bo
 
 
 def _detect_env(log_path: str) -> str:
-    """Return 'chess', 'frozen_lake', 'connect_four', or 'smax' based on header comments."""
+    """Return 'chess', 'frozen_lake', 'jax_nav', 'connect_four', or 'smax' based on header comments."""
     with open(log_path) as f:
         for line in f:
             if not line.startswith('#'):
                 break
+            if 'JaxNav' in line or 'jax_nav' in line.lower():
+                return 'jax_nav'
             if 'FrozenLake' in line or 'frozen_lake' in line.lower():
                 return 'frozen_lake'
             if 'gardner_chess' in line.lower() or 'Chess' in line:
@@ -67,6 +69,21 @@ def _detect_env(log_path: str) -> str:
             if 'connect_four' in line.lower() or 'Connect Four' in line:
                 return 'connect_four'
     return 'smax'
+
+
+def _header_value(log_path: str, key: str, default):
+    """Read a scalar config value written in the metrics.log header (# key: value)."""
+    with open(log_path) as f:
+        for line in f:
+            if not line.startswith('#'):
+                break
+            m = re.match(rf'#\s*{re.escape(key)}:\s*(.+)', line)
+            if m:
+                try:
+                    return type(default)(m.group(1).strip())
+                except (ValueError, TypeError):
+                    return default
+    return default
 
 
 def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -77,7 +94,7 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     wdl has shape (n_checkpoints, 3).
     """
     env_type = _detect_env(log_path)
-    if env_type == 'frozen_lake':
+    if env_type in ('frozen_lake', 'jax_nav'):
         cols = _FL_COLS
     elif env_type == 'connect_four':
         cols = _C4_COLS
@@ -109,7 +126,7 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
                 win_rates.append(wr)
                 avg_lengths.append(al)
 
-                if env_type not in ('frozen_lake',):
+                if env_type not in ('frozen_lake', 'jax_nav'):
                     allies_raw = float(parts[cols['avg_allies']])
                     avg_allies_list.append(0.0 if np.isnan(allies_raw) else allies_raw)
                     if len(parts) > cols.get('chess_score', 99):
@@ -136,6 +153,9 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     upd_arr = np.array(updates_list, dtype=np.float64)
     if env_type == 'chess':
         eval_steps = ep_arr * _CHESS_TRANSITIONS_PER_CHUNK
+    elif env_type == 'jax_nav':
+        # env steps = q_updates * n_steps_per_update (JaxNav's replay ratio differs from FL)
+        eval_steps = upd_arr * _header_value(log_path, 'n_steps_per_update', 16)
     else:
         # connect_four, frozen_lake, smax: updates * 4 = env steps
         eval_steps = upd_arr * _FL_SMAX_STEPS_PER_UPDATE
@@ -169,6 +189,7 @@ def _find_run_dir(job_id: str, env: str) -> Optional[str]:
         'smax':          os.path.join(agents, 'smax', 'runs'),
         'chess':         os.path.join(agents, 'chess', 'runs'),
         'frozen_lake':   os.path.join(agents, 'frozen_lake', 'runs'),
+        'jax_nav':       os.path.join(agents, 'jax_nav', 'runs'),
         'connect_four':  os.path.join(agents, 'connect_four', 'runs'),
         'shared_legacy': os.path.join(agents, 'shared', 'runs'),
     }

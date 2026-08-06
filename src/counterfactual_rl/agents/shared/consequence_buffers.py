@@ -1,5 +1,6 @@
 """Consequence-weighted Prioritized Experience Replay buffer (Algorithm 2, Equations 2-5)."""
 
+import jax
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -95,11 +96,17 @@ class ConsequenceReplayBuffer:
         self._cached_probs = None
 
     def add_batch(self, transitions: Dict, jax_states=None):
-        """Add N transitions at once. transitions maps field names to 1-D arrays of length N."""
+        """Add N transitions at once. transitions maps field names to 1-D arrays of length N.
+
+        jax_states may be either a 1-D array (FrozenLake: a scalar int state per transition)
+        or a *batched pytree* with leading axis N (JaxNav: a full ``State`` per transition).
+        ``jax.tree.map(lambda leaf: leaf[i], ...)`` slices the i-th element for both, since a
+        bare array is itself a single pytree leaf.
+        """
         n = len(next(iter(transitions.values())))
         for i in range(n):
             t = {k: v[i] for k, v in transitions.items()}
-            js = int(jax_states[i]) if jax_states is not None else None
+            js = jax.tree.map(lambda leaf: leaf[i], jax_states) if jax_states is not None else None
             self.add(t, jax_state=js)
 
     def _compute_priorities(self) -> np.ndarray:
