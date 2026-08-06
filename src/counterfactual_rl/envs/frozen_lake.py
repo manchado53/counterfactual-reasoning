@@ -76,6 +76,7 @@ class FrozenLakeEnv:
         map_name: str = "4x4",
         desc: Optional[List[str]] = None,
         is_slippery: bool = True,
+        slip_prob: Optional[float] = None,
     ):
         if desc is not None:
             self.desc = desc
@@ -88,7 +89,23 @@ class FrozenLakeEnv:
         self.ncols = len(self.desc[0])
         self.n_states = self.nrows * self.ncols
         self.n_actions = 4
-        self.is_slippery = is_slippery
+
+        # Graded stochasticity. slip_prob p = total probability the agent slides off
+        # the intended action, split evenly between the two perpendicular directions:
+        #   outcome slots are [(a-1)%4, a, (a+1)%4]  ->  probs [p/2, 1-p, p/2].
+        # Backward compatible with the boolean is_slippery flag:
+        #   slip_prob=None  ->  is_slippery=True gives p=2/3 (the original [1/3,1/3,1/3]);
+        #                       is_slippery=False gives p=0 (deterministic).
+        # An explicit slip_prob always wins over is_slippery.
+        if slip_prob is not None:
+            p = float(slip_prob)
+        else:
+            p = (2.0 / 3.0) if is_slippery else 0.0
+        if not (0.0 <= p <= 1.0):
+            raise ValueError(f"slip_prob must be in [0, 1], got {p}.")
+        self.slip_prob = p
+        self.is_slippery = p > 0.0
+        self.outcome_probs = jnp.array([p / 2.0, 1.0 - p, p / 2.0], dtype=jnp.float32)
 
         self.start_states: List[int] = [
             r * self.ncols + c
@@ -141,6 +158,10 @@ class FrozenLakeEnv:
 
                 elif self.is_slippery:
                     outcomes = [(act - 1) % 4, act, (act + 1) % 4]
+                    # Graded slip: perpendicular slots get slip_prob/2 each, the
+                    # intended action (slot 1) gets 1 - slip_prob.
+                    p = self.slip_prob
+                    slot_probs = [p / 2.0, 1.0 - p, p / 2.0]
                     P[s][act] = []
                     for ki, b in enumerate(outcomes):
                         nr, nc = _move(row, col, b, self.nrows, self.ncols)
@@ -151,7 +172,7 @@ class FrozenLakeEnv:
                         next_s_np[s, act, ki] = ns
                         rew_np[s, act, ki] = r
                         done_np[s, act, ki] = d
-                        P[s][act].append((1.0 / 3.0, ns, r, d))
+                        P[s][act].append((slot_probs[ki], ns, r, d))
 
                 else:
                     nr, nc = _move(row, col, act, self.nrows, self.ncols)
@@ -205,7 +226,8 @@ class FrozenLakeEnv:
             obs, next_state, reward, done, info
         """
         if self.is_slippery:
-            outcome = jax.random.randint(key, shape=(), minval=0, maxval=3)
+            # Weighted over the 3 outcome slots: [slip/2, 1-slip, slip/2].
+            outcome = jnp.int32(jax.random.choice(key, 3, p=self.outcome_probs))
         else:
             outcome = jnp.int32(0)
 

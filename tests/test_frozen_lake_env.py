@@ -525,6 +525,105 @@ class TestEightByEight:
                     assert rd == od
 
 
+# ---------------------------------------------------------------------------
+# 9. Graded slip probability (slip_prob knob)
+# ---------------------------------------------------------------------------
+
+class TestGradedSlip:
+    """
+    slip_prob p splits outcome mass as [p/2, 1-p, p/2] over the 3 slots
+    [(a-1)%4, a, (a+1)%4] (slot 1 = intended action). It must reproduce the
+    two boolean endpoints exactly and interpolate correctly in between.
+    """
+
+    def _p_tables_equal(self, e1, e2):
+        for s in e1.P:
+            for a in e1.P[s]:
+                o1, o2 = e1.P[s][a], e2.P[s][a]
+                assert len(o1) == len(o2)
+                for (p1, ns1, r1, d1), (p2, ns2, r2, d2) in zip(o1, o2):
+                    assert abs(p1 - p2) < 1e-9
+                    assert ns1 == ns2 and abs(r1 - r2) < 1e-9 and d1 == d2
+
+    def test_p0_equals_non_slippery(self):
+        """slip_prob=0 must be identical to is_slippery=False."""
+        self._p_tables_equal(
+            FrozenLakeEnv("8x8", slip_prob=0.0),
+            FrozenLakeEnv("8x8", is_slippery=False),
+        )
+
+    def test_p_two_thirds_equals_slippery(self):
+        """slip_prob=2/3 must reproduce the original [1/3,1/3,1/3] slippery env."""
+        self._p_tables_equal(
+            FrozenLakeEnv("8x8", slip_prob=2.0 / 3.0),
+            FrozenLakeEnv("8x8", is_slippery=True),
+        )
+
+    def test_slip_prob_overrides_is_slippery(self):
+        """An explicit slip_prob wins over the is_slippery flag."""
+        # is_slippery=True but slip_prob=0 -> deterministic
+        self._p_tables_equal(
+            FrozenLakeEnv("8x8", is_slippery=True, slip_prob=0.0),
+            FrozenLakeEnv("8x8", is_slippery=False),
+        )
+
+    @pytest.mark.parametrize("p", [0.0, 0.1, 0.166, 0.333, 0.5, 0.666, 1.0])
+    def test_p_rows_sum_to_one(self, p):
+        env = FrozenLakeEnv("8x8", slip_prob=p)
+        for s in env.P:
+            for a in env.P[s]:
+                tot = sum(pr for pr, _, _, _ in env.P[s][a])
+                assert abs(tot - 1.0) < 1e-6, f"s={s} a={a} p={p}: rowsum {tot}"
+
+    @pytest.mark.parametrize("p", [0.1, 0.25, 0.5])
+    def test_graded_probs_on_interior_state(self, p):
+        """A non-terminal interior state with 3 distinct outcomes gets [p/2, 1-p, p/2]."""
+        env = FrozenLakeEnv("8x8", slip_prob=p)
+        # state 9 (row1,col1) is frozen and interior on the 8x8 map
+        probs = [pr for pr, _, _, _ in env.P[9][1]]
+        assert abs(probs[0] - p / 2) < 1e-9
+        assert abs(probs[1] - (1 - p)) < 1e-9
+        assert abs(probs[2] - p / 2) < 1e-9
+
+    def test_invalid_slip_prob_raises(self):
+        with pytest.raises(ValueError):
+            FrozenLakeEnv("8x8", slip_prob=1.5)
+        with pytest.raises(ValueError):
+            FrozenLakeEnv("8x8", slip_prob=-0.1)
+
+    def test_empirical_step_distribution_matches_slip_prob(self):
+        """step() sampling frequencies must match [p/2, 1-p, p/2]."""
+        p = 0.5
+        env = FrozenLakeEnv("8x8", slip_prob=p)
+        s, a = 9, 1  # interior, 3 distinct outcomes
+        expected_ns = [ns for _, ns, _, _ in env.P[s][a]]
+        expected_pr = [pr for pr, _, _, _ in env.P[s][a]]
+        counts = {ns: 0 for ns in expected_ns}
+        n = 8000
+        key = jax.random.PRNGKey(123)
+        for _ in range(n):
+            key, sk = jax.random.split(key)
+            _, ns, _, _, _ = env.step(sk, jnp.int32(s), jnp.int32(a))
+            ns_int = int(ns)
+            if ns_int in counts:
+                counts[ns_int] += 1
+        for ns, pr in zip(expected_ns, expected_pr):
+            emp = counts[ns] / n
+            assert abs(emp - pr) < 0.03, f"ns={ns}: empirical {emp:.3f} != {pr:.3f}"
+
+    def test_graded_step_is_jittable(self):
+        env = FrozenLakeEnv("8x8", slip_prob=0.3)
+
+        @jax.jit
+        def jit_step(key, state, action):
+            return env.step(key, state, action)
+
+        key = jax.random.PRNGKey(0)
+        _, ns, _, _, _ = jit_step(key, jnp.int32(9), jnp.int32(1))
+        valid = {n for _, n, _, _ in env.P[9][1]}
+        assert int(ns) in valid
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

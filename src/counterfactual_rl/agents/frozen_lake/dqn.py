@@ -155,6 +155,7 @@ class FrozenLakeDQN:
         self.env = FrozenLakeEnv(
             map_name=self.config['map_name'],
             is_slippery=self.config.get('is_slippery', True),
+            slip_prob=self.config.get('slip_prob', None),
         )
         self.n_states = self.env.n_states
         self.n_actions = self.env.n_actions

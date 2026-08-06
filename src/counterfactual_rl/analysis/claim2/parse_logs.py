@@ -179,6 +179,89 @@ def _find_run_dir(job_id: str, env: str) -> Optional[str]:
     return None
 
 
+def filter_complete_runs(manifest: Dict[str, dict]) -> Tuple[Dict[str, dict], List[dict]]:
+    """Split a manifest into runs that finished and runs that died mid-training.
+
+    Why this exists: load_manifest forward-fills short seeds by repeating their last
+    value. That is correct for a run that early-stopped at a solved policy (fill at
+    ~1.0), but WRONG for a run the scheduler killed (fill at whatever win rate it had
+    when it died, often 0.0). A killed seed then reads as "this arm never learned",
+    which silently drags that arm's IQM down. 14/200 runs died this way in the
+    2026-08-03 graded-slip sweep — all on one bad node.
+
+    A run counts as complete if either:
+      * it reached the configured episode budget (allowing for chunked overshoot), or
+      * its final win rate reached `early_stop_win_rate` (a legitimate early stop).
+
+    Args:
+        manifest: {job_id: config_overrides}
+
+    Returns:
+        (kept, dropped) where kept is a manifest dict and dropped is a list of
+        {job_id, reason, last_episode, n_episodes, last_win_rate} records.
+    """
+    kept, dropped = {}, []
+
+    for job_id, cfg in manifest.items():
+        run_dir = _find_run_dir(job_id, '')
+        if run_dir is None:
+            dropped.append({'job_id': job_id, 'reason': 'no run dir'})
+            continue
+        log_path = os.path.join(run_dir, 'metrics.log')
+        if not os.path.isfile(log_path):
+            dropped.append({'job_id': job_id, 'reason': 'no metrics.log'})
+            continue
+        try:
+            _, win_rate, _, _, _, _ = _parse_single_log(log_path)
+        except ValueError as e:
+            dropped.append({'job_id': job_id, 'reason': f'unparseable: {e}'})
+            continue
+        if win_rate.size == 0:
+            dropped.append({'job_id': job_id, 'reason': 'empty log'})
+            continue
+
+        last_episode = _last_episode(log_path)
+        n_episodes = int(cfg.get('n_episodes', 0))
+        early_stop = cfg.get('early_stop_win_rate')
+        last_win_rate = float(win_rate[-1])
+
+        # Chunked trainers overshoot the budget slightly (e.g. 15017 of 15000), so
+        # allow a small shortfall rather than demanding exact equality.
+        reached_budget = n_episodes > 0 and last_episode >= 0.98 * n_episodes
+        early_stopped = early_stop is not None and last_win_rate >= float(early_stop)
+
+        if reached_budget or early_stopped:
+            kept[job_id] = cfg
+        else:
+            dropped.append({
+                'job_id': job_id,
+                'reason': 'died mid-training',
+                'last_episode': last_episode,
+                'n_episodes': n_episodes,
+                'last_win_rate': last_win_rate,
+            })
+
+    return kept, dropped
+
+
+def _last_episode(log_path: str) -> int:
+    """Episode number on the final data row of a metrics.log (0 if none)."""
+    last = 0
+    with open(log_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if parts[0] == 'episode':
+                continue
+            try:
+                last = int(parts[0])
+            except (ValueError, IndexError):
+                continue
+    return last
+
+
 def load_manifest(
     manifest_path: str,
     alg_key: str = 'algorithm',

@@ -1,6 +1,7 @@
 DEFAULT_CONFIG = {
     'map_name': '8x8',
     'is_slippery': True,
+    'slip_prob': None,  # None -> derive from is_slippery (True=2/3, False=0). Float overrides.
     'algorithm': 'consequence-dqn',
     'gamma': 0.99,
     'epsilon_start': 1.0,
