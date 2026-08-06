@@ -3,7 +3,7 @@ Entry point for DoorKey DQN training.
 
 Usage:
     python -m counterfactual_rl.agents.doorkey.train
-    python -m counterfactual_rl.agents.doorkey.train --algorithm dqn-uniform --map 8x8
+    python -m counterfactual_rl.agents.doorkey.train --algorithm dqn-uniform --layout 6x6_lava
     python -m counterfactual_rl.agents.doorkey.train --algorithm consequence-dqn --mixing additive
 
 Algorithms:
@@ -28,7 +28,7 @@ def parse_args():
     p.add_argument('--algorithm', default=None,
                    choices=['dqn-uniform', 'dqn', 'consequence-dqn'],
                    help='Algorithm variant (default from config)')
-    p.add_argument('--layout', default=None, choices=['6x6'],
+    p.add_argument('--layout', default=None, choices=['6x6', '6x6_lava'],
                    dest='layout_name', help='DoorKey layout')
     p.add_argument('--slip', type=float, default=None, dest='slip_prob',
                    help='Slip probability (0=deterministic for Claim 2; ~0.2 for Claim 1)')

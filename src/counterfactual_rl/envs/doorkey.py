@@ -38,6 +38,17 @@ Deviations from Farama MiniGrid (documented, minor):
       DoorKey. `has_key` is therefore monotonic (0 -> 1).
     - Layout is fixed (not re-randomized per reset) so the state set is enumerable.
 
+Lava (optional, layout-dependent — see DOORKEY_6x6_LAVA):
+    Walkable but fatal, matching MiniGrid's own Lava.can_overlap()=True + terminate-on-entry
+    semantics: FORWARD onto a lava cell succeeds (like walking onto the goal) but ends the
+    episode with reward 0 (like FrozenLake's holes) rather than blocking movement like a wall.
+    This gives DoorKey the catastrophe structure it otherwise lacks: without lava every wrong
+    action is merely recoverable (costs a few extra discounted steps), so the oracle's
+    action-value gaps stay small almost everywhere and CCE's total-variation score has little
+    to lock onto. A lava-adjacent state has a genuinely large gap — one action still reaches
+    the goal, the other is a dead end — exactly the FrozenLake-hole mechanism CCE is built to
+    detect.
+
 Action space (Discrete(7), MiniGrid order):
     0 left    turn CCW (dir -= 1 mod 4)
     1 right   turn CW  (dir += 1 mod 4)
@@ -82,7 +93,7 @@ N_DIR = 4
 DOOR_LOCKED, DOOR_CLOSED, DOOR_OPEN = 0, 1, 2  # locked-closed, unlocked-closed, unlocked-open
 
 # Tile glyphs
-WALL, FLOOR, KEY, DOOR, GOAL = "W", ".", "K", "D", "G"
+WALL, FLOOR, KEY, DOOR, GOAL, LAVA = "W", ".", "K", "D", "G", "L"
 
 # Fixed 6x6 DoorKey layout (walls on the perimeter, one vertical split wall at col 3
 # with a single door cell, key + agent start in the left room, goal in the right room).
@@ -98,8 +109,40 @@ DOORKEY_6x6: List[str] = [
 DOORKEY_6x6_START = (1, 1)
 DOORKEY_6x6_START_DIR = DIR_RIGHT
 
+# Fixed 6x6 DoorKey+Lava layout — the 6x6 above with ONE lava tile at (4,2).
+#
+# Why 6x6 and only one lava tile: lava must add catastrophe WITHOUT destroying the reward
+# signal DQN needs to bootstrap. Measured with a uniform-random policy over 20k episodes
+# (80-step cap), the fraction of episodes that reach the goal at all:
+#     6x6 no lava .............. 0.215%   (trains fine — this is the reference)
+#     6x6 + 1 lava (this) ...... 0.110%   (still bootstraps; lava-adjacent oracle gap 4.2x)
+#     8x8 + 1..4 lava .......... 0.000%   (ZERO goals in 20k episodes — unlearnable)
+# The blocker on 8x8 was path length (19 steps vs 11), not lava density: even a single lava
+# tile placed far from the route left 0 successes, because a 19-step three-stage task
+# (key -> door -> goal) is already past what random exploration completes. So the catastrophe
+# structure goes on the SHORT map.
+#
+# Lava sits at (4,2), in the lower-left room one cell diagonally off the key at (3,1) and
+# directly below the (3,2) corridor cell the agent crosses on its way to the key/door. Its
+# two live approaches — (3,2) facing DOWN and (4,1) facing RIGHT — are both states a real
+# policy passes through, which is what makes those neighbouring states consequential rather
+# than a hazard parked somewhere the agent never goes.
+#   col:  0 1 2 3 4 5
+DOORKEY_6x6_LAVA: List[str] = [
+    "WWWWWW",   # row 0
+    "W..W.W",   # row 1  (col3 = split wall)
+    "W..D.W",   # row 2  (col3 = door)
+    "WK.W.W",   # row 3  (col1 = key)
+    "W.LWGW",   # row 4  (col2 = lava, col4 = goal)
+    "WWWWWW",   # row 5
+]
+DOORKEY_6x6_LAVA_START = (1, 1)
+DOORKEY_6x6_LAVA_START_DIR = DIR_RIGHT
+
 LAYOUTS: Dict[str, dict] = {
     "6x6": {"desc": DOORKEY_6x6, "start": DOORKEY_6x6_START, "start_dir": DOORKEY_6x6_START_DIR},
+    "6x6_lava": {"desc": DOORKEY_6x6_LAVA, "start": DOORKEY_6x6_LAVA_START,
+                 "start_dir": DOORKEY_6x6_LAVA_START_DIR},
 }
 
 
@@ -124,7 +167,9 @@ class DoorKeyEnv:
             self.start_dir = start_dir
         else:
             if layout_name not in LAYOUTS:
-                raise ValueError(f"Unknown layout '{layout_name}'. Use '6x6' or pass desc=.")
+                raise ValueError(
+                    f"Unknown layout '{layout_name}'. Use one of {list(LAYOUTS)} or pass desc=."
+                )
             cfg = LAYOUTS[layout_name]
             self.desc = cfg["desc"]
             self.start_cell = cfg["start"]
@@ -141,6 +186,7 @@ class DoorKeyEnv:
         self.key_cell = self._find_tile(KEY)
         self.door_cell = self._find_tile(DOOR)
         self.goal_cell = self._find_tile(GOAL)
+        self.lava_cells = self._find_all_tiles(LAVA)
 
         self._build_states_and_table()
 
@@ -155,11 +201,25 @@ class DoorKeyEnv:
                     return (r, c)
         raise ValueError(f"Tile '{glyph}' not found in layout.")
 
+    def _find_all_tiles(self, glyph: str) -> List[Tuple[int, int]]:
+        return [
+            (r, c)
+            for r, row in enumerate(self.desc)
+            for c, tile in enumerate(row)
+            if tile == glyph
+        ]
+
     def _tile(self, row: int, col: int) -> str:
         return self.desc[row][col]
 
     def _is_goal(self, row: int, col: int) -> bool:
         return self._tile(row, col) == GOAL
+
+    def _is_lava(self, row: int, col: int) -> bool:
+        return self._tile(row, col) == LAVA
+
+    def _is_terminal(self, row: int, col: int) -> bool:
+        return self._is_goal(row, col) or self._is_lava(row, col)
 
     # ------------------------------------------------------------------
     # Pure-python transition (used to build the table + BFS reachability)
@@ -169,13 +229,14 @@ class DoorKeyEnv:
         """
         Apply `action` deterministically to state s = (row, col, dir, has_key, door).
 
-        Returns (next_state_tuple, reward, done). Goal states are terminal and loop
-        to themselves with reward 0. This is the *executed*-action transition; slip is
-        applied on top by mixing over executed actions in the table build.
+        Returns (next_state_tuple, reward, done). Goal and lava states are both terminal and
+        loop to themselves with reward 0 (the goal's +1 is only granted on the transition that
+        first enters it — see the FORWARD branch below). This is the *executed*-action
+        transition; slip is applied on top by mixing over executed actions in the table build.
         """
         row, col, d, has_key, door = s
 
-        if self._is_goal(row, col):
+        if self._is_terminal(row, col):
             return (row, col, d, has_key, door), 0.0, True
 
         nr, nc, nd, nkey, ndoor = row, col, d, has_key, door
@@ -199,6 +260,9 @@ class DoorKeyEnv:
             elif ftile == GOAL:
                 can_move = True
                 reward, done = 1.0, True
+            elif ftile == LAVA:
+                can_move = True
+                reward, done = 0.0, True
             else:  # FLOOR
                 can_move = True
             if can_move:
@@ -283,7 +347,7 @@ class DoorKeyEnv:
         for s, si in index.items():
             row, col = s[0], s[1]
             state_to_cell[si] = (row, col)
-            if not self._is_goal(row, col):
+            if not self._is_terminal(row, col):
                 non_terminal.append(si)
             P[si] = {}
             for a in range(self.n_actions):

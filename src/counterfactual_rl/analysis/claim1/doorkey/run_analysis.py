@@ -29,7 +29,13 @@ from counterfactual_rl.envs.doorkey import DOOR_OPEN
 
 STAGES = ['untrained', 'mid', 'trained']
 STAGE_LABELS = ['Untrained', 'Mid-training', 'Fully Trained']
-FIGURE_DIR = Path(__file__).parents[5] / 'docs' / 'figures' / 'real' / 'claim1' / 'doorkey'
+_FIGURE_ROOT = Path(__file__).parents[5] / 'docs' / 'figures' / 'real' / 'claim1'
+
+
+def figure_dir(layout_name):
+    """Per-layout output dir, so a lava run never overwrites the no-lava figures."""
+    suffix = '' if layout_name == '6x6' else f'_{layout_name.replace("6x6_", "")}'
+    return _FIGURE_ROOT / f'doorkey{suffix}'
 
 
 def precision_at_k(oracle_vals, cce_vals, k):
@@ -81,6 +87,10 @@ def main():
                    help='Seed labels for the run dirs (default 0..n-1).')
     p.add_argument('--slip', type=float, default=0.2,
                    help='Slip prob for the oracle (match the training slip).')
+    p.add_argument('--layout', default='6x6', dest='layout_name',
+                   help='DoorKey layout — MUST match the layout the checkpoints were '
+                        'trained on (e.g. 6x6_lava), or the state count differs and the '
+                        'network shape will not load.')
     p.add_argument('--metric', default='total_variation')
     p.add_argument('--n-rollouts', type=int, default=100)
     p.add_argument('--horizon', type=int, default=60)
@@ -89,11 +99,13 @@ def main():
 
     seeds = args.seeds if args.seeds is not None else list(range(len(args.run_dirs)))
     assert len(seeds) == len(args.run_dirs), 'seeds and run-dirs length mismatch'
-    FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+    fig_dir = figure_dir(args.layout_name)
+    fig_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Oracle (on the slippery DoorKey MDP the agent is scored on)
     print(f'Computing DoorKey oracle via value iteration (slip={args.slip}) ...')
-    _, oracle, non_terminal, env = compute_oracle('6x6', slip_prob=args.slip, gamma=args.gamma)
+    _, oracle, non_terminal, env = compute_oracle(
+        args.layout_name, slip_prob=args.slip, gamma=args.gamma)
     print(f'  {len(non_terminal)} reachable non-terminal states')
 
     # 2. Score all checkpoints
@@ -108,7 +120,7 @@ def main():
                 ck, non_terminal,
                 n_rollouts=args.n_rollouts, horizon=args.horizon,
                 gamma=args.gamma, metric=args.metric, seed=seed,
-                slip_prob=args.slip,
+                slip_prob=args.slip, layout_name=args.layout_name,
             )
 
     # 3. Spearman rho table
@@ -140,7 +152,7 @@ def main():
     # 5. Figures (first seed)
     s0 = seeds[0]
     colors = _phase_colors(non_terminal, env)
-    scatter_path = FIGURE_DIR / 'fig_c1_scatter_stages.png'
+    scatter_path = fig_dir / 'fig_c1_scatter_stages.png'
     plot_c1_scatter(
         oracle,
         {stage: cce[s0][stage] for stage in STAGES},
@@ -148,7 +160,7 @@ def main():
     )
     print(f'\nSaved {scatter_path}')
 
-    heatmap_path = FIGURE_DIR / 'fig_c2_grid_heatmaps.png'
+    heatmap_path = fig_dir / 'fig_c2_grid_heatmaps.png'
     plot_c2_heatmaps(oracle, cce[s0]['untrained'], cce[s0]['trained'], env, heatmap_path)
     print(f'Saved {heatmap_path}')
 

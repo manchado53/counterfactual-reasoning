@@ -33,11 +33,25 @@ def env():
     return DoorKeyEnv("6x6")
 
 
+@pytest.fixture(scope="module")
+def env_lava():
+    return DoorKeyEnv("6x6_lava")
+
+
 def _step_tuple(env, state_tuple, action):
     """Step from a (row,col,dir,has_key,door) tuple; return (next_tuple, reward, done)."""
     i = env._index[state_tuple]
     _, ns, r, d, _ = env.step(KEY, jnp.int32(i), jnp.int32(action))
     return env._order[int(ns)], float(r), bool(d)
+
+
+def _find_state_facing(env, row, col, direction):
+    """Find any reachable state at (row,col) facing `direction`, regardless of has_key/door
+    (turning is always available, so if the cell is reachable at all, every facing is too)."""
+    for s in env._order:
+        if s[0] == row and s[1] == col and s[2] == direction:
+            return s
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -200,46 +214,94 @@ class TestReset:
 # 5. Solvability
 # ---------------------------------------------------------------------------
 
+def _solve_and_verify(env, max_len):
+    """BFS shortest path to the goal, replay it, assert it wins. Lava states are terminal
+    absorbing dead-ends (no outgoing edge continues past them), so any path this BFS finds
+    to the goal is automatically lava-free — no separate lava-avoidance check needed."""
+    start = env.start_states[0]
+    prev = {start: (None, None)}
+    dq = collections.deque([start])
+    goal_idx = None
+    while dq:
+        u = dq.popleft()
+        if env.state_to_cell[u] == env.goal_cell:
+            goal_idx = u
+            break
+        for a in range(env.n_actions):
+            v = int(env.next_states[u, a, 0])
+            if v not in prev:
+                prev[v] = (u, a)
+                dq.append(v)
+    assert goal_idx is not None, "goal not reachable"
+
+    path = []
+    cur = goal_idx
+    while prev[cur][0] is not None:
+        u, a = prev[cur]
+        path.append(a)
+        cur = u
+    path.reverse()
+
+    s = jnp.int32(start)
+    total_r, done = 0.0, False
+    for a in path:
+        _, s, r, done, _ = env.step(KEY, s, jnp.int32(a))
+        total_r += float(r)
+    assert bool(done) is True
+    assert total_r == 1.0
+    assert len(path) <= max_len
+    return path
+
+
 class TestSolvability:
 
     def test_goal_reachable_and_solution_rewards_one(self, env):
-        start = env.start_states[0]
-        prev = {start: (None, None)}
-        dq = collections.deque([start])
-        goal_idx = None
-        while dq:
-            u = dq.popleft()
-            if env.state_to_cell[u] == env.goal_cell:
-                goal_idx = u
-                break
-            for a in range(env.n_actions):
-                v = int(env.next_states[u, a, 0])
-                if v not in prev:
-                    prev[v] = (u, a)
-                    dq.append(v)
-        assert goal_idx is not None, "goal not reachable"
+        _solve_and_verify(env, max_len=20)  # 6x6, optimal is 11
 
-        # reconstruct + replay
-        path = []
-        cur = goal_idx
-        while prev[cur][0] is not None:
-            u, a = prev[cur]
-            path.append(a)
-            cur = u
-        path.reverse()
-
-        s = jnp.int32(start)
-        total_r, done = 0.0, False
-        for a in path:
-            _, s, r, done, _ = env.step(KEY, s, jnp.int32(a))
-            total_r += float(r)
-        assert bool(done) is True
-        assert total_r == 1.0
-        assert len(path) <= 20  # optimal is 11; sanity ceiling
+    def test_lava_goal_reachable_avoiding_lava(self, env_lava):
+        _solve_and_verify(env_lava, max_len=20)  # 6x6+lava, safe route is 11 steps
 
 
 # ---------------------------------------------------------------------------
-# 6. JAX compatibility
+# 6. Lava (6x6_lava layout only)
+# ---------------------------------------------------------------------------
+
+class TestLava:
+
+    def test_lava_cells_present(self, env_lava):
+        assert set(env_lava.lava_cells) == {(4, 2)}
+
+    @pytest.mark.parametrize("lava_cell,approach_cell,facing", [
+        ((4, 2), (3, 2), DIR_DOWN),    # from the corridor cell the agent crosses en route
+        ((4, 2), (4, 1), DIR_RIGHT),   # from below the key, the other live approach
+    ])
+    def test_forward_into_lava_is_terminal_zero_reward(self, env_lava, lava_cell, approach_cell, facing):
+        s = _find_state_facing(env_lava, approach_cell[0], approach_cell[1], facing)
+        assert s is not None, f"no reachable state found at {approach_cell} facing {facing}"
+        ns, r, d = _step_tuple(env_lava, s, FORWARD)
+        assert (ns[0], ns[1]) == lava_cell
+        assert r == 0.0
+        assert d is True
+
+    def test_lava_state_absorbs(self, env_lava):
+        """Any reachable state sitting AT a lava cell must loop to itself under every action."""
+        lava_states = [s for s in env_lava._order if (s[0], s[1]) in env_lava.lava_cells]
+        assert lava_states, "no lava states were ever entered during BFS enumeration"
+        for s in lava_states:
+            for a in range(env_lava.n_actions):
+                ns, r, d = _step_tuple(env_lava, s, a)
+                assert ns == s
+                assert r == 0.0
+                assert d is True
+
+    def test_lava_states_excluded_from_non_terminal(self, env_lava):
+        lava_indices = {env_lava._index[s] for s in env_lava._order if (s[0], s[1]) in env_lava.lava_cells}
+        assert lava_indices, "expected at least one enumerated lava state"
+        assert lava_indices.isdisjoint(set(env_lava.non_terminal))
+
+
+# ---------------------------------------------------------------------------
+# 7. JAX compatibility
 # ---------------------------------------------------------------------------
 
 class TestJaxCompatibility:
@@ -248,6 +310,14 @@ class TestJaxCompatibility:
         jstep = jax.jit(lambda st, a: env.step(KEY, st, a))
         _, ns, r, d, _ = jstep(jnp.int32(0), jnp.int32(FORWARD))
         assert int(ns) == env.P[0][FORWARD][0][1]
+
+    def test_step_vmappable_over_states_lava(self, env_lava):
+        f = jax.vmap(lambda st: env_lava.step(KEY, st, jnp.int32(FORWARD))[1])
+        states = jnp.arange(env_lava.n_states, dtype=jnp.int32)
+        out = f(states)
+        assert out.shape == (env_lava.n_states,)
+        for s in range(env_lava.n_states):
+            assert int(out[s]) == env_lava.P[s][FORWARD][0][1]
 
     def test_step_vmappable_over_states(self, env):
         f = jax.vmap(lambda st: env.step(KEY, st, jnp.int32(FORWARD))[1])

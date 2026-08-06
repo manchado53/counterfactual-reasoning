@@ -91,11 +91,86 @@ DOORKEY_CLAIM2 = {
     },
 }
 
+# ── Lava variants (DoorKey-6x6 with 1 lava tile) ──────────────────────────────
+# The no-lava experiments above gave a capped C1 (rho 0.43) and a C2 null, both traced to
+# DoorKey having no catastrophe: every wrong action was recoverable, so the oracle's
+# action-value gaps stayed small everywhere. Lava (walkable but fatal) restores the
+# FrozenLake-hole structure — lava-adjacent states show a ~4.2x larger oracle action-gap
+# than the rest of the state space.
+#
+# An 8x8 4-lava layout was tried FIRST and abandoned: it is unlearnable. A random policy
+# scored ZERO goals in 20k episodes (vs 0.215% on the no-lava 6x6 that trains fine), because
+# the 19-step three-stage route is past what random exploration completes — and that held even
+# with a single lava tile placed far from the route, so it was path length, not lava density.
+# The plain-DQN sanity gate confirmed it empirically (epsilon decayed to 0.05 with win rate
+# still 0.0%). Hence: catastrophe on the SHORT map. See envs/doorkey.py DOORKEY_6x6_LAVA.
+
+# Budget note: lava roughly HALVES episode length (deaths end episodes early — measured
+# ~30 env steps/episode with lava vs ~61 without). Since the epsilon schedule is denominated
+# in EPISODES, the no-lava budget (15k episodes / 7.5k decay) gives the lava agent only about
+# half the exploration experience — on a task that is also half as likely to stumble into the
+# goal (0.110% vs 0.215% of random episodes). At the no-lava budget only 1 of 2 sanity seeds
+# solved it (the other hit epsilon=0.05 still at 0% and stalled), so the budget is doubled to
+# restore an exploration phase comparable to the no-lava runs.
+_LAVA_BASE = {
+    'layout_name': '6x6_lava',
+    'n_episodes': 30000,
+    'epsilon_decay_episodes': 15000,
+    'vectorized': True,
+    'max_episode_steps': 50,
+    'cf_horizon': 60,
+}
+
+# Sanity: can plain DQN still solve it with lava punishing exploration? 4 seeds — with lava
+# this is a reliability question, not a yes/no one (at the old halved budget it was 1/2).
+DOORKEY_LAVA_SANITY = {
+    'name': 'doorkey_lava_sanity',
+    'runs': [{'algorithm': 'dqn-uniform', 'seed': s} for s in range(4)],
+    'fixed': {**_LAVA_BASE, 'slip_prob': 0.0},
+}
+
+# Claim 1 (lava) — stochastic. slip=0.1 from a pre-training sweep using the OPTIMAL policy as
+# the rollout policy. On a 150-state sample rho is essentially FLAT across slip 0.05-0.2
+# (0.64-0.73, two seeds each), so 0.1 is a mid-range pick rather than a tuned optimum. (An
+# earlier 60-state sample suggested a peak at 0.1 with decline after; that was sampling noise
+# and did not survive the larger sample — recorded here so it isn't re-derived as fact.)
+# slip=0.0 remains degenerate (CCE std 0.000) even WITH lava, so Claim 1 still requires
+# stochastic dynamics: lava alone does not rescue the deterministic case.
+DOORKEY_LAVA_CLAIM1 = {
+    'name': 'doorkey_lava_claim1',
+    'env_key': 'doorkey',
+    'runs': [{'algorithm': 'dqn', 'seed': s} for s in range(3)],
+    'fixed': {**_LAVA_BASE, 'slip_prob': 0.1, 'n_checkpoints': 100},
+}
+
+# Claim 2 (lava) — deterministic, the real test of whether catastrophe gives CCE the
+# sample-efficiency edge it lacked without lava.
+DOORKEY_LAVA_CLAIM2 = {
+    'name': 'doorkey_lava_claim2',
+    'threshold': None,
+    'env_key': 'doorkey',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                               'seed': s} for s in range(10)],
+        *[{'algorithm': 'dqn',                                                       'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0, 'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive',             'seed': s} for s in range(10)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',       'seed': s} for s in range(10)],
+    ],
+    'fixed': {
+        **_LAVA_BASE, 'slip_prob': 0.0,
+        'mu': 0.25, 'consequence_metric': 'total_variation',
+        'score_interval': 100, 'early_stop_win_rate': 0.99,
+    },
+}
+
 EXPERIMENTS = {
     'doorkey_sanity': DOORKEY_SANITY,
     'doorkey_smoke': DOORKEY_SMOKE,
     'doorkey_claim1': DOORKEY_CLAIM1,
     'doorkey_claim2': DOORKEY_CLAIM2,
+    'doorkey_lava_sanity': DOORKEY_LAVA_SANITY,
+    'doorkey_lava_claim1': DOORKEY_LAVA_CLAIM1,
+    'doorkey_lava_claim2': DOORKEY_LAVA_CLAIM2,
 }
 
 

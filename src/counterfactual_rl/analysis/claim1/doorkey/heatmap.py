@@ -3,7 +3,9 @@ State-importance heatmaps for DoorKey Claim 1.
 
 Each grid cell aggregates (max) the score over all enumerated states that sit on that
 cell (i.e. over agent direction, key possession, door state). Mirrors the FrozenLake
-heatmap but for DoorKey geometry, marking the key (K), door (D), and goal (G).
+heatmap but for DoorKey geometry, marking the key (K), door (D), goal (G), and lava (X,
+drawn like FrozenLake's holes — these are the catastrophe cells whose NEIGHBOURS should
+light up if CCE is finding the consequential decisions).
 """
 
 import matplotlib
@@ -11,7 +13,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-from counterfactual_rl.envs.doorkey import WALL, KEY, DOOR, GOAL
+from counterfactual_rl.envs.doorkey import WALL, KEY, DOOR, GOAL, LAVA
 
 
 def _scores_to_grid(scores, env, agg=np.max):
@@ -40,6 +42,12 @@ def _annotate(ax, env):
             t = env.desc[r][c]
             if t == WALL:
                 ax.add_patch(plt.Rectangle((c - 0.5, r - 0.5), 1, 1, color='0.25'))
+            elif t == LAVA:
+                # Lava cells are terminal, so they carry no CCE/oracle score of their own —
+                # black them out and mark with an X (same treatment FrozenLake gives holes).
+                ax.add_patch(plt.Rectangle((c - 0.5, r - 0.5), 1, 1, color='black'))
+                ax.text(c, r, '✕', ha='center', va='center', fontsize=12, fontweight='bold',
+                        color='white')
             elif t in (KEY, DOOR, GOAL):
                 ax.text(c, r, t, ha='center', va='center', fontsize=12, fontweight='bold',
                         color='black')
