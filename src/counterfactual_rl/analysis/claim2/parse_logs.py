@@ -60,6 +60,8 @@ def _detect_env(log_path: str) -> str:
         for line in f:
             if not line.startswith('#'):
                 break
+            if 'DoorKey' in line or 'doorkey' in line.lower():
+                return 'doorkey'
             if 'FrozenLake' in line or 'frozen_lake' in line.lower():
                 return 'frozen_lake'
             if 'gardner_chess' in line.lower() or 'Chess' in line:
@@ -77,8 +79,8 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
     wdl has shape (n_checkpoints, 3).
     """
     env_type = _detect_env(log_path)
-    if env_type == 'frozen_lake':
-        cols = _FL_COLS
+    if env_type in ('frozen_lake', 'doorkey'):
+        cols = _FL_COLS   # DoorKey shares FrozenLake's 6-column metrics.log layout
     elif env_type == 'connect_four':
         cols = _C4_COLS
     else:
@@ -109,7 +111,7 @@ def _parse_single_log(log_path: str) -> Tuple[str, np.ndarray, np.ndarray, np.nd
                 win_rates.append(wr)
                 avg_lengths.append(al)
 
-                if env_type not in ('frozen_lake',):
+                if env_type not in ('frozen_lake', 'doorkey'):
                     allies_raw = float(parts[cols['avg_allies']])
                     avg_allies_list.append(0.0 if np.isnan(allies_raw) else allies_raw)
                     if len(parts) > cols.get('chess_score', 99):
@@ -169,6 +171,7 @@ def _find_run_dir(job_id: str, env: str) -> Optional[str]:
         'smax':          os.path.join(agents, 'smax', 'runs'),
         'chess':         os.path.join(agents, 'chess', 'runs'),
         'frozen_lake':   os.path.join(agents, 'frozen_lake', 'runs'),
+        'doorkey':       os.path.join(agents, 'doorkey', 'runs'),
         'connect_four':  os.path.join(agents, 'connect_four', 'runs'),
         'shared_legacy': os.path.join(agents, 'shared', 'runs'),
     }

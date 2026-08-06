@@ -45,6 +45,7 @@ ENV_THRESHOLDS = {
     'frozen_lake':          None,   # set after pilot (stochastic / slippery)
     'frozen_lake_no_slip':  0.75,   # deterministic 8x8; threshold between 0% (fail) and 95% (success)
     'connect_four':         0.70,   # vs rule-based opponent; random = 0%, trained agents ~75-82%
+    'doorkey':              0.90,   # deterministic DoorKey-6x6; solvable to ~1.0
 }
 
 
