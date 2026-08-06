@@ -30,6 +30,7 @@ Run (as worktree code):
 import argparse
 import json
 import os
+import shutil
 import tempfile
 
 import numpy as np
@@ -38,7 +39,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from .parse_logs import load_manifest, filter_complete_runs
-from .compute_metrics import final_iqm, prob_improvement, steps_to_threshold
+from .compute_metrics import final_iqm, prob_improvement, steps_to_threshold, iqm_curves
 
 MUL = "CCE+TD (mul)"
 PER = "DQN+PER"
@@ -77,6 +78,24 @@ def _group_by_slip(manifest):
     return dict(sorted(groups.items()))
 
 
+def _load_cache(npz_path):
+    """Reverse of build_graded_slip_cache.py: rebuild the per-slip parsed arrays
+    from the .npz so figures regenerate WITHOUT the raw run dirs.
+
+    Returns (raw_by_slip, evalsteps_by_slip, n_submitted, dropped).
+    """
+    z = np.load(npz_path, allow_pickle=False)
+    meta = json.loads(str(z["meta"]))
+    raw_by_slip, evalsteps_by_slip = {}, {}
+    for p in meta["slips"]:
+        k = f"{p:.3f}"
+        labels = meta["groups"][k]["labels"]
+        raw_by_slip[float(p)] = {a: z[f"slip{k}_raw_{i}"] for i, a in enumerate(labels)}
+        evalsteps_by_slip[float(p)] = {a: z[f"slip{k}_steps_{i}"] for i, a in enumerate(labels)}
+    return (raw_by_slip, evalsteps_by_slip,
+            meta.get("n_submitted"), meta.get("dropped_runs", []))
+
+
 def _split_main_probe(slips):
     """Split slip levels into the noise curve (<= 2/3) and the probe (> 2/3)."""
     main = [p for p in slips if p <= NOISE_PEAK + 1e-9]
@@ -84,47 +103,63 @@ def _split_main_probe(slips):
     return main, probe
 
 
-def analyze(manifest_path, out_dir, reps=50000, thresholds=(0.5, 0.9),
-            drop_incomplete=True):
+def analyze(source, out_dir, reps=50000, thresholds=(0.5, 0.9),
+            drop_incomplete=True, curve_reps=5000, from_cache=False):
     os.makedirs(out_dir, exist_ok=True)
-    with open(manifest_path) as f:
-        manifest = json.load(f)
 
-    n_submitted = len(manifest)
-    dropped = []
-    if drop_incomplete:
-        manifest, dropped = filter_complete_runs(manifest)
-        print(f"Completeness filter: kept {len(manifest)}/{n_submitted}, "
-              f"dropped {len(dropped)}")
-        for d in dropped:
-            if d.get("reason") == "died mid-training":
-                print(f"  drop {d['job_id']}: died at episode {d['last_episode']}"
-                      f"/{d['n_episodes']} with win rate {d['last_win_rate']:.2f}")
-            else:
-                print(f"  drop {d['job_id']}: {d['reason']}")
+    # --- load the parsed per-slip arrays, from the .npz cache or the raw runs ---
+    raw_by_slip = {}        # slip -> {alg: (n_seeds, 1, n_checkpoints)}
+    evalsteps_by_slip = {}  # slip -> {alg: (n_checkpoints,)}
+    if from_cache:
+        raw_by_slip, evalsteps_by_slip, n_submitted, dropped = _load_cache(source)
+        print(f"Loaded cache {source}: {len(raw_by_slip)} slip levels "
+              f"({n_submitted} submitted, {len(dropped)} dead runs dropped)")
+    else:
+        with open(source) as f:
+            manifest = json.load(f)
+        n_submitted = len(manifest)
+        dropped = []
+        if drop_incomplete:
+            manifest, dropped = filter_complete_runs(manifest)
+            print(f"Completeness filter: kept {len(manifest)}/{n_submitted}, "
+                  f"dropped {len(dropped)}")
+            for d in dropped:
+                if d.get("reason") == "died mid-training":
+                    print(f"  drop {d['job_id']}: died at episode {d['last_episode']}"
+                          f"/{d['n_episodes']} with win rate {d['last_win_rate']:.2f}")
+                else:
+                    print(f"  drop {d['job_id']}: {d['reason']}")
+        # Scratch sub-manifests go to a system temp dir we always remove — never
+        # into out_dir (which used to leave gradedslip_*/ litter in the figures folder).
+        tmpdir = tempfile.mkdtemp(prefix="gradedslip_")
+        try:
+            for p, sub in _group_by_slip(manifest).items():
+                sub_path = os.path.join(tmpdir, f"slip_{p:.3f}.json")
+                with open(sub_path, "w") as f:
+                    json.dump(sub, f)
+                data = load_manifest(sub_path)
+                if not data["raw"]:
+                    print(f"[slip {p:.3f}] no runs parsed, skipping")
+                    continue
+                raw_by_slip[p] = data["raw"]
+                evalsteps_by_slip[p] = data["eval_steps"]
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
-    groups = _group_by_slip(manifest)
-    tmpdir = tempfile.mkdtemp(prefix="gradedslip_", dir=out_dir)
+    n_used = (n_submitted - len(dropped)) if n_submitted is not None else None
 
+    # --- metrics per slip level (identical whether sourced from cache or runs) ---
     slips = []
     iqm_by_slip = {}      # slip -> {alg: (pt, lo, hi)}
     pimp_by_slip = {}     # slip -> P(mul > PER) (pt, lo, hi)
     steps_by_slip = {}    # slip -> {threshold: {alg: (median, iqr, n_censored)}}
     seeds_by_slip = {}    # slip -> {alg: n_seeds}
 
-    for p, sub in groups.items():
-        sub_path = os.path.join(tmpdir, f"slip_{p:.3f}.json")
-        with open(sub_path, "w") as f:
-            json.dump(sub, f)
-        data = load_manifest(sub_path)
-        raw = data["raw"]
-        if not raw:
-            print(f"[slip {p:.3f}] no runs parsed, skipping")
-            continue
-
+    for p in sorted(raw_by_slip):
+        raw = raw_by_slip[p]
         fi = final_iqm(raw, reps=reps)
         pi = prob_improvement(raw, baseline=PER, reps=reps)
-        st = {t: steps_to_threshold(raw, data["eval_steps"], t) for t in thresholds}
+        st = {t: steps_to_threshold(raw, evalsteps_by_slip[p], t) for t in thresholds}
 
         slips.append(p)
         iqm_by_slip[p] = fi
@@ -278,13 +313,62 @@ def analyze(manifest_path, out_dir, reps=50000, thresholds=(0.5, 0.9),
     f4 = os.path.join(out_dir, "fig_steps_to_threshold.png")
     fig.tight_layout(); fig.savefig(f4, dpi=150); plt.close(fig)
 
+    # ---- Figure 5: IQM learning curves, one panel per slip (paper Fig-4 style) ----
+    # Watch the training dynamics change as noise rises. Each alg's raw curves are
+    # forward-filled to a common length so early-stopped winners hold at their
+    # final value (same convention as the paper's Fig 4).
+    curve_slips = [p for p in slips if p in raw_by_slip]
+    f5 = None
+    if curve_slips:
+        ncol = min(3, len(curve_slips))
+        nrow = int(np.ceil(len(curve_slips) / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(5.2 * ncol, 4.0 * nrow),
+                                 squeeze=False)
+        flat = [ax for row in axes for ax in row]
+        for ax, p in zip(flat, curve_slips):
+            raw_p = raw_by_slip[p]
+            T = max(a.shape[2] for a in raw_p.values())
+            padded = {}
+            for k, arr in raw_p.items():
+                if arr.shape[2] < T:
+                    fill = np.repeat(arr[:, :, -1:], T - arr.shape[2], axis=2)
+                    arr = np.concatenate([arr, fill], axis=2)
+                padded[k] = arr
+            print(f"  learning curves: slip {p:.3f} (T={T} checkpoints)")
+            curves = iqm_curves(padded, reps=curve_reps)
+            steps_map = evalsteps_by_slip[p]
+            xref = max(steps_map.values(), key=lambda s: len(s))
+            for a in ALG_ORDER:
+                if a not in curves:
+                    continue
+                iqm_v, lo, hi = curves[a]
+                x = xref[:len(iqm_v)]
+                ax.plot(x, iqm_v, color=COLORS[a], lw=2, label=a)
+                ax.fill_between(x, lo, hi, color=COLORS[a], alpha=0.15)
+            tag = "  [PROBE]" if p > NOISE_PEAK + 1e-9 else ""
+            ax.set_title(f"slip {p:g}  (noise H={slip_entropy(p):.2f}){tag}")
+            ax.set_xlabel("environment steps")
+            ax.set_ylabel("IQM win rate")
+            ax.set_ylim(-0.02, 1.02)
+            ax.grid(alpha=0.3)
+        for ax in flat[len(curve_slips):]:
+            ax.axis("off")
+        handles, labels = flat[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="lower center", ncol=len(labels),
+                   fontsize=9, bbox_to_anchor=(0.5, -0.01))
+        fig.suptitle("IQM win-rate learning curves by slip level "
+                     "(FrozenLake 8x8, dead runs dropped)", y=1.0, fontsize=13)
+        f5 = os.path.join(out_dir, "fig_learning_curves_by_slip.png")
+        fig.tight_layout(rect=[0, 0.04, 1, 0.97])
+        fig.savefig(f5, dpi=150, bbox_inches="tight"); plt.close(fig)
+
     # ---- summary json ----
     summary = {
         "slips": slips,
         "noise_entropy": {f"{p:.3f}": slip_entropy(p) for p in slips},
         "noise_peak_slip": NOISE_PEAK,
         "n_submitted": n_submitted,
-        "n_used": len(manifest),
+        "n_used": n_used,
         "dropped_runs": dropped,
         "seeds_per_cell": {f"{p:.3f}": seeds_by_slip[p] for p in slips},
         "final_iqm": {f"{p:.3f}": iqm_by_slip[p] for p in slips},
@@ -297,14 +381,21 @@ def analyze(manifest_path, out_dir, reps=50000, thresholds=(0.5, 0.9),
     with open(os.path.join(out_dir, "graded_slip_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
-    print(f"\nWrote:\n  {f1}\n  {f2}\n  {f3}\n  {f4}\n"
-          f"  {os.path.join(out_dir, 'graded_slip_summary.json')}")
+    wrote = [f1, f2, f3, f4]
+    if f5:
+        wrote.append(f5)
+    wrote.append(os.path.join(out_dir, "graded_slip_summary.json"))
+    print("\nWrote:\n  " + "\n  ".join(wrote))
     return summary
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--manifest", required=True)
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--manifest", help="job_id->config manifest; reads the raw runs")
+    src.add_argument("--from-cache", dest="from_cache_path",
+                     help="paper/repro/cache/claim2_graded_slip.npz; rebuilds figures "
+                          "WITHOUT the raw runs")
     ap.add_argument("--out", default="docs/figures/graded_slip")
     ap.add_argument("--reps", type=int, default=50000)
     ap.add_argument("--thresholds", type=float, nargs="+", default=[0.5, 0.9],
@@ -312,10 +403,16 @@ def main():
     ap.add_argument("--keep-incomplete", action="store_true",
                     help="do NOT drop runs that died mid-training (reproduces the "
                          "2026-08-03 numbers, which forward-filled killed seeds)")
+    ap.add_argument("--curve-reps", type=int, default=5000,
+                    help="bootstrap reps for the per-slip learning-curve panels "
+                         "(cheaper than --reps since it runs at every checkpoint)")
     args = ap.parse_args()
-    analyze(args.manifest, args.out, reps=args.reps,
+    source = args.from_cache_path or args.manifest
+    analyze(source, args.out, reps=args.reps,
             thresholds=tuple(args.thresholds),
-            drop_incomplete=not args.keep_incomplete)
+            drop_incomplete=not args.keep_incomplete,
+            curve_reps=args.curve_reps,
+            from_cache=bool(args.from_cache_path))
 
 
 if __name__ == "__main__":

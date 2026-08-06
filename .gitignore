@@ -82,3 +82,5 @@ src/counterfactual_rl/analysis/claim1/**/*.pkl
 src/counterfactual_rl/analysis/claim1/**/checkpoints/
 # duplicate of the tracked root baselines/gardner_chess_v0.ckpt
 src/counterfactual_rl/agents/chess/baselines/
+# graded-slip analysis scratch (sub-manifests)
+gradedslip_*/
