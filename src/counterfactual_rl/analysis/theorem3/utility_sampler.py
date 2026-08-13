@@ -60,13 +60,20 @@ ARMS = {
     "utility-b0.25": 0.25,
 }
 
+# Matches the graded-slip sweep exactly, because that is the configuration under
+# which dqn-uniform is known to solve deterministic FrozenLake (14 of 30 seeds).
+# An earlier attempt halved the budget to 8000 episodes with decay over 4000,
+# keeping the same 50% ratio. That was wrong: what decides whether the agent ever
+# stumbles onto the goal is how many gradient updates happen while it is still
+# exploring, and halving the budget cut that from 57,344 updates to 24,576. Every
+# uniform seed then finished at 0% and the baseline was useless.
 BASE_CONFIG = {
     "map_name": "8x8",
     "slip_prob": 0.0,            # deterministic: where a priority effect is most visible
-    "n_episodes": 8000,
-    "eval_interval": 200,
+    "n_episodes": 15000,
+    "eval_interval": 300,
     "eval_episodes": 100,
-    "epsilon_decay_episodes": 4000,
+    "epsilon_decay_episodes": 7500,
     "vectorized": True,
     "n_envs": 256,
     "collect_steps": 128,
