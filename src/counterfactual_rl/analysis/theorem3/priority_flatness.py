@@ -313,11 +313,92 @@ def figure():
     print("wrote", path)
 
 
+def figure_beta():
+    """The exponent's effect on dynamic range — the one-slide version."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    _, full = _hero_scores()          # slip 0.666: 52 distinct CCE values
+
+    fig, (axa, axb) = plt.subplots(1, 2, figsize=(12.4, 5.1))
+    fig.subplots_adjust(left=0.075, right=0.975, top=0.76, bottom=0.13, wspace=0.26)
+
+    # -- A: ceiling vs beta -------------------------------------------------
+    betas = np.linspace(0.02, 1.0, 400)
+    ratio = ((1.0 + EPS) / EPS) ** betas
+    axa.plot(betas, ratio, lw=2.2, color=BLUE, zorder=3, solid_capstyle="round")
+    axa.set_yscale("log")
+    axa.axvline(BETA, color=INK2, lw=1.4, ls=(0, (5, 3)), zorder=2)
+    axa.scatter([BETA], [CEILING], s=90, color=ORANGE, zorder=4,
+                edgecolor="white", lw=1.6)
+    axa.annotate(f"deployed\nβ = {BETA}  →  {CEILING:.2f}×",
+                 xy=(BETA, CEILING), xytext=(BETA + 0.08, CEILING * 0.28),
+                 fontsize=11, color=INK, fontweight="bold",
+                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1.2))
+    axa.annotate(f"raw score\nβ = 1.0  →  {((1+EPS)/EPS):.0f}×",
+                 xy=(1.0, (1 + EPS) / EPS), xytext=(0.28, 52),
+                 fontsize=10.5, color=INK2, va="center",
+                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1.2,
+                                 shrinkA=6, shrinkB=6))
+    axa.set_xlim(0, 1.04)
+    axa.set_xlabel("β  (priority exponent)", color=INK2, fontsize=11)
+    axa.set_ylabel("largest possible replay advantage\nbetween any two transitions",
+                   color=INK2, fontsize=11)
+    axa.set_title("The exponent sets a hard ceiling", color=INK, fontsize=12.5,
+                  fontweight="bold", loc="left", pad=8)
+
+    # -- B: the same real scores under two exponents ------------------------
+    n = len(full)
+    for beta, col, lab in ((BETA, BLUE, f"β = {BETA}   (deployed)"),
+                           (1.0, ORANGE, "β = 1.0   (raw score)")):
+        p = (full + EPS) ** beta
+        q = p / p.sum()
+        axb.plot(np.arange(1, n + 1), np.sort(q * n)[::-1], lw=2.2, color=col,
+                 label=lab, zorder=3, solid_capstyle="round")
+    axb.axhline(1.0, color=INK2, lw=1.4, ls=(0, (5, 3)), zorder=2)
+    axb.text(n - 0.5, 1.06, "uniform replay", fontsize=9.5, color=INK2,
+             ha="right", va="bottom")
+    axb.set_yscale("log")
+    axb.set_xlim(1, n)
+    axb.set_xlabel("non-terminal states, ranked by priority", color=INK2, fontsize=11)
+    axb.set_ylabel("sampling probability\n(× uniform)", color=INK2, fontsize=11)
+    axb.set_title("Same CCE scores, two exponents", color=INK, fontsize=12.5,
+                  fontweight="bold", loc="left", pad=8)
+    axb.legend(frameon=False, fontsize=10.5, loc="lower left", labelcolor=INK2)
+
+    for a in (axa, axb):
+        a.grid(axis="y", color=GRID, lw=0.8, alpha=0.7, zorder=0)
+        a.set_axisbelow(True)
+        for side in ("top", "right"):
+            a.spines[side].set_visible(False)
+        for side in ("left", "bottom"):
+            a.spines[side].set_color(GRID)
+        a.tick_params(colors=INK2, labelsize=9.5)
+
+    fig.suptitle("β = 0.25 caps CCE's replay advantage at 3.2×, before μ ever sees it",
+                 fontsize=15, fontweight="bold", color=INK, x=0.075, ha="left", y=0.945)
+    fig.text(0.075, 0.855,
+             "priority = (CCE score + 0.01)$^{β}$   ·   CCE ∈ [0,1]   ·   "
+             "right panel: real scores, FrozenLake 8×8 at slip 0.666 (52 distinct values)",
+             fontsize=10, color=INK2, ha="left")
+
+    path = os.path.join(OUT_DIR, "fig_beta_ceiling.png")
+    fig.savefig(path, dpi=170, facecolor="white")
+    print("wrote", path)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--figure", action="store_true",
-                    help="skip measurement, rebuild the figure from step1_ess.json")
+                    help="skip measurement, rebuild the figures from step1_ess.json")
+    ap.add_argument("--beta-only", action="store_true",
+                    help="rebuild only the beta-ceiling figure")
     args = ap.parse_args()
-    if not args.figure:
-        measure()
-    figure()
+    if args.beta_only:
+        figure_beta()
+    else:
+        if not args.figure:
+            measure()
+        figure()
+        figure_beta()
