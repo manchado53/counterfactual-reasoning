@@ -3,8 +3,10 @@
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
 
+from .draw_log import DrawLogMixin
 
-class PrioritizedReplayBuffer:
+
+class PrioritizedReplayBuffer(DrawLogMixin):
     """
     Prioritized Experience Replay buffer.
 
@@ -35,6 +37,9 @@ class PrioritizedReplayBuffer:
         self._write_pos: int = 0
         self._size: int = 0
 
+        # Option B draw-logging (precision@k / ESS); off by default → zero cost.
+        self._init_draw_log()
+
     def __len__(self) -> int:
         return self._size
 
@@ -45,6 +50,7 @@ class PrioritizedReplayBuffer:
         self.priorities[pos] = (self.max_priority + self.eps) ** self.beta
         self._write_pos = (pos + 1) % self.capacity
         self._size = min(self._size + 1, self.capacity)
+        self._record_add(transition)   # Option B: supply stream
 
     def sample(self, batch_size: int) -> Tuple[List[Dict], np.ndarray, np.ndarray]:
         """
@@ -60,6 +66,7 @@ class PrioritizedReplayBuffer:
             indices = np.random.choice(self._size, size=batch_size)
             transitions = [self.buffer[idx] for idx in indices]
             weights = np.ones(batch_size)
+            self._record_draws(transitions)   # Option B
             return transitions, indices, weights
 
         probs = self.priorities[:self._size].copy()
@@ -71,6 +78,7 @@ class PrioritizedReplayBuffer:
         # Importance sampling weights: w_j = 1 / (p(j) * N)
         weights = 1.0 / (probs[indices] * self._size)
 
+        self._record_draws(transitions)   # Option B
         return transitions, indices, weights
 
     def update_priority(self, index: int, td_error: float):
