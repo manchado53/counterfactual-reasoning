@@ -383,11 +383,171 @@ def main(stages=STAGES, seeds=SEEDS, n_rollouts=20):
     return records
 
 
+def _print_record(rec):
+    print(f"\n=== {rec['label']} ===")
+    print(f"  transitions {rec['n_transitions']}  slip {rec['slip']:.3f}  "
+          f"mean|Q-Q*| {rec['global_err']:.4f}")
+    print(f"  eps_n mean {rec['mean_eps_n']:.4f}  eps_r mean {rec['mean_eps_r']:.4f}  "
+          f"frac eps_r<0 {rec['frac_eps_r_negative']:.3f}")
+    print(f"  Cor1 premise  Cov(eps_n, u) = {rec['cov_epsn_u']:+.3e}  "
+          f"(corr {rec['corr_epsn_u']:+.3f})")
+    for agg in ("max", "mean"):
+        p = rec.get(f"{agg}_predicate")
+        if p is None:
+            print(f"  {agg:>4}: no CCE signal "
+                  f"(frac c==0 = {rec[f'{agg}_frac_c_zero']:.3f}) -- predicate skipped")
+            continue
+        dep = rec[f"{agg}_deployed"]
+        ident = rec[f"{agg}_identities"]
+        print(f"  {agg:>4}: LHS {p['lhs']:+.3e}   RHS {p['rhs']:+.3e}   -> "
+              f"{'CCE' if p['cce_wins'] else 'TD'} wins    "
+              f"(deployed -> {'CCE' if dep['cce_wins'] else 'TD'})")
+        print(f"        frac c==0 {rec[f'{agg}_frac_c_zero']:.3f}   "
+              f"Cov(c,delta) {rec[f'{agg}_cov_c_delta']:+.3e}   "
+              f"Cov(c,G) {rec[f'{agg}_cov_c_G']:+.3e}   "
+              f"identities {'OK' if ident['ok'] else 'FAIL'}")
+
+
+def eval_curve(metrics_log):
+    """(episode, win_rate) rows from a run's metrics.log body."""
+    rows = []
+    for line in open(metrics_log):
+        if line.startswith("#") or not line.strip():
+            continue
+        parts = line.split()
+        if not parts or not parts[0].isdigit():
+            continue
+        try:
+            rows.append((int(parts[0]), float(parts[3].rstrip("%")) / 100.0))
+        except (IndexError, ValueError):
+            continue
+    return rows
+
+
+def select_by_winrate(run_dir, targets=(0.0, 0.5, 1.0), max_abs_q=None):
+    """Checkpoints at target ACHIEVED win rates, not at fixed episodes.
+
+    A fixed episode means different competence at different slip levels, which
+    lets the exploration confound back in through the checkpoint. Checkpoint
+    files are named ckpt_<episode>.pkl, so each maps to the nearest eval row.
+    """
+    import glob
+    curve = eval_curve(os.path.join(run_dir, "metrics.log"))
+    cks = sorted(glob.glob(os.path.join(run_dir, "checkpoints", "*.pkl")))
+    if not curve or not cks:
+        return []
+    eps = np.array([c[0] for c in curve])
+    wrs = np.array([c[1] for c in curve])
+    out = []
+    for t in targets:
+        # among checkpoints, the one whose eval win rate is closest to target
+        best, best_gap = None, None
+        for ck in cks:
+            try:
+                ep = int(os.path.basename(ck).split("_")[1].split(".")[0])
+            except (IndexError, ValueError):
+                continue
+            wr = float(wrs[np.argmin(np.abs(eps - ep))])
+            gap = abs(wr - t)
+            if best_gap is None or gap < best_gap:
+                best, best_gap = (ck, wr), gap
+        if best:
+            out.append((t, best[0], best[1]))
+    # Early-stopped runs jump 0 -> 1 with nothing in between, so several targets
+    # can resolve to the same checkpoint. Keep one record per checkpoint.
+    seen, uniq = set(), []
+    for t, ck, wr in out:
+        if ck not in seen:
+            seen.add(ck)
+            uniq.append((t, ck, wr))
+    return uniq
+
+
+def run_graded(slip, algo, n_seeds=3, fracs=(0.25, 0.5, 1.0), n_rollouts=20,
+               out_name=None):
+    """Step 2 on the graded-slip sweep — notably the DETERMINISTIC arm.
+
+    The committed repro checkpoints are all is_slippery=True, i.e. the
+    environment showing the Claim-2 null. The environment where CCE wins is
+    slip 0, and its checkpoints live in the graded-slip sweep.
+
+    `dqn-uniform` is the principled arm: neither priority scheme shaped the
+    weights being scored, so the measurement is not circular.
+    """
+    import glob
+    from counterfactual_rl.analysis.theorem3.priority_flatness import (
+        RUNS_DIR, read_header,
+    )
+
+    runs, skipped = [], []
+    for d in sorted(glob.glob(os.path.join(RUNS_DIR, "*", ""))):
+        log = os.path.join(d, "metrics.log")
+        if not os.path.exists(log):
+            continue
+        h = read_header(log)
+        if h.get("slip_prob") != slip or h.get("algorithm") != algo:
+            continue
+        curve = eval_curve(log)
+        if not curve:
+            continue
+        # Divergence guard. DQN on deterministic FrozenLake diverges in roughly
+        # half of seeds: win rate collapses to 0 while |Q| blows up to 1e2-1e3.
+        # On such a net mean|Q - Q*| is dominated by the divergence, so u
+        # measures the blow-up rather than useful learning.
+        best_wr = max(wr for _, wr in curve)
+        if best_wr <= 0.0:
+            skipped.append((os.path.basename(d.rstrip(os.sep)), h.get("seed"), best_wr))
+            continue
+        runs.append((h.get("seed"), d.rstrip(os.sep)))
+        if len(runs) >= n_seeds:
+            break
+
+    if skipped:
+        print(f"skipped {len(skipped)} run(s) that never reached a nonzero win "
+              f"rate (diverged): {[s[0] for s in skipped]}")
+    if not runs:
+        print(f"no usable runs for slip={slip} algo={algo}")
+        return []
+
+    records = []
+    for seed, run_dir in runs:
+        for target, ck, wr in select_by_winrate(run_dir, targets=tuple(fracs)):
+            label = f"{algo}/slip{slip}/seed{seed}/wr{wr:.2f}"
+            rec = run_checkpoint(ck, label, n_rollouts=n_rollouts, verify=False)
+            rec["algo"] = algo
+            rec["target_win_rate"] = target
+            rec["achieved_win_rate"] = wr
+            records.append(rec)
+            _print_record(rec)
+            if rec["global_err"] > 5.0:
+                print(f"        WARNING mean|Q-Q*| = {rec['global_err']:.1f} "
+                      f"-- Q has diverged, treat this record as unusable")
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    name = out_name or f"step2_graded_slip{slip}_{algo}.json"
+    path = os.path.join(OUT_DIR, name)
+    with open(path, "w") as f:
+        json.dump(records, f, indent=1, default=float)
+    print(f"\nwrote {path} ({len(records)} records)")
+    return records
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--stages", nargs="*", default=list(STAGES))
     ap.add_argument("--seeds", nargs="*", type=int, default=list(SEEDS))
     ap.add_argument("--n-rollouts", type=int, default=20)
+    ap.add_argument("--graded", action="store_true",
+                    help="run against the graded-slip sweep instead of the repro checkpoints")
+    ap.add_argument("--slip", default="0.0", help="graded mode: slip_prob as written in metrics.log")
+    ap.add_argument("--algo", default="dqn-uniform",
+                    help="graded mode: dqn-uniform (neutral) / dqn / consequence-dqn")
+    ap.add_argument("--n-seeds", type=int, default=3)
+    ap.add_argument("--fracs", nargs="*", type=float, default=[0.25, 0.5, 1.0])
     args = ap.parse_args()
-    main(stages=tuple(args.stages), seeds=tuple(args.seeds),
-         n_rollouts=args.n_rollouts)
+    if args.graded:
+        run_graded(args.slip, args.algo, n_seeds=args.n_seeds,
+                   fracs=tuple(args.fracs), n_rollouts=args.n_rollouts)
+    else:
+        main(stages=tuple(args.stages), seeds=tuple(args.seeds),
+             n_rollouts=args.n_rollouts)

@@ -52,9 +52,18 @@ SEEDS_PER_SLIP = 3
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", "..", "..", ".."))
 OUT_DIR = os.path.join(_REPO, "docs", "figures", "theorem3_step1")
+
+
+def _main_repo(path):
+    """Worktrees live at <main>/.claude/worktrees/<name>; sibling worktrees are
+    addressed from the main repo, not from inside another worktree."""
+    marker = os.sep + os.path.join(".claude", "worktrees") + os.sep
+    return path.split(marker)[0] if marker in path + os.sep else path
+
+
 RUNS_DIR = os.environ.get(
     "GRADED_SLIP_RUNS",
-    os.path.join(_REPO, ".claude", "worktrees", "graded-slip-frozenlake",
+    os.path.join(_main_repo(_REPO), ".claude", "worktrees", "graded-slip-frozenlake",
                  "src", "counterfactual_rl", "agents", "frozen_lake", "runs"),
 )
 
