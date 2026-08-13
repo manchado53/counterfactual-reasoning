@@ -60,6 +60,12 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
         self.q_update_count = 0
         self._compiled_rollout_fn = None
 
+        # Option B: realized replay-sampling logging (gated; covers vectorized trainer too).
+        self.log_sampling = self.config.get('log_sampling', False)
+        self.sampling_snapshot_interval = self.config.get('sampling_snapshot_interval', 2000)
+        if self.log_sampling:
+            self.buffer.enable_draw_log = True
+
     def _build_rollout_fn(self):
         """
         Build triple-vmapped JIT rollout function.
@@ -200,6 +206,12 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             )
             self.buffer.update_priorities(indices, np.array(td_errors))
 
+        # Option B: snapshot realized draws on a dedicated cadence (NOT score_interval).
+        # q_update_count advances by exactly 1 per _update in both trainers, so modulo is safe.
+        if (self.log_sampling and self.sampling_snapshot_interval > 0
+                and self.q_update_count % self.sampling_snapshot_interval == 0):
+            self.buffer.snapshot_draws(self.q_update_count, self._current_episode)
+
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'FrozenLakeConsequenceDQN':
         n_episodes = n_episodes or self.config['n_episodes']
         eval_interval = self.config.get('eval_interval', 100)
@@ -316,6 +328,11 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             timer.flush_episode()
 
         self.save(last_path)
+        if self.log_sampling:
+            self.buffer.dump_sampling(
+                os.path.join(self.metrics_logger.dir, 'sampling.npz'),
+                self.n_states, self.env.n_actions,
+            )
         timer.stop('total')
         self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
         self.metrics_logger.close()

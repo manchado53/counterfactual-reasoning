@@ -33,6 +33,12 @@ DEFAULT_CONFIG = {
     'cf_n_rollouts': 20,
     'cf_gamma': 0.99,
 
+    # Realized replay-sampling logging (Option B: precision@k / ESS). Default off → zero cost.
+    'log_sampling': False,
+    # Q-updates between draw-count snapshots; INDEPENDENT of score_interval so the stale-score
+    # negative-control test does not also move the measurement cadence.
+    'sampling_snapshot_interval': 2000,
+
     # Vectorized training (lax.scan + vmap)
     'vectorized': False,
     'n_envs': 256,

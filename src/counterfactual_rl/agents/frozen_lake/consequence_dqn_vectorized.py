@@ -186,6 +186,11 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
 
         pbar.close()
         self.save(last_path)
+        if self.log_sampling:
+            self.buffer.dump_sampling(
+                os.path.join(self.metrics_logger.dir, 'sampling.npz'),
+                self.n_states, self.env.n_actions,
+            )
         timer.stop('total')
         self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
         self.metrics_logger.close()

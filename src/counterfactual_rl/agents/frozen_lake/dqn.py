@@ -155,6 +155,7 @@ class FrozenLakeDQN:
         self.env = FrozenLakeEnv(
             map_name=self.config['map_name'],
             is_slippery=self.config.get('is_slippery', True),
+            slip_probability=self.config.get('slip_probability', None),
         )
         self.n_states = self.env.n_states
         self.n_actions = self.env.n_actions
@@ -199,6 +200,13 @@ class FrozenLakeDQN:
         self.episode_returns: list = []
         self.episode_lengths: list = []
         self._current_episode = 0
+
+        # Option B: realized replay-sampling logging (covers dqn + dqn-uniform).
+        self.log_sampling = self.config.get('log_sampling', False)
+        self.sampling_snapshot_interval = self.config.get('sampling_snapshot_interval', 2000)
+        self._draw_update_count = 0
+        if self.log_sampling:
+            self.buffer.enable_draw_log = True
 
         self._build_jit_fns()
 
@@ -254,6 +262,12 @@ class FrozenLakeDQN:
             states, actions, rewards, nexts, dones, wts,
         )
         self.buffer.update_priorities(indices, np.array(td_errors))
+
+        # Option B: snapshot realized draws on a dedicated cadence (independent of any scoring).
+        if self.log_sampling and self.sampling_snapshot_interval > 0:
+            self._draw_update_count += 1
+            if self._draw_update_count % self.sampling_snapshot_interval == 0:
+                self.buffer.snapshot_draws(self._draw_update_count, self._current_episode)
 
     def _update_target_network(self):
         self.target_params = jax.tree.map(jnp.copy, self.params)
@@ -398,6 +412,11 @@ class FrozenLakeDQN:
             timer.flush_episode()
 
         self.save(last_path)
+        if self.log_sampling:
+            self.buffer.dump_sampling(
+                os.path.join(self.metrics_logger.dir, 'sampling.npz'),
+                self.n_states, self.env.n_actions,
+            )
         timer.stop('total')
         self.metrics_logger.plot_training_curves(self.episode_returns, self.episode_lengths)
         self.metrics_logger.close()

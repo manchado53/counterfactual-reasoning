@@ -3,8 +3,10 @@
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
 
+from .draw_log import DrawLogMixin
 
-class ConsequenceReplayBuffer:
+
+class ConsequenceReplayBuffer(DrawLogMixin):
     """
     Prioritized replay buffer with consequence-weighted priorities.
 
@@ -59,6 +61,9 @@ class ConsequenceReplayBuffer:
 
         self._cached_probs: Optional[np.ndarray] = None
 
+        # Option B draw-logging (precision@k / ESS); off by default → zero cost.
+        self._init_draw_log()
+
     def __len__(self) -> int:
         return self._size
 
@@ -93,6 +98,7 @@ class ConsequenceReplayBuffer:
         self._size = min(self._size + 1, self.capacity)
 
         self._cached_probs = None
+        self._record_add(transition)   # Option B: supply stream
 
     def add_batch(self, transitions: Dict, jax_states=None):
         """Add N transitions at once. transitions maps field names to 1-D arrays of length N."""
@@ -155,6 +161,9 @@ class ConsequenceReplayBuffer:
         indices = np.random.choice(self._size, size=batch_size, p=probs)
 
         transitions = [self.buffer[idx] for idx in indices]
+
+        # Option B: tally what the trainer actually DRILLED, by (state, action).
+        self._record_draws(transitions)
 
         # IS weights: w_j = 1 / (p(j) * N)  (line 14)
         N = self._size

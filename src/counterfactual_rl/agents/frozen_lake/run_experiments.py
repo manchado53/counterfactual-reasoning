@@ -205,7 +205,65 @@ CLAIM2_NO_SLIP = {
     },
 }
 
+# Option B precision@k — FL-det (the C2 WIN env) with realized-sampling logging on.
+# Algorithm comparison (does CCE drill high-stakes states better than PER / uniform?)
+#   uniform : DQN, uniform replay (no priority)   → precision@k ≈ random floor (~k)
+#   per     : DQN + PER (TD-error priority)        → reference to beat
+#   cce     : consequence-dqn (mul), sane scores   → expect HIGHEST
+# Plus a delivery negative-control on CCE:
+#   cce-stale : same as cce but score_interval huge → C(s) goes stale → precision@k should DROP.
+# Both buffers now instrumented (shared DrawLogMixin), so all four write sampling.npz.
+PRECISION_AT_K_CONTRAST = {
+    'name': 'precision_at_k_contrast',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                                          'seed': s} for s in range(3)],  # uniform
+        *[{'algorithm': 'dqn',                                                                   'seed': s} for s in range(3)],  # PER
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'score_interval': 100,    'seed': s} for s in range(3)],  # CCE
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'score_interval': 999999, 'seed': s} for s in range(3)],  # CCE-stale
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'is_slippery': False,
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': 0.95,
+        'log_sampling': True,
+        'sampling_snapshot_interval': 2000,
+    },
+}
+
+# Option B precision@k on FL-STOCH (slippery) — the det-vs-stoch outcome check.
+# CCE is NULL here; question = does precision@k drop too (CCE drilled the wrong states,
+# explaining the null) or stay high (drilled right, but drilling≠faster-learning in noise)?
+# No stale arm (delivery already validated on FL-det). No early stop (slippery rarely hits 0.95).
+PRECISION_AT_K_STOCH = {
+    'name': 'precision_at_k_stoch',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform',                                                          'seed': s} for s in range(3)],  # uniform
+        *[{'algorithm': 'dqn',                                                                   'seed': s} for s in range(3)],  # PER
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative', 'score_interval': 100, 'seed': s} for s in range(3)],  # CCE
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'is_slippery': True,
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'log_sampling': True,
+        'sampling_snapshot_interval': 2000,
+    },
+}
+
 EXPERIMENTS = {
+    'precision_at_k_contrast': PRECISION_AT_K_CONTRAST,
+    'precision_at_k_stoch': PRECISION_AT_K_STOCH,
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
     'pilot': PILOT,
