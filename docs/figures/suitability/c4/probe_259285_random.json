@@ -1,0 +1,118 @@
+{
+  "run_dir": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/shared/runs/259285",
+  "ckpt": "best.pkl",
+  "foe": "random",
+  "metric": "total_variation",
+  "n_boards": 600,
+  "n_rollouts": 20,
+  "games": 96,
+  "C_mean": {
+    "label": "C_mean (action gap of means)",
+    "n": 600,
+    "n_eff": 206.5,
+    "mean": 0.2854,
+    "median": 0.2164,
+    "p90": 0.5883,
+    "frac_gt_025": 0.46,
+    "frac_lt_005": 0.1
+  },
+  "C_tv": {
+    "label": "C_tv (total_variation, what CCE uses)",
+    "n": 600,
+    "n_eff": 321.4,
+    "mean": 0.458,
+    "median": 0.37,
+    "p90": 0.8592,
+    "frac_gt_025": 0.785,
+    "frac_lt_005": 0.0
+  },
+  "C_mean_by_phase": {
+    "early": {
+      "n": 203,
+      "median_C_mean": 0.2079
+    },
+    "mid": {
+      "n": 235,
+      "median_C_mean": 0.2148
+    },
+    "late": {
+      "n": 162,
+      "median_C_mean": 0.2982
+    }
+  },
+  "examples": [
+    {
+      "phase": 0,
+      "legal": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "col_mean_return": [
+        0.487,
+        0.841,
+        0.844,
+        0.841,
+        0.756,
+        0.937,
+        0.653
+      ],
+      "C_mean": 0.45,
+      "C_tv": 0.183
+    },
+    {
+      "phase": 1,
+      "legal": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "col_mean_return": [
+        0.852,
+        0.841,
+        0.757,
+        0.937,
+        0.855,
+        0.945,
+        0.934
+      ],
+      "C_mean": 0.188,
+      "C_tv": 0.292
+    },
+    {
+      "phase": 2,
+      "legal": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "col_mean_return": [
+        0.952,
+        0.956,
+        0.843,
+        0.971,
+        0.848,
+        0.857,
+        0.861
+      ],
+      "C_mean": 0.128,
+      "C_tv": 0.45
+    }
+  ],
+  "gate": {
+    "healthy": true,
+    "rule": "median C_mean>=0.2 AND >=30% boards C_mean>0.25 AND median C_tv>=0.3"
+  }
+}

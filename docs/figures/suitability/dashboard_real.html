@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCE dashboard — interactive (mock)</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1e26; --ink:#e8eaed; --dim:#9aa3b2; --line:#2a2f3a;
+    --green:#4CAF50; --amber:#ff9800; --red:#e53935; --blue:#2196F3; --purp:#b388ff;
+    --goodbg:#193a1d; --badbg:#3a1414; --nabg:#23262d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 18px 80px}
+  h1{font-size:24px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:14px;margin:0 0 18px}
+  .fake{display:inline-block;color:#5fd97a;font-style:italic;font-size:12px;border:1px solid #ff6b6b;
+    border-radius:6px;padding:1px 8px;margin-left:8px}
+  .envbar{display:flex;gap:8px;align-items:center;margin:14px 0 18px;flex-wrap:wrap}
+  .envbar b{color:var(--dim);font-weight:600;font-size:13px;margin-right:4px}
+  .envbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;transition:.15s}
+  .envbtn:hover{border-color:var(--dim)}
+  .envbtn.on{border-color:var(--blue);box-shadow:0 0 0 2px rgba(33,150,243,.3);background:#11203a}
+  .verdict-banner{margin-left:auto;font-size:14px;font-weight:700;padding:7px 16px;border-radius:10px}
+  /* group band */
+  .band{display:flex;align-items:center;gap:10px;margin:18px 0 2px;padding:8px 14px;border-radius:10px;
+    font-weight:800;font-size:15px;letter-spacing:.3px}
+  .band.gain{background:linear-gradient(90deg,#1b5e20,#1b5e2055);color:#c8f7cb}
+  .band.need{background:linear-gradient(90deg,#8a5a00,#8a5a0055);color:#ffe6b3}
+  .band.sanity{background:linear-gradient(90deg,#37414e,#37414e55);color:#d7dde6}
+  .band small{font-weight:500;opacity:.8}
+  /* header row */
+  .head,.row{display:grid;grid-template-columns:1.9fr 140px 1fr 1fr 1fr;gap:8px;align-items:center}
+  .head{padding:4px 14px;color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .head .e{text-align:center;font-weight:700}
+  .row{padding:10px 14px;border-radius:12px;cursor:pointer;transition:.12s;border:1px solid transparent}
+  .row:hover{background:#13171f;border-color:var(--line)}
+  .row .name{font-weight:700}
+  .row .name .star{color:var(--purp)}
+  .row .q{color:var(--dim);font-size:12.5px;margin-top:2px}
+  .cell{text-align:center;font-weight:800;font-size:16px;border-radius:9px;padding:8px 0;border:1px solid var(--line)}
+  .cell.good{background:var(--goodbg);color:#9be6a1}
+  .cell.bad{background:var(--badbg);color:#ff9a9a}
+  .cell.na{background:var(--nabg);color:var(--dim)}
+  .cell.hl{box-shadow:0 0 0 2px rgba(33,150,243,.55)}
+  .col-dim{opacity:.32}
+  .viz{display:flex;justify-content:center}
+  .chev{color:var(--dim);font-size:11px;margin-left:6px}
+  /* detail drawer */
+  .detail{display:none;margin:2px 0 8px;padding:16px 18px;background:#0c0f14;border:1px solid var(--line);
+    border-radius:12px}
+  .detail.open{display:grid;grid-template-columns:360px 1fr;gap:22px}
+  .detail h3{margin:0 0 6px;font-size:16px}
+  .detail p{margin:6px 0}
+  .detail .red{color:#ff9a9a;font-weight:600}
+  .formula{margin:10px 0;background:#11151c;border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:#d7e3ff;line-height:1.7;overflow-x:auto}
+  .formula .flabel{font-family:inherit;font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:4px;
+    font-weight:700;font-family:-apple-system,sans-serif}
+  .formula .vr{color:var(--amber)}
+  .detail .reads{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+  .chip .v{font-weight:800}
+  /* forecast */
+  .forecast{display:grid;grid-template-columns:1.9fr 140px 1fr 1fr 1fr;gap:8px;align-items:center;
+    margin-top:18px;padding:12px 14px;background:#161b22;border:1px solid var(--line);border-radius:12px}
+  .forecast .lbl{font-weight:800}
+  .fcell{text-align:center;font-weight:800;border-radius:9px;padding:9px 0}
+  .hint{color:var(--dim);font-size:12.5px;margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+  svg{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CCE dashboard <span class="fake">REAL DATA · det 257440 / stoch 255545</span></h1>
+  <p class="sub">The layout IS the tree. Each row = one branch (a yes/no check). Click any row to blow it up. Pick an environment to focus a column.</p>
+
+  <div class="envbar">
+    <b>focus env:</b>
+    <button class="envbtn" data-env="FL-det">FL-det</button>
+    <button class="envbtn" data-env="FL-stoch">FL-stoch</button>
+    <button class="envbtn" data-env="C4-mcts">C4-mcts</button>
+    <button class="envbtn on" data-env="ALL">show all</button>
+    <div class="verdict-banner" id="vbanner" style="background:#23262d;color:var(--dim)">click an env to see its verdict</div>
+  </div>
+
+  <div class="head">
+    <div>metric &amp; question</div><div style="text-align:center">measure</div>
+    <div class="e" data-col="FL-det">FL-det</div>
+    <div class="e" data-col="FL-stoch">FL-stoch</div>
+    <div class="e" data-col="C4-mcts">C4-mcts</div>
+  </div>
+
+  <div id="rows"></div>
+
+  <div class="forecast">
+    <div class="lbl">→ FORECAST</div><div></div>
+    <div class="fcell" data-col="FL-det" style="background:var(--goodbg);color:#9be6a1">WIN</div>
+    <div class="fcell" data-col="FL-stoch" style="background:var(--badbg);color:#ff9a9a">NULL</div>
+    <div class="fcell" data-col="C4-mcts" style="background:#23262d;color:#9aa3b2">n/a</div>
+  </div>
+
+  <p class="hint">Read a column top-to-bottom: a single red cell tells you <b>which branch broke</b>.
+  FL-stoch dies at <b>SNR</b> (fog). C4 dies at <b>DISTINCT-TD</b> (CCE just copies PER). Same failure word ≠ same reason.</p>
+</div>
+
+<script>
+const ENVS = ["FL-det","FL-stoch","C4-mcts"];
+const VERDICT = {"FL-det":["WIN","#193a1d","#9be6a1"],"FL-stoch":["NULL","#3a1414","#ff9a9a"],"C4-mcts":["weak","#3a2c10","#ffce85"]};
+
+// ---- hardcoded mock data ----
+const METRICS = [
+ {group:"GAIN", name:"Concentration", q:"are there forks at all?", viz:"lorenz",
+  vals:{"FL-det":0.35,"FL-stoch":0.37,"C4-mcts":null}, good:v=>v>0.5, fmt:v=>v.toFixed(2),
+  what:"Gini / top-k mass of per-state stakes. Lumpy = a few decisive forks. Flat = every move equal.",
+  formula:`m(s,a) = mean over K rollouts of return( do a, then follow &#960; )
+C(s)   = spread<sub>a</sub> m(s,a)   <span class="vr">// stakes of state s (max&minus;min or TV)</span>
+<b>Concentration = Gini( { C(s) : s visited } )</b>
+  Gini = ( &#931;<sub>i</sub> &#931;<sub>j</sub> |C<sub>i</sub>&minus;C<sub>j</sub>| ) / ( 2 n &#931;<sub>i</sub> C<sub>i</sub> )
+  also report top-k mass = &#931;<sub>top-k</sub> C(s)&middot;d(s) / &#931;<sub>s</sub> C(s)&middot;d(s)`,
+  pass:"Gini (or visit-weighted top-k mass) is high — stakes sit on a few states.",
+  red:"a FLAT env — no decisive moves, so there is nothing for CCE to prioritize. Any replay rule is equal."},
+ {group:"GAIN", name:"SNR (greedy)", q:"is the fork louder than the noise?", viz:"snr",
+  vals:{"FL-det":1000.0,"FL-stoch":0.0,"C4-mcts":null}, good:v=>v>3, fmt:v=>v.toFixed(1),
+  what:"Spread between actions ÷ spread within one action (greedy rollouts, so noise = environment only).",
+  formula:`signal(s) = Var<sub>a</sub> m(s,a)               <span class="vr">// between actions</span>
+noise(s)  = mean<sub>a</sub> Var( return | s,a )    <span class="vr">// within an action, GREEDY rollouts</span>
+<b>SNR = median<sub>s</sub> [ signal(s) / noise(s) ]</b>
+  greedy after the forced action &rarr; noise = environment only,
+  not our exploration. (&#8776; noise-normalized action gap.)`,
+  pass:"SNR &gt; ~3 — the between-action signal clears the environment noise.",
+  red:"NOISE drowns the signal (slippery ice / a swingy opponent). CCE can't tell forks from luck. This is why FL-stoch is null."},
+ {group:"GAIN", name:"DISTINCT-TD ★", q:"different from PER / TD-error?", viz:"distinct",
+  vals:{"FL-det":0.97,"FL-stoch":0.69,"C4-mcts":null}, good:v=>v>0.5, fmt:v=>v.toFixed(2),
+  what:"1 − |corr(CCE rank, TD-error rank)|. We WANT no relationship (a shapeless cloud).",
+  formula:`&#948;(s,a) = | r + &#947; max<sub>a'</sub> Q(s',a') &minus; Q(s,a) |   <span class="vr">// TD-error</span>
+<b>DISTINCT-TD = 1 &minus; | Spearman( CCE-priority , &#948; ) |</b>
+  over transitions in the buffer. 1 = totally unlike TD,
+  0 = identical to PER.`,
+  pass:"DISTINCT-TD &gt; ~0.5 — CCE ranks differently from TD-error, so it can add something.",
+  red:"CCE ranks moves just like TD-error → it is only a slow copy of PER → it cannot beat PER. This is why C4 is weak."},
+ {group:"GAIN", name:"GAIN-fidelity", q:"is the guess correct? (FL only)", viz:"fidelity",
+  vals:{"FL-det":-0.08,"FL-stoch":-0.01,"C4-mcts":null}, good:v=>v!=null&&v>0.5, fmt:v=>v==null?"n/a":v.toFixed(2),
+  what:"corr(CCE priority, the TRUE stakes from value iteration / EVB). Only checkable where we can solve the env.",
+  formula:`Q*  = value iteration on env.P        <span class="vr">// exact, FrozenLake only</span>
+truth(s) = spread<sub>a</sub> Q*(s,a)   (or EVB = Gain&times;Need)
+<b>GAIN-fidelity = Spearman( CCE-priority , truth )</b>
+  NEVER vs C(s) itself (that is circular).`,
+  pass:"Spearman vs exact Q* / EVB is high — CCE's stakes match the real answer.",
+  red:"CCE's stakes do not match the real answer — the scorer is pointing at the wrong moves (often a downstream symptom of low SNR)."},
+ {group:"GAIN", name:"HORIZON-fit", q:"does the rollout reach the payoff?", viz:"horizon",
+  vals:{"FL-det":8.0,"FL-stoch":1.0,"C4-mcts":null}, good:v=>v>0.8, fmt:v=>v.toFixed(2),
+  what:"cf_horizon ÷ effective horizon of the env. ≥1 means the rollout is long enough to see the reward.",
+  formula:`<b>HORIZON-fit = cf_horizon / effective_horizon(env)</b>
+  effective_horizon = Laidlaw et&nbsp;al. 2023 (lookahead depth
+  at which random rollouts reveal the optimal action).
+  &ge;1 &rarr; the rollout sees the reward.`,
+  pass:"ratio &ge; ~0.8 — cf_horizon is long enough to capture the payoff.",
+  red:"the rollout is cut off before the reward lands → CCE under-estimates stakes → silent failure. A risk in long-horizon games."},
+ {group:"NEED", name:"NEED", q:"do the forks actually get visited?", viz:"need",
+  vals:{"FL-det":0.01,"FL-stoch":0.0,"C4-mcts":null}, good:v=>v>0.7, fmt:v=>v.toFixed(2),
+  what:"Do high-stakes states sit on the path the policy actually walks? (successor-rep occupancy.)",
+  formula:`d(s) = row of successor rep  ( I &minus; &#947;T )<sup>&minus;1</sup>   <span class="vr">// discounted future visits</span>
+<b>NEED = corr( C(s) , d(s) )   over states</b>
+  i.e. do high-stakes states also get visited?
+  (tabular: exact;  deep: visitation-EMA.)`,
+  pass:"high-stakes states have high occupancy d(s) — the forks are on-path.",
+  red:"the big forks are in dead-ends you never revisit → fixing them is wasted. CCE forgets this; we add it back."},
+ {group:"SANITY", name:"precision@k (+ESS alarm)", q:"drilling the RIGHT moves?  (and did draws collapse?)", viz:"ess",
+  vals:{"FL-det":null,"FL-stoch":null,"C4-mcts":null}, good:v=>v>0, fmt:v=>"ok",
+  what:"Effective sample size of the realized replay draws (alarm only) + precision@k of drilled-vs-stakes.",
+  formula:`<b>ESS = 1 / &#931;<sub>i</sub> p<sub>i</sub><sup>2</sup></b>            <span class="vr">// p = realized sampling dist (alarm only)</span>
+<b>precision@k = | drilled<sub>top-k</sub> &#8745; true-stakes<sub>top-k</sub> | / k</b>
+  low ESS = collapse alarm (spiky-on-purpose is fine);
+  precision@k = are the drilled transitions the RIGHT ones?`,
+  pass:"ESS above a tiny floor (no collapse) and precision@k high (drilling the right transitions).",
+  red:"the sampler collapsed onto a handful of transitions and lost coverage. Alarm only — spiky-on-purpose is fine."},
+];
+
+// ---- labeled inline SVG charts ----
+const C={green:"#4CAF50",grey:"#9e9e9e",blue:"#2196F3",purp:"#b388ff",amber:"#ff9800",red:"#e53935"};
+const CLOUD=[[.1,.7],[.2,.2],[.3,.9],[.4,.4],[.5,.8],[.6,.1],[.7,.6],[.8,.3],[.15,.5],[.55,.45],[.85,.85],[.35,.15],[.65,.95],[.25,.65],[.75,.25],[.45,.7]];
+const DIAG=CLOUD.map((p,i)=>{let x=(i+0.5)/16;return [x, Math.min(1,Math.max(0,x+(p[1]-0.5)*0.22))];});
+// axis labels per chart
+const LAB={
+  lorenz:{x:"share of states  (low → high stakes)", y:"share of total stakes"},
+  snr:{x:"", y:"return spread"},
+  distinct:{x:"TD-error priority rank →", y:"CCE priority rank →"},
+  fidelity:{x:"true stakes  Q*/EVB →", y:"CCE priority →"},
+  horizon:{x:"", y:"steps (normalized)"},
+  need:{x:"visit frequency  (NEED) →", y:"stakes  C(s) →"},
+  ess:{x:"transition  (buffer index) →", y:"sampling probability"},
+};
+function chartSVG(kind,w,h,full){
+  const M = full ? {l:48,r:16,t:14,b:42} : {l:18,r:8,t:8,b:16};
+  const px=x=>M.l + x*(w-M.l-M.r);
+  const py=y=>(h-M.b) - y*(h-M.b-M.t);
+  const tx=(x,y,t,o={})=>`<text x="${x}" y="${y}" fill="${o.c||'#cfd6e2'}" font-size="${o.s||11}" text-anchor="${o.a||'middle'}" ${o.r?`transform="rotate(-90 ${x} ${y})"`:''}>${t}</text>`;
+  let s="";
+  // axes
+  s+=`<line x1="${M.l}" y1="${h-M.b}" x2="${w-M.r}" y2="${h-M.b}" stroke="#8a93a3" stroke-width="1.2"/>`;
+  s+=`<line x1="${M.l}" y1="${M.t}" x2="${M.l}" y2="${h-M.b}" stroke="#8a93a3" stroke-width="1.2"/>`;
+  if(full){
+    const L=LAB[kind];
+    if(L.x) s+=tx((M.l+w-M.r)/2, h-6, L.x);
+    const ymid=(M.t+h-M.b)/2;
+    s+=tx(14, ymid, L.y, {r:true});
+  }
+  s+=DRAW[kind](px,py,full,M,w,h,tx);
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${s}</svg>`;
+}
+const DRAW={
+  lorenz:(px,py,full)=>{let pts="";for(let i=0;i<=24;i++){let x=i/24,y=Math.pow(x,2.7);pts+=`${px(x)},${py(y)} `;}
+    let s=`<line x1="${px(0)}" y1="${py(0)}" x2="${px(1)}" y2="${py(1)}" stroke="${C.grey}" stroke-dasharray="4 3"/>`;
+    s+=`<polygon points="${px(0)},${py(0)} ${pts} ${px(1)},${py(0)}" fill="${C.green}" opacity="0.16"/>`;
+    s+=`<polyline points="${pts}" fill="none" stroke="${C.green}" stroke-width="2.2"/>`;
+    if(full)s+=`<text x="${px(.5)}" y="${py(.85)}" fill="${C.grey}" font-size="10" transform="rotate(28 ${px(.5)} ${py(.85)})">equal line</text>`;
+    return s;},
+  snr:(px,py,full,M,w,h,tx)=>{const cats=[["between (signal)",0.85,C.green],["within (noise)",0.12,C.grey]];let s="";
+    cats.forEach((c,i)=>{let cx=px(0.28+i*0.45),bw=(px(1)-px(0))*0.24,top=py(c[1]);
+      s+=`<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${py(0)-top}" fill="${c[2]}" rx="3"/>`;
+      if(full)s+=tx(cx, py(0)+16, c[0], {s:10});});
+    return s;},
+  distinct:(px,py,full)=>{let s=CLOUD.map(p=>`<circle cx="${px(p[0])}" cy="${py(p[1])}" r="${full?4:2.4}" fill="${C.purp}" opacity="0.85"/>`).join("");
+    if(full)s+=`<text x="${px(.5)}" y="${py(1.02)}" fill="${C.purp}" font-size="11" text-anchor="middle">no trend = unlike TD ✓</text>`;return s;},
+  fidelity:(px,py,full)=>{let s=`<line x1="${px(0)}" y1="${py(0)}" x2="${px(1)}" y2="${py(1)}" stroke="${C.grey}" stroke-dasharray="4 3"/>`;
+    s+=DIAG.map(p=>`<circle cx="${px(p[0])}" cy="${py(p[1])}" r="${full?4:2.4}" fill="${C.blue}" opacity="0.85"/>`).join("");
+    if(full)s+=`<text x="${px(.72)}" y="${py(.5)}" fill="${C.grey}" font-size="10" transform="rotate(28 ${px(.72)} ${py(.5)})">perfect = on line</text>`;return s;},
+  horizon:(px,py,full,M,w,h,tx)=>{const cats=[["cf_horizon",0.85,C.blue],["needed (eff.)",1.0,C.grey]];let s="";
+    cats.forEach((c,i)=>{let cx=px(0.28+i*0.45),bw=(px(1)-px(0))*0.24,top=py(c[1]);
+      s+=`<rect x="${cx-bw/2}" y="${top}" width="${bw}" height="${py(0)-top}" fill="${c[2]}" rx="3"/>`;
+      if(full)s+=tx(cx, py(0)+16, c[0], {s:10});});return s;},
+  need:(px,py,full)=>{let s=`<rect x="${px(0)}" y="${py(1)}" width="${px(0.32)-px(0)}" height="${py(0.6)-py(1)}" fill="${C.red}" opacity="0.22"/>`;
+    if(full)s+=`<text x="${px(0.16)}" y="${py(0.78)}" fill="${C.red}" font-size="10" text-anchor="middle">trap: high stakes,</text><text x="${px(0.16)}" y="${py(0.7)}" fill="${C.red}" font-size="10" text-anchor="middle">never visited</text>`;
+    const P=[[.1,.25],[.2,.35],[.3,.45],[.45,.55],[.55,.6],[.65,.72],[.8,.85],[.4,.5],[.6,.66],[.25,.4],[.7,.78],[.5,.6]];
+    s+=P.map(p=>`<circle cx="${px(p[0])}" cy="${py(p[1])}" r="${full?4:2.4}" fill="${C.amber}" stroke="#333" stroke-width=".5"/>`).join("");return s;},
+  ess:(px,py,full)=>{const hs=[.5,.42,.47,.4,.5,.44,.46,.41];let s="";const bw=(px(1)-px(0))/hs.length*0.8;
+    hs.forEach((v,i)=>{let cx=px((i+0.5)/hs.length);s+=`<rect x="${cx-bw/2}" y="${py(v)}" width="${bw}" height="${py(0)-py(v)}" fill="${C.grey}" rx="2"/>`;});
+    s+=`<line x1="${px(0)}" y1="${py(0.12)}" x2="${px(1)}" y2="${py(0.12)}" stroke="${C.red}" stroke-dasharray="4 3"/>`;
+    if(full)s+=`<text x="${px(1)}" y="${py(0.12)-4}" fill="${C.red}" font-size="10" text-anchor="end">collapse floor (alarm)</text>`;return s;},
+};
+const VIZNOTE={lorenz:"lumpy curve = forks exist",snr:"green ≫ grey = clear signal",
+  distinct:"shapeless cloud = unlike TD ✓",fidelity:"dots on the line = correct ✓",
+  horizon:"bars level = long enough",need:"dots avoid red trap = visited",ess:"flat bars = healthy spread"};
+
+// ---- render ----
+let focus="ALL";
+const rowsEl=document.getElementById("rows");
+let lastBand=null;
+METRICS.forEach((m,idx)=>{
+  if(m.group!==lastBand){
+    lastBand=m.group;
+    const labels={GAIN:["gain","GAIN","is CCE's guess any good?"],NEED:["need","NEED","the half CCE forgets"],SANITY:["sanity","SANITY","is the sampler ok?"]};
+    const [cls,t,s]=labels[m.group];
+    const band=document.createElement("div");band.className="band "+cls;
+    band.innerHTML=`${t} <small>— ${s}</small>`;rowsEl.appendChild(band);
+  }
+  const row=document.createElement("div");row.className="row";row.dataset.idx=idx;
+  const nm=m.name.replace("★",'<span class="star">★</span>');
+  row.innerHTML=`
+    <div><div class="name">${nm}<span class="chev">▼</span></div><div class="q">${m.q}</div></div>
+    <div class="viz">${chartSVG(m.viz,128,86,false)}</div>
+    ${ENVS.map(e=>cellHTML(m,e)).join("")}`;
+  const det=document.createElement("div");det.className="detail";det.dataset.det=idx;
+  det.innerHTML=`
+    <div>${chartSVG(m.viz,340,250,true)}<div style="color:var(--dim);font-size:12px;text-align:center;margin-top:6px">${VIZNOTE[m.viz]}</div></div>
+    <div>
+      <h3>${nm}</h3>
+      <p><b>Question:</b> ${m.q}</p>
+      <p><b>What we measure:</b> ${m.what}</p>
+      <div class="formula"><div class="flabel">FORMULA</div>${m.formula}</div>
+      <p><b>Pass when:</b> ${m.pass}</p>
+      <p><span class="red">If this cell is RED:</span> ${m.red}</p>
+      <div class="reads">${ENVS.map(e=>{const v=m.vals[e];const ok=m.good(v);const col=v==null?'var(--dim)':(ok?'#9be6a1':'#ff9a9a');
+        return `<span class="chip">${e}: <span class="v" style="color:${col}">${v==null?"n/a":m.fmt(v)}</span></span>`;}).join("")}</div>
+    </div>`;
+  rowsEl.appendChild(row);rowsEl.appendChild(det);
+  row.addEventListener("click",()=>{det.classList.toggle("open");});
+});
+
+function cellHTML(m,e){const v=m.vals[e];
+  if(v==null) return `<div class="cell na" data-col="${e}">n/a</div>`;
+  const cls=m.good(v)?"good":"bad";
+  return `<div class="cell ${cls}" data-col="${e}">${m.fmt(v)}</div>`;}
+
+// ---- env focus ----
+document.querySelectorAll(".envbtn").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll(".envbtn").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");focus=b.dataset.env;applyFocus();
+  });
+});
+function applyFocus(){
+  document.querySelectorAll("[data-col]").forEach(el=>{
+    const c=el.dataset.col;
+    el.classList.toggle("col-dim", focus!=="ALL" && c!==focus);
+    el.classList.toggle("hl", focus!=="ALL" && c===focus && el.classList.contains("cell"));
+  });
+  const vb=document.getElementById("vbanner");
+  if(focus==="ALL"){vb.textContent="click an env to see its verdict";vb.style.background="#23262d";vb.style.color="var(--dim)";}
+  else{const [t,bg,fg]=VERDICT[focus];vb.textContent=`${focus} → ${t}`;vb.style.background=bg;vb.style.color=fg;}
+}
+</script>
+</body>
+</html>

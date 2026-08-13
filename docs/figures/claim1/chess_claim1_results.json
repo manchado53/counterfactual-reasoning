@@ -1,0 +1,10 @@
+{
+  "n_positions": 328,
+  "spearman_rho": 0.3242403377181005,
+  "spearman_pval": 1.8206992682933159e-09,
+  "precision_5": 0.25,
+  "precision_10": 0.25,
+  "precision_20": 0.4153846153846154,
+  "sampling_kl": 0.06348535527388695,
+  "sampling_pearr": 0.37946966420609246
+}

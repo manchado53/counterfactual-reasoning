@@ -1,0 +1,430 @@
+{
+  "schema_version": 1,
+  "created": "2026-06-14T21:24:17.431700+00:00",
+  "config": {
+    "metric": "total_variation",
+    "cf_n_rollouts": 60,
+    "visit_episodes": 100,
+    "horizons": [
+      10,
+      25,
+      50,
+      100,
+      200
+    ],
+    "det_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/frozen_lake/runs/257440",
+    "stoch_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/frozen_lake/runs/255545"
+  },
+  "envs": {
+    "FL-det": {
+      "slippery": false,
+      "checkpoints": [
+        {
+          "ckpt": "ckpt_0001019.pkl",
+          "episode": 1019,
+          "phase": "random",
+          "win_rate_eval": 0.0,
+          "logged_win_pct": 0.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.9622641509433962,
+              "topk_mass": 0.9999999999995,
+              "entropy": 0.17458343004808358,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1000.0,
+              "agg_between": 0.007075471803545952,
+              "agg_within": 0.0,
+              "within_zero_frac": 1.0,
+              "median_ratio": 0.0
+            },
+            "distinct_td": {
+              "value": 0.7151969329604404,
+              "spearman_cce_td": 0.28480306703955965
+            },
+            "gain_fidelity": {
+              "value": 0.330546035394492,
+              "ci": [
+                0.23612065433436233,
+                0.507983503540929
+              ]
+            },
+            "need": {
+              "value": -0.06381349214760566,
+              "coverage": 0.09433962264150944,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 20.0,
+              "eff_horizon_proxy": 10.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.0625,
+                "25": 0.0625,
+                "50": 0.0625,
+                "100": 0.0625,
+                "200": 0.0625
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0002260.pkl",
+          "episode": 2260,
+          "phase": "10%",
+          "win_rate_eval": 0.0,
+          "logged_win_pct": 0.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.9622641509433962,
+              "topk_mass": 0.9999999999995,
+              "entropy": 0.17458343004808358,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1000.0,
+              "agg_between": 0.007075471803545952,
+              "agg_within": 0.0,
+              "within_zero_frac": 1.0,
+              "median_ratio": 0.0
+            },
+            "distinct_td": {
+              "value": 0.9093808423055947,
+              "spearman_cce_td": -0.09061915769440534
+            },
+            "gain_fidelity": {
+              "value": 0.330546035394492,
+              "ci": [
+                0.23612065433436233,
+                0.507983503540929
+              ]
+            },
+            "need": {
+              "value": -0.048482737310899894,
+              "coverage": 0.05660377358490566,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 20.0,
+              "eff_horizon_proxy": 10.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.0625,
+                "25": 0.0625,
+                "50": 0.0625,
+                "100": 0.0625,
+                "200": 0.0625
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0006193.pkl",
+          "episode": 6193,
+          "phase": "30%",
+          "win_rate_eval": 0.0,
+          "logged_win_pct": 0.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.9435224331473636,
+              "topk_mass": 0.9999999999996655,
+              "entropy": 0.27670536940864054,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1000.0,
+              "agg_between": 0.011675236746668816,
+              "agg_within": 0.0,
+              "within_zero_frac": 1.0,
+              "median_ratio": 0.0
+            },
+            "distinct_td": {
+              "value": 0.7331197436581881,
+              "spearman_cce_td": 0.2668802563418119
+            },
+            "gain_fidelity": {
+              "value": 0.2725752436121289,
+              "ci": [
+                -0.0064862961262279195,
+                0.5012493977810072
+              ]
+            },
+            "need": {
+              "value": -0.09520537717259837,
+              "coverage": 0.1320754716981132,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 20.0,
+              "eff_horizon_proxy": 10.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.0625,
+                "25": 0.0625,
+                "50": 0.0625,
+                "100": 0.0625,
+                "200": 0.0625
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0009741.pkl",
+          "episode": 9741,
+          "phase": "best",
+          "win_rate_eval": 1.0,
+          "logged_win_pct": 100.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.34573995992119183,
+              "topk_mass": 0.14969737546354492,
+              "entropy": 0.9036994909918378,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1000.0,
+              "agg_between": 0.12047158181667328,
+              "agg_within": 5.412861134925515e-15,
+              "within_zero_frac": 1.0,
+              "median_ratio": 155495536.0
+            },
+            "distinct_td": {
+              "value": 0.9672126252259019,
+              "spearman_cce_td": 0.032787374774098065
+            },
+            "gain_fidelity": {
+              "value": -0.0820760494759199,
+              "ci": [
+                -0.28685481965777815,
+                0.13104203314734686
+              ]
+            },
+            "need": {
+              "value": 0.0069818739556022314,
+              "coverage": 0.2641509433962264,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 8.0,
+              "eff_horizon_proxy": 25.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.5286632776260376,
+                "25": 0.6427966356277466,
+                "50": 0.6427966356277466,
+                "100": 0.6427966356277466,
+                "200": 0.6427966356277466
+              }
+            }
+          }
+        }
+      ]
+    },
+    "FL-stoch": {
+      "slippery": true,
+      "checkpoints": [
+        {
+          "ckpt": "ckpt_0001021.pkl",
+          "episode": 1021,
+          "phase": "random",
+          "win_rate_eval": 0.0,
+          "logged_win_pct": 0.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.9180894697202386,
+              "topk_mass": 0.908074282902935,
+              "entropy": 0.4284996296591262,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.046610788182778584,
+              "agg_between": 0.0006615573074668646,
+              "agg_within": 0.014193221926689148,
+              "within_zero_frac": 0.8679245283018868,
+              "median_ratio": 0.0
+            },
+            "distinct_td": {
+              "value": 0.6281627089977933,
+              "spearman_cce_td": 0.3718372910022068
+            },
+            "gain_fidelity": {
+              "value": 0.4733479173109385,
+              "ci": [
+                0.2478209005409533,
+                0.636962134563864
+              ]
+            },
+            "need": {
+              "value": -0.2918050467369366,
+              "coverage": 0.37735849056603776,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 1.0,
+              "eff_horizon_proxy": 200.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.02489645965397358,
+                "25": 0.01775030791759491,
+                "50": 0.0280938521027565,
+                "100": 0.01863563433289528,
+                "200": 0.023846440017223358
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0004019.pkl",
+          "episode": 4019,
+          "phase": "10%",
+          "win_rate_eval": 0.78,
+          "logged_win_pct": 87.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.3732191193251601,
+              "topk_mass": 0.24804051034318242,
+              "entropy": 0.9428081866123005,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.040869087960578074,
+              "agg_between": 0.0026575506199151278,
+              "agg_within": 0.0650259330868721,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.026118535548448563
+            },
+            "distinct_td": {
+              "value": 0.7703596194162232,
+              "spearman_cce_td": -0.2296403805837768
+            },
+            "gain_fidelity": {
+              "value": -0.06443028808949165,
+              "ci": [
+                -0.3948674846632623,
+                0.24802387744153845
+              ]
+            },
+            "need": {
+              "value": -0.08692154525097878,
+              "coverage": 0.6037735849056604,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 1.0,
+              "eff_horizon_proxy": 200.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.02792356163263321,
+                "25": 0.05367886275053024,
+                "50": 0.08683089911937714,
+                "100": 0.09399911761283875,
+                "200": 0.10960758477449417
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0007065.pkl",
+          "episode": 7065,
+          "phase": "30%",
+          "win_rate_eval": 0.8,
+          "logged_win_pct": 73.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.37276057636587534,
+              "topk_mass": 0.26516243194946726,
+              "entropy": 0.941773199467346,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.038227310398855734,
+              "agg_between": 0.0025644232518970966,
+              "agg_within": 0.06708353757858276,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.018200943246483803
+            },
+            "distinct_td": {
+              "value": 0.6333655861957749,
+              "spearman_cce_td": -0.3666344138042251
+            },
+            "gain_fidelity": {
+              "value": -0.056809934867392824,
+              "ci": [
+                -0.37349912805384566,
+                0.2365365069372068
+              ]
+            },
+            "need": {
+              "value": 0.006310331843671896,
+              "coverage": 0.8113207547169812,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 4.0,
+              "eff_horizon_proxy": 50.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.03282468020915985,
+                "25": 0.04828526824712753,
+                "50": 0.09091373533010483,
+                "100": 0.09163793176412582,
+                "200": 0.09411531686782837
+              }
+            }
+          }
+        },
+        {
+          "ckpt": "ckpt_0005558.pkl",
+          "episode": 5558,
+          "phase": "best",
+          "win_rate_eval": 0.9,
+          "logged_win_pct": 92.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.367155302369081,
+              "topk_mass": 0.27314177722021066,
+              "entropy": 0.9430717659755706,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.04445816771530756,
+              "agg_between": 0.0026908344589173794,
+              "agg_within": 0.060525085777044296,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.026559658348560333
+            },
+            "distinct_td": {
+              "value": 0.6858571198193839,
+              "spearman_cce_td": -0.31414288018061604
+            },
+            "gain_fidelity": {
+              "value": -0.012902185349585312,
+              "ci": [
+                -0.30644118117537794,
+                0.2770145630742631
+              ]
+            },
+            "need": {
+              "value": 0.00037298219287979796,
+              "coverage": 0.6226415094339622,
+              "mode": "tabular"
+            },
+            "horizon_fit": {
+              "value": 1.0,
+              "eff_horizon_proxy": 200.0,
+              "is_proxy": true,
+              "means_by_h": {
+                "10": 0.03214253857731819,
+                "25": 0.04755532369017601,
+                "50": 0.08236926794052124,
+                "100": 0.09664972126483917,
+                "200": 0.10226733982563019
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

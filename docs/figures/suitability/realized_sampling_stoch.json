@@ -1,0 +1,143 @@
+{
+  "uniform": {
+    "path": "src/counterfactual_rl/agents/frozen_lake/runs/262076/sampling.npz",
+    "total_draws": 10223616,
+    "n_eval_states": 53,
+    "precision_baseline_k": {
+      "5%": 0.05,
+      "10%": 0.1,
+      "20%": 0.2
+    },
+    "raw": {
+      "spearman": -0.5907918077729398,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.0
+      }
+    },
+    "ess": 22.999012126859117,
+    "ess_frac": 0.43394362503507766,
+    "supply_normalized": true,
+    "cumulative": {
+      "spearman": -0.10732139977422996,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.0
+      },
+      "mean_oversampling_top10stakes": 0.9808089025254543,
+      "shrinkage_k0": 1.0
+    },
+    "late_window": {
+      "spearman": -0.055555555555555546,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.1
+      },
+      "mean_oversampling_top10stakes": 1.0136839458050604,
+      "shrinkage_k0": 1.0,
+      "from_update": 160000
+    },
+    "config": {
+      "map": "8x8",
+      "is_slippery": true,
+      "gamma": 0.99
+    }
+  },
+  "PER": {
+    "path": "src/counterfactual_rl/agents/frozen_lake/runs/262079/sampling.npz",
+    "total_draws": 9961472,
+    "n_eval_states": 53,
+    "precision_baseline_k": {
+      "5%": 0.05,
+      "10%": 0.1,
+      "20%": 0.2
+    },
+    "raw": {
+      "spearman": -0.5462828576036123,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.0
+      }
+    },
+    "ess": 23.312561546669833,
+    "ess_frac": 0.43985965182395914,
+    "supply_normalized": true,
+    "cumulative": {
+      "spearman": 0.7683438155136267,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.2,
+        "20%": 0.5
+      },
+      "mean_oversampling_top10stakes": 1.2814104713904833,
+      "shrinkage_k0": 1.0
+    },
+    "late_window": {
+      "spearman": 0.5345911949685535,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.0
+      },
+      "mean_oversampling_top10stakes": 1.2892634713611972,
+      "shrinkage_k0": 1.0,
+      "from_update": 156000
+    },
+    "config": {
+      "map": "8x8",
+      "is_slippery": true,
+      "gamma": 0.99
+    }
+  },
+  "CCE": {
+    "path": "src/counterfactual_rl/agents/frozen_lake/runs/262082/sampling.npz",
+    "total_draws": 9961472,
+    "n_eval_states": 53,
+    "precision_baseline_k": {
+      "5%": 0.05,
+      "10%": 0.1,
+      "20%": 0.2
+    },
+    "raw": {
+      "spearman": -0.5224157393968715,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.0,
+        "20%": 0.0
+      }
+    },
+    "ess": 23.110045067490717,
+    "ess_frac": 0.4360385861790701,
+    "supply_normalized": true,
+    "cumulative": {
+      "spearman": 0.8151104660538622,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.2,
+        "20%": 0.5
+      },
+      "mean_oversampling_top10stakes": 1.2853071567674974,
+      "shrinkage_k0": 1.0
+    },
+    "late_window": {
+      "spearman": 0.7310111272375424,
+      "precision_at_k": {
+        "5%": 0.0,
+        "10%": 0.4,
+        "20%": 0.4
+      },
+      "mean_oversampling_top10stakes": 1.3128614986735911,
+      "shrinkage_k0": 1.0,
+      "from_update": 156000
+    },
+    "config": {
+      "map": "8x8",
+      "is_slippery": true,
+      "gamma": 0.99
+    }
+  }
+}

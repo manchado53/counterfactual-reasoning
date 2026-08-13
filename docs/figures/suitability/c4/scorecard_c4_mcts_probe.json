@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "created": "2026-06-21T03:32:20.625495+00:00",
+  "run_dir": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/shared/runs/259285",
+  "config": {
+    "foes": [
+      "mcts"
+    ],
+    "n_boards": 100,
+    "n_rollouts": 10,
+    "cf_overrides": {
+      "cf_horizon": 28,
+      "mcts_n_sims": 16
+    },
+    "n_foe_replies": 2
+  },
+  "envs": {
+    "C4-mcts": {
+      "checkpoints": [
+        {
+          "ckpt": "ckpt_0000070.pkl",
+          "episode": 70,
+          "phase": "best",
+          "win_rate_eval": null,
+          "logged_win_pct": 87.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.3046508695662965,
+              "topk_mass": 0.22152929509860755,
+              "entropy": 0.9656422671292769,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.19770966355669176,
+              "agg_between": 0.07613948125298,
+              "agg_within": 0.3851075343792587,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.12083289393433574
+            },
+            "distinct_td": {
+              "value": 0.8251228713390274,
+              "spearman_cce_td": 0.17487712866097258
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": 0.07571932531924243,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 100,
+            "games": 10,
+            "median_C": 0.5983,
+            "median_cce": 0.375
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "created": "2026-06-21T02:50:32.242166+00:00",
+  "run_dir": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/shared/runs/259285",
+  "config": {
+    "foes": [
+      "random",
+      "rule_based"
+    ],
+    "n_boards": 600,
+    "n_rollouts": 20,
+    "cf_overrides": {},
+    "n_foe_replies": 4
+  },
+  "envs": {
+    "C4-random": {
+      "checkpoints": [
+        {
+          "ckpt": "ckpt_0000010.pkl",
+          "episode": 10,
+          "phase": "random",
+          "win_rate_eval": null,
+          "logged_win_pct": 47.5,
+          "metrics": {
+            "concentration": {
+              "gini": 0.2937504872136978,
+              "topk_mass": 0.21713646055476746,
+              "entropy": 0.9775551763628566,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.14895871666062657,
+              "agg_between": 0.07656643342228438,
+              "agg_within": 0.5140110964285989,
+              "within_zero_frac": 0.006666666666666667,
+              "median_ratio": 0.08646894533261776
+            },
+            "distinct_td": {
+              "value": 0.6505077892645579,
+              "spearman_cce_td": 0.34949221073544207
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": -0.41768562019413064,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 59,
+            "median_C": 0.6061,
+            "median_cce": 0.3417
+          }
+        },
+        {
+          "ckpt": "ckpt_0000020.pkl",
+          "episode": 20,
+          "phase": "10%",
+          "win_rate_eval": null,
+          "logged_win_pct": 49.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.2653115898775882,
+              "topk_mass": 0.20197314615530337,
+              "entropy": 0.9821812831316195,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.10245916717543231,
+              "agg_between": 0.05201214941815048,
+              "agg_within": 0.5076378302649605,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.07387787526115777
+            },
+            "distinct_td": {
+              "value": 0.8656356031616967,
+              "spearman_cce_td": 0.13436439683830328
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": -0.30610261573691117,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 66,
+            "median_C": 0.5555,
+            "median_cce": 0.325
+          }
+        },
+        {
+          "ckpt": "ckpt_0000040.pkl",
+          "episode": 40,
+          "phase": "30%",
+          "win_rate_eval": null,
+          "logged_win_pct": 63.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.29091452844619237,
+              "topk_mass": 0.21562173112310115,
+              "entropy": 0.9783517704795582,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.1160575816067792,
+              "agg_between": 0.054302544004467955,
+              "agg_within": 0.46789311940339817,
+              "within_zero_frac": 0.0,
+              "median_ratio": 0.07715049854216124
+            },
+            "distinct_td": {
+              "value": 0.8388978640992679,
+              "spearman_cce_td": 0.16110213590073214
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": -0.33341022516060664,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 67,
+            "median_C": 0.5448,
+            "median_cce": 0.3083
+          }
+        },
+        {
+          "ckpt": "ckpt_0000070.pkl",
+          "episode": 70,
+          "phase": "best",
+          "win_rate_eval": null,
+          "logged_win_pct": 87.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.4275625335217727,
+              "topk_mass": 0.30176084572369233,
+              "entropy": 0.9512374182417298,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.10693010390934436,
+              "agg_between": 0.021789567186877173,
+              "agg_within": 0.20377392598832902,
+              "within_zero_frac": 0.0033333333333333335,
+              "median_ratio": 0.06275145108227151
+            },
+            "distinct_td": {
+              "value": 0.8987608424717796,
+              "spearman_cce_td": 0.10123915752822044
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": -0.13701382133333428,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 79,
+            "median_C": 0.2335,
+            "median_cce": 0.3667
+          }
+        }
+      ]
+    },
+    "C4-rule_based": {
+      "checkpoints": [
+        {
+          "ckpt": "ckpt_0000010.pkl",
+          "episode": 10,
+          "phase": "random",
+          "win_rate_eval": null,
+          "logged_win_pct": 47.5,
+          "metrics": {
+            "concentration": {
+              "gini": 0.5970346142704959,
+              "topk_mass": 0.33698530321677067,
+              "entropy": 0.9000032293563854,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1.0119683554371144,
+              "agg_between": 0.11720154536682204,
+              "agg_within": 0.11581542419301155,
+              "within_zero_frac": 0.21666666666666667,
+              "median_ratio": 0.8541804817196705
+            },
+            "distinct_td": {
+              "value": 0.8852048961661201,
+              "spearman_cce_td": 0.11479510383387996
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": 0.34860845521289097,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 253,
+            "median_C": 0.3189,
+            "median_cce": 0.66
+          }
+        },
+        {
+          "ckpt": "ckpt_0000020.pkl",
+          "episode": 20,
+          "phase": "10%",
+          "win_rate_eval": null,
+          "logged_win_pct": 49.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.7234456116251079,
+              "topk_mass": 0.5063071115086566,
+              "entropy": 0.8448705063325012,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1.0039455149273124,
+              "agg_between": 0.0644960486474808,
+              "agg_within": 0.0642425775946665,
+              "within_zero_frac": 0.21833333333333332,
+              "median_ratio": 1.1071782125422158
+            },
+            "distinct_td": {
+              "value": 0.8482519797066975,
+              "spearman_cce_td": 0.15174802029330248
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": 0.2263290485494162,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 192,
+            "median_C": 0.0396,
+            "median_cce": 0.69
+          }
+        },
+        {
+          "ckpt": "ckpt_0000040.pkl",
+          "episode": 40,
+          "phase": "30%",
+          "win_rate_eval": null,
+          "logged_win_pct": 63.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.6510857228893663,
+              "topk_mass": 0.4074668902657609,
+              "entropy": 0.8803522868644179,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 0.8669604627863614,
+              "agg_between": 0.09043895711512766,
+              "agg_within": 0.10431727873437452,
+              "within_zero_frac": 0.18333333333333332,
+              "median_ratio": 0.6939153709045265
+            },
+            "distinct_td": {
+              "value": 0.9867414608684705,
+              "spearman_cce_td": 0.013258539131529488
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": 0.19554228940547536,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 197,
+            "median_C": 0.1429,
+            "median_cce": 0.65
+          }
+        },
+        {
+          "ckpt": "ckpt_0000070.pkl",
+          "episode": 70,
+          "phase": "best",
+          "win_rate_eval": null,
+          "logged_win_pct": 87.0,
+          "metrics": {
+            "concentration": {
+              "gini": 0.5511021825724419,
+              "topk_mass": 0.25425332913502285,
+              "entropy": 0.9098262853582008,
+              "k_frac": 0.1
+            },
+            "snr": {
+              "value": 1.6068064676987759,
+              "agg_between": 0.19429983461822906,
+              "agg_within": 0.12092298414114144,
+              "within_zero_frac": 0.2866666666666667,
+              "median_ratio": 1.9614580785095528
+            },
+            "distinct_td": {
+              "value": 0.8471419135805196,
+              "spearman_cce_td": 0.1528580864194804
+            },
+            "gain_fidelity": null,
+            "need": {
+              "value": 0.13769164100621753,
+              "coverage": 1.0,
+              "mode": "sampled"
+            },
+            "horizon_fit": null
+          },
+          "info": {
+            "n_boards": 600,
+            "games": 245,
+            "median_C": 0.5099,
+            "median_cce": 0.7458
+          }
+        }
+      ]
+    }
+  }
+}

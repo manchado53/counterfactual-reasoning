@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect 4 suitability — interactive walkthrough</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --ink:#e6edf3; --mut:#9aa7b4;
+    --line:#2a323c; --red:#e5534b; --yellow:#e3b341; --blue:#4c8eda; --green:#3fb950;
+    --accent:#7c5cff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 90px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--mut);margin:0 0 28px;font-size:16px}
+  .step{display:flex;gap:18px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:22px 24px;margin:18px 0;box-shadow:0 1px 0 #0006}
+  .num{flex:0 0 38px;height:38px;border-radius:10px;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-weight:700;font-size:18px}
+  .step .body{flex:1;min-width:0}
+  .tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:2px 9px;margin-bottom:8px}
+  p{margin:8px 0}
+  .mut{color:var(--mut)}
+  code{background:#0c1117;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:16px}
+  .card h3{margin:0 0 8px;font-size:15px}
+  .big{font-size:17px}
+  .hl{color:var(--accent);font-weight:600}
+  button{font:inherit;cursor:pointer;color:var(--ink);background:#222b36;border:1px solid var(--line);
+    border-radius:9px;padding:8px 14px;transition:.12s}
+  button:hover{border-color:#3d4a59;background:#28333f}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:#161b22;padding:8px 16px}
+  .seg button.on{background:var(--accent);color:#fff;font-weight:600}
+  .seg button+button{border-left:1px solid var(--line)}
+  input[type=range]{accent-color:var(--accent);width:180px;vertical-align:middle}
+  /* lab layout */
+  .lab{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:start}
+  @media(max-width:820px){.lab{grid-template-columns:1fr}}
+  .board{display:inline-grid;grid-template-columns:repeat(7,1fr);gap:6px;background:#21436e;
+    padding:10px;border-radius:12px}
+  .cell{width:30px;height:30px;border-radius:50%;background:#0e1116;transition:.15s}
+  .r{background:var(--red)} .y{background:var(--yellow)}
+  .colhead{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:0 0 4px 0;
+    width:max-content;padding:0 10px}
+  .colhead span{width:30px;text-align:center;color:var(--mut);font-size:11px}
+  .colhead span.illegal{color:#5a3}
+  /* scatter columns */
+  .scatter{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:6px}
+  .scol{position:relative;height:150px;background:#0c1117;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;cursor:pointer}
+  .scol.illegal{opacity:.32}
+  .scol.best{box-shadow:inset 0 0 0 2px var(--green)}
+  .scol.worst{box-shadow:inset 0 0 0 2px var(--red)}
+  .dot{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--blue);
+    transform:translate(-50%,50%);opacity:0;transition:opacity .25s}
+  .meanline{position:absolute;left:0;right:0;height:0;border-top:2px dashed var(--yellow)}
+  .meanlbl{position:absolute;right:3px;font-size:10px;color:var(--yellow);transform:translateY(-12px)}
+  .scaplbl{text-align:center;font-size:11px;color:var(--mut);margin-top:3px}
+  /* readouts */
+  .reads{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+  @media(max-width:560px){.reads{grid-template-columns:1fr}}
+  .read{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+  .read .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
+  .read .v{font-size:26px;font-weight:700;margin:3px 0 2px}
+  .read .d{font-size:12px;color:var(--mut)}
+  .verdict{font-weight:600}
+  .v-good{color:var(--green)} .v-bad{color:var(--red)} .v-mid{color:var(--yellow)}
+  .ctl{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin:4px 0 16px}
+  .ctl label{font-size:13px;color:var(--mut)}
+  /* noise meter */
+  .meter{height:10px;border-radius:6px;background:#0c1117;border:1px solid var(--line);overflow:hidden;width:160px;display:inline-block;vertical-align:middle}
+  .meter>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));transition:width .2s}
+  /* tree */
+  .tree{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--mut);
+    white-space:pre;line-height:1.5;background:#0c1117;border:1px solid var(--line);
+    border-radius:10px;padding:14px 16px;overflow:auto;min-height:150px}
+  .tree .lit{color:var(--red);font-weight:700}
+  .pile{margin-top:8px;font-size:13px;color:var(--mut)}
+  .pile b{color:var(--ink)}
+  /* grid heatmap */
+  table{border-collapse:separate;border-spacing:6px;width:100%;margin-top:8px;font-size:13px}
+  th{color:var(--mut);font-weight:600;font-size:12px;padding-bottom:2px}
+  td.lbl{color:var(--mut);text-align:left;white-space:nowrap;font-size:12px}
+  td.hm{border-radius:8px;text-align:center;font-weight:700;color:#0c1117;height:46px;cursor:pointer;
+    transition:.12s;border:2px solid transparent}
+  td.hm:hover{border-color:#fff}
+  td.hm small{display:block;font-weight:500;font-size:10px;opacity:.8}
+  .keyrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+  .key{display:flex;gap:8px;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;flex:1 1 200px}
+  .key .dot2{flex:0 0 10px;height:10px;border-radius:50%;margin-top:6px}
+  .foot{margin-top:34px;color:var(--mut);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+  .warn{background:#2a1f10;border:1px solid #5a431d;border-radius:10px;padding:10px 14px;color:#f0d28a;font-size:13px;margin-top:12px}
+  .hint{font-size:12px;color:var(--mut);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Connect&nbsp;4 "will-CCE-help?" — play with the simulation</h1>
+  <p class="sub">No training. We load a frozen player and make it play pretend games, only to <b>measure</b> whether moves matter. Everything below is live — drag, click, switch the foe.</p>
+
+  <!-- 0 -->
+  <div class="step">
+    <div class="num">0</div>
+    <div class="body">
+      <span class="tag">the one big idea</span>
+      <h2>Training vs what we do</h2>
+      <div class="cols">
+        <div class="card"><h3>🏋️ Training (already done)</h3><p class="mut">Play millions of games, <b>update the weights</b>, get stronger. We never redo this — players are frozen.</p></div>
+        <div class="card"><h3>📏 Our run (suitability)</h3><p class="mut">Load a <b>frozen</b> player. Zero learning. Play pretend games to <b>measure</b>: "does the move decide the game here?"</p></div>
+      </div>
+      <p class="big" style="margin-top:14px"><span class="hl">TRAIN = play + learn.&nbsp;&nbsp;US = play + measure.</span></p>
+    </div>
+  </div>
+
+  <!-- 1 -->
+  <div class="step">
+    <div class="num">1</div>
+    <div class="body">
+      <span class="tag">layer 1 — where boards come from · interactive</span>
+      <h2>We don't list boards — we collect the ones the player walks into</h2>
+      <p>Connect 4 has <b>~4.5 trillion</b> boards. We can't list them. So the frozen player plays the foe; each game traces <b>one path</b> down the tree, and we keep the boards it touches.</p>
+      <button class="primary" id="playGame">▶ Play a game (trace a path)</button>
+      <button id="resetTree">reset</button>
+      <div class="tree" id="tree"></div>
+      <div class="pile">boards collected: <b id="pileCount">0</b> &nbsp;·&nbsp; <span class="mut">(a tiny, relevant slice of 4.5T — also gives each board's visit count → the NEED metric)</span></div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <div class="step">
+    <div class="num">2</div>
+    <div class="body">
+      <span class="tag">layer 2 — the heart · the lab</span>
+      <h2>Score ONE board: try every move, play it out, watch the stakes</h2>
+      <p>For each legal column: force that first move, finish the game <b>N</b> times (the foe replies differently each time), and collect the final scores. Each dot below is one pretend game's result (higher = better for us). The dashed line is the column's average.</p>
+
+      <div class="ctl">
+        <div><label>Foe (= the noise):</label><br>
+          <div class="seg" id="foeSeg">
+            <button data-foe="random" class="on">random</button>
+            <button data-foe="rule_based">rule_based</button>
+            <button data-foe="mcts">mcts</button>
+          </div>
+        </div>
+        <div><label>N rollouts: <b id="nVal">24</b></label><br>
+          <input type="range" id="nSlider" min="4" max="60" value="24" step="2">
+        </div>
+        <div><label>noise level</label><br><span class="meter"><i id="noiseBar"></i></span></div>
+        <div style="align-self:flex-end"><button class="primary" id="newBoard">🎲 new board</button> <button id="resim">↻ re-simulate</button></div>
+      </div>
+
+      <div class="lab">
+        <div>
+          <div class="colhead" id="colhead"></div>
+          <div class="board" id="board"></div>
+          <p class="hint">red = our player · click a column strip to highlight it</p>
+        </div>
+        <div>
+          <div class="scatter" id="scatter"></div>
+          <div class="reads">
+            <div class="read"><div class="k">Stakes C(board)</div><div class="v" id="stakesV">–</div><div class="d" id="stakesD">best − worst return</div></div>
+            <div class="read"><div class="k">SNR (signal/noise)</div><div class="v" id="snrV">–</div><div class="d verdict" id="snrD">–</div></div>
+            <div class="read"><div class="k">CCE verdict</div><div class="v" id="cceV" style="font-size:18px">–</div><div class="d" id="cceD">–</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="warn">⚠ Full columns are <b>illegal</b> (greyed) — skipped, so stakes only compare moves you're actually allowed to play.</div>
+      <p class="hint">Try it: switch <b>random → mcts</b> and watch the dots tighten and SNR shoot up. Drag <b>N</b> down and the averages get jittery (luck not yet averaged out).</p>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <div class="step">
+    <div class="num">3</div>
+    <div class="body">
+      <span class="tag">the knobs</span>
+      <h2>Four dials — one of them is the noise</h2>
+      <div class="keyrow">
+        <div class="key"><span class="dot2" style="background:var(--blue)"></span><div><b>Player</b><br><span class="mut">which frozen checkpoint — whose greedy moves we replay.</span></div></div>
+        <div class="key"><span class="dot2" style="background:var(--red)"></span><div><b>Foe = NOISE</b><br><span class="mut">random = wild → noisy · mcts = sharp → clean.</span></div></div>
+        <div class="key"><span class="dot2" style="background:var(--yellow)"></span><div><b>N rollouts</b><br><span class="mut">pretend finishes per move — smooths luck.</span></div></div>
+        <div class="key"><span class="dot2" style="background:var(--green)"></span><div><b>Horizon</b><br><span class="mut">how far each pretend game runs.</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <div class="step">
+    <div class="num">4</div>
+    <div class="body">
+      <span class="tag">the experiment · interactive</span>
+      <h2>The grid: player skill × foe strength</h2>
+      <p>One mcts-trained player, sampled at growing win rates, rolled against all three foes. Cells colored by SNR (green = clean signal, red = drowned). <b>Click a cell</b> to load it into the lab above.</p>
+      <table id="grid"></table>
+      <div class="keyrow">
+        <div class="key"><span class="dot2" style="background:var(--accent)"></span><div><b>across a row</b> → does noise kill CCE as the foe weakens?</div></div>
+        <div class="key"><span class="dot2" style="background:var(--accent)"></span><div><b>down a column</b> → does the story hold at every skill level?</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <div class="step">
+    <div class="num">5</div>
+    <div class="body">
+      <span class="tag">what comes out</span>
+      <h2>Each cell → one scorecard of 6 cheap metrics</h2>
+      <div class="keyrow">
+        <div class="key"><div><b>SNR</b><br><span class="mut">is the fork louder than the noise?</span></div></div>
+        <div class="key"><div><b>Concentration</b><br><span class="mut">a few big forks to aim at?</span></div></div>
+        <div class="key"><div><b>DISTINCT-TD</b><br><span class="mut">does CCE rank moves unlike PER?</span></div></div>
+        <div class="key"><div><b>NEED</b><br><span class="mut">do high-stakes boards get visited?</span></div></div>
+        <div class="key"><div><b>Horizon-fit</b><br><span class="mut">rollout long enough to see the win?</span></div></div>
+        <div class="key" style="opacity:.55"><div><b>GAIN-fidelity</b> — n/a<br><span class="mut">no solver for C4 → no ground truth.</span></div></div>
+      </div>
+      <p class="mut" style="margin-top:12px">No oracle in C4, so these are <b>descriptive</b> — trusted only because the FrozenLake honesty check passed.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>Recap:</b> frozen player → play games → collect boards → for each board try all legal moves, finish N times → stakes = best − worst → crunch into 6 metrics. The foe's replies are the noise. Repeat per cell of the player×foe grid. <b>No weights ever move.</b>
+  </div>
+
+</div>
+
+<script>
+// ---------- tiny seeded RNG so it's lively but reproducible-ish ----------
+let _s = 1234567;
+function rnd(){ _s = (_s*1103515245 + 12345) & 0x7fffffff; return _s/0x7fffffff; }
+function gauss(m,sd){ let u=rnd(),v=rnd(); return m + sd*Math.sqrt(-2*Math.log(u+1e-9))*Math.cos(6.283185*v); }
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+// ---------- foe = noise level (sigma of the per-rollout return) ----------
+const FOE_SIGMA = { random:0.30, rule_based:0.17, mcts:0.07 };
+const FOE_LABEL = { random:'random', rule_based:'rule_based', mcts:'mcts' };
+let foe='random', N=24, playerSkill=0.6; // skill 0..1 sharpens column means
+
+// ---------- board + per-column "true" mean returns ----------
+let legal=[], trueMean=[], board=[];
+function newBoard(){
+  // random legality (a couple of columns full)
+  legal = Array.from({length:7},()=> rnd()>0.16);
+  if(legal.filter(Boolean).length<3){ legal=[true,true,true,true,true,false,true]; }
+  // true mean return per legal column: skill sharpens the spread (one clear best, one clear worst)
+  const base = Array.from({length:7},()=> rnd());
+  const spread = 0.35 + 0.5*playerSkill;
+  trueMean = base.map((b,i)=> legal[i] ? clamp(0.5 + (b-0.5)*spread,0.04,0.96) : null);
+  // a little fake disc fill for the board picture
+  board = Array.from({length:42},()=>{ const r=rnd(); return r<0.16?'r': r<0.32?'y':''; });
+  renderBoard(); simulate();
+}
+function renderBoard(){
+  const ch=document.getElementById('colhead'); ch.innerHTML='';
+  for(let c=0;c<7;c++){ const s=document.createElement('span'); s.textContent=c;
+    if(!legal[c]){s.className='illegal';s.textContent='✕';} ch.appendChild(s); }
+  const bd=document.getElementById('board'); bd.innerHTML='';
+  for(let i=0;i<42;i++){ const d=document.createElement('div'); d.className='cell '+(board[i]||''); bd.appendChild(d); }
+}
+
+// ---------- simulate N rollouts per legal column, compute stakes + SNR ----------
+let selCol=-1;
+function simulate(){
+  const sigma=FOE_SIGMA[foe];
+  const sc=document.getElementById('scatter'); sc.innerHTML='';
+  const colMeans=[], colVars=[];
+  let bestC=-1,bestV=-1,worstC=-1,worstV=2;
+  for(let c=0;c<7;c++){
+    if(!legal[c]){ colMeans[c]=null; continue; }
+    const samples=[]; for(let n=0;n<N;n++) samples.push(clamp(gauss(trueMean[c],sigma),0,1));
+    const m=samples.reduce((a,b)=>a+b,0)/N;
+    const v=samples.reduce((a,b)=>a+(b-m)*(b-m),0)/N;
+    colMeans[c]=m; colVars[c]=v;
+    if(m>bestV){bestV=m;bestC=c;} if(m<worstV){worstV=m;worstC=c;}
+  }
+  // draw
+  for(let c=0;c<7;c++){
+    const col=document.createElement('div'); col.className='scol'+(legal[c]?'':' illegal');
+    if(legal[c]&&c===bestC) col.className+=' best';
+    if(legal[c]&&c===worstC) col.className+=' worst';
+    if(c===selCol) col.style.outline='2px solid #fff';
+    col.onclick=()=>{ selCol=(selCol===c?-1:c); simulate(); };
+    if(legal[c]){
+      // re-sample positions just for display dots
+      for(let n=0;n<N;n++){
+        const val=clamp(gauss(trueMean[c],sigma),0,1);
+        const dot=document.createElement('div'); dot.className='dot';
+        dot.style.left=(15+ (rnd()*70-35))+'%';
+        dot.style.bottom=(val*100)+'%';
+        col.appendChild(dot);
+        setTimeout(()=>dot.style.opacity=0.85, n*12);
+      }
+      const ml=document.createElement('div'); ml.className='meanline'; ml.style.bottom=(colMeans[c]*100)+'%';
+      const lab=document.createElement('div'); lab.className='meanlbl'; lab.style.bottom=(colMeans[c]*100)+'%';
+      lab.textContent=colMeans[c].toFixed(2); ml.appendChild(lab); col.appendChild(ml);
+    } else {
+      const x=document.createElement('div'); x.className='scaplbl'; x.style.cssText='margin-top:64px'; x.textContent='full'; col.appendChild(x);
+    }
+    const wrap=document.createElement('div'); wrap.appendChild(col);
+    const cap=document.createElement('div'); cap.className='scaplbl'; cap.textContent='col '+c; wrap.appendChild(cap);
+    sc.appendChild(wrap);
+  }
+  // metrics
+  const legalMeans=colMeans.filter(m=>m!==null);
+  const stakes=Math.max(...legalMeans)-Math.min(...legalMeans);
+  const gm=legalMeans.reduce((a,b)=>a+b,0)/legalMeans.length;
+  const between=legalMeans.reduce((a,b)=>a+(b-gm)*(b-gm),0)/legalMeans.length; // signal
+  const within=colVars.filter(v=>v!==undefined&&v!==null).reduce((a,b)=>a+b,0)/legalMeans.length; // noise
+  const snr=within<1e-6? 999 : between/within;
+
+  document.getElementById('stakesV').textContent=stakes.toFixed(2);
+  document.getElementById('snrV').textContent= snr>=999?'∞':snr.toFixed(1);
+  const snrD=document.getElementById('snrD');
+  if(snr>=3){ snrD.textContent='fork LOUDER than noise ✓'; snrD.className='d verdict v-good'; }
+  else if(snr>=1){ snrD.textContent='signal ≈ noise'; snrD.className='d verdict v-mid'; }
+  else { snrD.textContent='noise DROWNS the fork ✗'; snrD.className='d verdict v-bad'; }
+
+  const cceV=document.getElementById('cceV'), cceD=document.getElementById('cceD');
+  if(stakes>0.25 && snr>=3){ cceV.textContent='likely HELPS'; cceV.className='v v-good'; cceV.style.fontSize='18px';
+    cceD.textContent='real fork + clean signal → CCE can grab it'; }
+  else if(stakes>0.25 && snr<3){ cceV.textContent='fork hidden by noise'; cceV.className='v v-bad'; cceV.style.fontSize='18px';
+    cceD.textContent='stakes exist but noise drowns them'; }
+  else { cceV.textContent='little to gain'; cceV.className='v v-mid'; cceV.style.fontSize='18px';
+    cceD.textContent='no real fork on this board'; }
+
+  document.getElementById('noiseBar').style.width=(sigma/0.30*100)+'%';
+}
+
+// ---------- controls ----------
+document.getElementById('foeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  [...e.currentTarget.children].forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  foe=b.dataset.foe; simulate();
+});
+document.getElementById('nSlider').addEventListener('input',e=>{
+  N=+e.target.value; document.getElementById('nVal').textContent=N; simulate();
+});
+document.getElementById('newBoard').onclick=newBoard;
+document.getElementById('resim').onclick=simulate;
+
+// ---------- layer 1: play-a-game tree ----------
+let pile=0;
+const treeBase=
+`            start
+          /   |   \\
+        ·     ·     ·
+       /|\\   /|\\   /|\\
+      · · · · · · · · ·`;
+function resetTree(){ pile=0; document.getElementById('pileCount').textContent=0; document.getElementById('tree').textContent=treeBase; }
+document.getElementById('resetTree').onclick=resetTree;
+document.getElementById('playGame').onclick=()=>{
+  // build a lit random path through 4 depths
+  const path=['start']; let line1=rnd()<.5?'/':'\\\\';
+  const lines=treeBase.split('\n').map(l=>l);
+  // just colorize a random leaf + chain by rebuilding with a marker
+  const leaves=['·']; // visual flourish
+  let t=treeBase;
+  // pick a random leaf index (0..8) on the last row and light a vertical-ish chain
+  const k=Math.floor(rnd()*9);
+  const lastRow='      '+Array.from({length:9},(_,i)=> i===k?'<span class="lit">●</span>':'·').join(' ');
+  const d3 = '       '+['/|\\','/|\\','/|\\'].join('   ');
+  const midGroup=Math.floor(k/3);
+  const row2='        '+['·','·','·'].map((c,i)=> i===midGroup?'<span class="lit">●</span>':'·').join('     ');
+  const html=`            start
+          /   |   \\
+${row2}
+${d3.replace(/\\/g,'\\')}
+${lastRow}`;
+  document.getElementById('tree').innerHTML=html;
+  pile += 4 + Math.floor(rnd()*3);
+  document.getElementById('pileCount').textContent=pile;
+};
+
+// ---------- grid heatmap ----------
+function snrFor(skillIdx, foeName){
+  // foe sets base noise; higher player skill sharpens means slightly -> a touch more SNR
+  const sigma=FOE_SIGMA[foeName];
+  const between=0.018 + 0.012*skillIdx;     // signal grows a bit with skill
+  return between/(sigma*sigma);
+}
+function snrColor(s){
+  // map SNR (0.1 .. ~30) to red->green
+  const t=clamp(Math.log10(s+0.1)/1.6+0.2,0,1);
+  const r=Math.round(229*(1-t)+63*t), g=Math.round(83*(1-t)+185*t), b=Math.round(75*(1-t)+80*t);
+  return `rgb(${r},${g},${b})`;
+}
+function buildGrid(){
+  const skills=[['weak',0],['mid',1],['strong',2],['best',3]];
+  const foes=['random','rule_based','mcts'];
+  const g=document.getElementById('grid');
+  let h='<tr><th></th>'+foes.map(f=>`<th>foe: ${f}</th>`).join('')+'</tr>';
+  for(const [name,idx] of skills){
+    h+=`<tr><td class="lbl">player: ${name}</td>`;
+    for(const f of foes){ const s=snrFor(idx,f);
+      h+=`<td class="hm" data-skill="${idx}" data-foe="${f}" style="background:${snrColor(s)}">${s>=99?'∞':s.toFixed(1)}<small>SNR</small></td>`; }
+    h+='</tr>';
+  }
+  g.innerHTML=h;
+  g.querySelectorAll('td.hm').forEach(td=>td.onclick=()=>{
+    foe=td.dataset.foe; playerSkill=0.3+0.23*(+td.dataset.skill);
+    // sync foe buttons
+    document.querySelectorAll('#foeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.foe===foe));
+    newBoard();
+    document.getElementById('board').scrollIntoView({behavior:'smooth',block:'center'});
+  });
+}
+
+// ---------- init ----------
+resetTree(); buildGrid(); newBoard();
+</script>
+</body>
+</html>

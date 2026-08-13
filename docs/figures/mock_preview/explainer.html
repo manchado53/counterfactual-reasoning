@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCE metrics — what two papers say, and the conflict</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1e26; --ink:#e8eaed; --dim:#9aa3b2;
+    --green:#4CAF50; --amber:#ff9800; --red:#e53935; --blue:#2196F3;
+    --line:#2a2f3a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 22px 80px}
+  h1{font-size:30px;margin:0 0 6px;line-height:1.15}
+  h2{font-size:23px;margin:46px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+  h3{font-size:18px;margin:26px 0 8px;color:#fff}
+  p{margin:10px 0}
+  .sub{color:var(--dim);font-size:15px;margin-top:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0}
+  .tldr{border-left:4px solid var(--blue)}
+  .big{font-size:18px}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+  .eq{background:#11151c;border:1px dashed var(--line);border-radius:10px;padding:12px 16px;
+    font-family:ui-monospace,Menlo,monospace;font-size:15px;color:#d7e3ff;margin:12px 0;overflow-x:auto}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.3px}
+  .keep{background:rgba(76,175,80,.15);color:var(--green);border:1px solid var(--green)}
+  .rework{background:rgba(255,152,0,.15);color:var(--amber);border:1px solid var(--amber)}
+  .drop{background:rgba(229,57,53,.15);color:var(--red);border:1px solid var(--red)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid4{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2,.grid4{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#161a22;color:#fff}
+  /* gridworld */
+  .gw{display:grid;grid-template-columns:repeat(4,38px);grid-template-rows:repeat(4,38px);
+    gap:3px;margin:10px 0;justify-content:start}
+  .gw div{display:flex;align-items:center;justify-content:center;border-radius:6px;
+    font-size:13px;font-weight:700;background:#222834;color:#7b8494}
+  .floor{background:#222834}
+  .wall{background:#0b0d11;color:#3a3f4a}
+  .goal{background:var(--green);color:#06240a}
+  .agent{background:var(--blue);color:#04203f}
+  .trap{background:var(--red);color:#2a0606}
+  .star{background:var(--amber);color:#3a2400}
+  .verdict{font-weight:700;margin-top:8px}
+  .yes{color:var(--green)} .no{color:var(--red)}
+  .label{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+  .two{display:flex;gap:18px;flex-wrap:wrap}
+  .quote{border-left:3px solid var(--dim);padding:4px 14px;color:var(--dim);font-style:italic;margin:10px 0;font-size:14px}
+  img{max-width:100%;border-radius:10px;border:1px solid var(--line);margin:8px 0}
+  .arrow{color:var(--dim)}
+  .key{background:#11151c;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+  ul{margin:8px 0 8px 0;padding-left:20px} li{margin:5px 0}
+  .footer{color:var(--dim);font-size:13px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>CCE metrics: what two papers say — and where they bite us</h1>
+<p class="sub">Plain, visual notes. Two papers we deep-read. The clash with our plan. What we change. (All cartoons below are hand-drawn ideas, not real runs.)</p>
+
+<div class="card tldr">
+  <p class="big" style="margin-top:0"><b>TL;DR in one breath</b></p>
+  <ul>
+    <li><b>Paper 1 (Mattar &amp; Daw)</b>: a move is worth replaying = <span class="mono">GAIN × NEED</span>. Our CCE score is the <b>GAIN</b> half. We forgot <b>NEED</b> = "will I even go there again?"</li>
+    <li><b>Paper 2 (Korniak 2026)</b>: piling all your draws on a few spots can <b>hurt</b>. Spread-out (high-entropy) draws win. But they tested big robot games, <b>not</b> our tiny FrozenLake.</li>
+    <li><b>So</b>: keep SNR + stakes-concentration. Add a NEED check. Stop saying "concentrated replay = good" — measure <b>overlap</b> instead, and watch spread (ESS).</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<div class="card" style="border-left:4px solid var(--amber);margin-top:22px">
+  <p class="big" style="margin-top:0"><b>⚑ These are decision tools for US — not paper figures (yet)</b></p>
+  <p>Point: understand <b>what makes CCE work</b> so we know what to <b>chase or skip</b> before
+  spending compute. They only need to be roughly right to steer us. If a clean result falls out
+  (esp. the slip sweep below), we can promote it later.</p>
+</div>
+
+<h2>0½ · After adversarial review — what changed</h2>
+<p class="sub">We sent the metric set to three critic agents before locking. They found a real hole and three breaks.</p>
+
+<div class="card" style="border-color:var(--red)">
+  <h3 style="margin-top:0">The hole — we measured the wrong thing</h3>
+  <div class="key mono">
+  our metrics asked:  "is prioritizing useful here?"<br>
+  the real question:  "is CCE better than <b>PER</b> here?"  &nbsp;&nbsp;&lt;- never measured
+  </div>
+  <p>CCE only wins if it picks <b>different</b> moves than TD-error (PER). If they rank the same,
+  CCE is just slow PER. So we add the metric that was missing:</p>
+  <div class="eq" style="color:#e1bee7"><b>DISTINCT-TD</b> = 1 − |corr( CCE rank , TD-error rank )|
+  &nbsp;&nbsp;<span class="arrow">// high = CCE adds new signal = can beat PER</span></div>
+</div>
+
+<div class="grid2">
+  <div class="card"><div class="label" style="color:var(--red)">break 1 — circular metric</div>
+    <p>"does CCE agree with stakes?" — but CCE <i>scores by</i> stakes. True by construction.
+    <b>Fix:</b> compare CCE only vs ground truth (Q*, EVB), never vs itself.</p></div>
+  <div class="card"><div class="label" style="color:var(--red)">break 2 — SNR confounded</div>
+    <p>"noise" mixed env noise + our own exploration noise. Turn ε down → metric flips.
+    <b>Fix:</b> roll out <b>greedy</b> after the forced action → env noise only.</p></div>
+  <div class="card"><div class="label" style="color:var(--red)">break 3 — ESS backwards</div>
+    <p>CCE is <i>supposed</i> to be spiky on the few forks. Low ESS isn't a fault.
+    <b>Fix:</b> ESS = collapse alarm only; use precision/recall@k.</p></div>
+  <div class="card"><div class="label" style="color:var(--amber)">reframe — one theory</div>
+    <p>Not 5 random numbers. All are conditions on <b>EVB = GAIN × NEED</b>. CCE estimates GAIN;
+    the metrics say when a GAIN-estimator helps.</p></div>
+</div>
+
+<h3>The revised set, drawn</h3>
+<img src="final_3_framework.png" alt="revised metric framework (fake data)">
+<p class="sub">GAIN × NEED tree + scorecard. ★ DISTINCT-TD is the new, load-bearing one. Note C4 fails it (0.40) → CCE ≈ TD there → can't beat PER.</p>
+
+<div class="card" style="border-color:var(--green)">
+  <h3 style="margin-top:0">The real way to learn the answer — one knob, not four envs</h3>
+  <p>4 envs × 3 metrics = a line through 3 dots = fooling ourselves. The honest test is a
+  <b>sweep inside one env</b>: FrozenLake, turn up the slip step by step, watch SNR and CCE's
+  win fall <b>together</b>.</p>
+  <img src="final_4_slipsweep.png" alt="slip sweep hero experiment (fake data)">
+  <p class="sub"><b>Experiment #1.</b> Cheap, we own the env, and it sits right between our two anchors
+  (det = win, stoch = null). Monotone curve = "noise kills CCE" confirmed. Flat = thesis dead, cheaply.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>0 · Quick recap — what we had</h2>
+<p>Four cheap rulers, all from rollouts, meant to forecast "will CCE help in this env?"</p>
+<div class="key mono">
+1. SNR &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= is the move louder than the noise?<br>
+2. Concentration = are a few spots the big deal? (Gini)<br>
+3. Score↔Stakes = does CCE point at those spots?<br>
+4. Replay-focus = does the buffer drill those spots? &nbsp;<span class="pill drop">this one is the problem</span>
+</div>
+<img src="1_quadrant_map.png" alt="our quadrant map (fake data)">
+<p class="sub">Our forecast map (fake data). The two papers mostly leave the axes alone — but add a missing piece and flip one assumption.</p>
+
+<!-- ============================================================ -->
+<h2>1 · Paper 1 — Mattar &amp; Daw (2018): worth = GAIN × NEED</h2>
+<p class="sub">"Prioritized memory access explains planning and hippocampal replay," Nature Neuroscience.</p>
+
+<p>They ask the exact question we ask: <b>which memory is worth replaying?</b> Their answer is one clean formula.</p>
+
+<div class="eq">
+EVB(s,a) = <b>GAIN</b>(s,a) &nbsp;×&nbsp; <b>NEED</b>(s)
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="arrow">// expected value of replaying this move</span>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="label" style="color:var(--green)">GAIN — does the move matter?</div>
+    <p>How much does fixing this spot <b>change what I do</b> here? Big when learning flips my best action to something better.</p>
+    <p class="mono" style="color:var(--dim)">= our CCE "stakes" ≈ the action gap</p>
+  </div>
+  <div class="card">
+    <div class="label" style="color:var(--amber)">NEED — will I go there again?</div>
+    <p>How often, soon, will I actually <b>stand on this spot</b> in the future? (discounted visit count)</p>
+    <p class="mono" style="color:var(--dim)">= the part CCE has NONE of</p>
+  </div>
+</div>
+
+<div class="key">
+  <b>The rule:</b> a move is worth replaying only if <b>BOTH</b> are big.
+  <div class="mono" style="margin-top:8px">
+  GAIN big, NEED zero &nbsp;<span class="arrow">→</span>&nbsp; worthless (you never go back)<br>
+  GAIN zero, NEED big &nbsp;<span class="arrow">→</span>&nbsp; worthless (nothing to fix)
+  </div>
+</div>
+
+<h3>The four cases — drawn</h3>
+<p>Blue = you. Green = goal. Red = deadly trap. Gold = the spot we score.</p>
+
+<div class="grid4">
+
+  <div class="card">
+    <div class="label">Case A — junction by the goal</div>
+    <div class="gw">
+      <div class="agent">S</div><div class="floor"></div><div class="floor"></div><div class="wall"></div>
+      <div class="floor"></div><div class="wall"></div><div class="floor"></div><div class="wall"></div>
+      <div class="floor"></div><div class="floor"></div><div class="star">J</div><div class="goal">G</div>
+      <div class="wall"></div><div class="floor"></div><div class="floor"></div><div class="wall"></div>
+    </div>
+    GAIN <b class="yes">HIGH</b> · NEED <b class="yes">HIGH</b>
+    <div class="verdict yes">REPLAY ✓ — both agree</div>
+    <p class="sub">Every path crosses J, and the move there decides the win.</p>
+  </div>
+
+  <div class="card" style="border-color:var(--red)">
+    <div class="label">Case B — trap in a dead-end pocket</div>
+    <div class="gw">
+      <div class="agent">S</div><div class="floor"></div><div class="floor"></div><div class="goal">G</div>
+      <div class="wall"></div><div class="wall"></div><div class="floor"></div><div class="wall"></div>
+      <div class="star">x</div><div class="trap">T</div><div class="floor"></div><div class="wall"></div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+    </div>
+    GAIN <b class="yes">HIGH</b> · NEED <b class="no">~0</b>
+    <div class="verdict no">SKIP ✗ — NEED kills it</div>
+    <p class="sub"><b>This is OUR trap.</b> CCE sees huge stakes and over-studies a spot the agent never revisits.</p>
+  </div>
+
+  <div class="card">
+    <div class="label">Case C — long boring corridor</div>
+    <div class="gw">
+      <div class="agent">S</div><div class="star">.</div><div class="floor">.</div><div class="goal">G</div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+    </div>
+    GAIN <b class="no">~0</b> · NEED <b class="yes">HIGH</b>
+    <div class="verdict no">SKIP ✗ — GAIN kills it</div>
+    <p class="sub">You walk it constantly, but both moves are equal. Nothing to fix.</p>
+  </div>
+
+  <div class="card">
+    <div class="label">Case D — path just ahead (pre-run)</div>
+    <div class="gw">
+      <div class="agent">S</div><div class="star">.</div><div class="star">.</div><div class="goal">G</div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+      <div class="wall"></div><div class="wall"></div><div class="wall"></div><div class="wall"></div>
+    </div>
+    GAIN <b class="no">LOW</b> · NEED <b class="yes">HIGH</b>
+    <div class="verdict yes">REPLAY ✓ — "forward replay"</div>
+    <p class="sub">Need-driven: warm up the path you are about to walk.</p>
+  </div>
+
+</div>
+
+<div class="card" style="border-color:var(--amber)">
+  <h3 style="margin-top:0">⚠ The conflict with us</h3>
+  <p><b>Case B is the whole problem.</b> Our stakes ruler = GAIN only. It will light up rare, deadly, never-revisited spots and tell CCE to drill them. Mattar &amp; Daw say: <b>useless</b>, because NEED = 0.</p>
+  <div class="quote">"the utility of a backup is zero if a state is never expected to be visited again … even if this backup would greatly impact behavior at that state (zero need, despite high gain)." — Methods</div>
+  <p><b>Soft defense:</b> our replay <i>buffer</i> already holds more copies of spots we visit often — so it sneaks in a <i>weak</i> NEED by accident. But it is crude, not the real discounted "will I go there soon."</p>
+  <p class="mono" style="color:var(--green)"><b>Fix:</b> add a NEED check = visit-frequency of a spot. Then ask: do CCE's high-stakes spots also get visited? (stakes × visits, not stakes alone.)</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>2 · Paper 2 — Korniak (2026): too much focus can hurt</h2>
+<p class="sub">"When Does Non-Uniform Replay Matter in Reinforcement Learning?" arXiv:2605.10236.</p>
+
+<p>They asked: when is <b>any</b> fancy (non-uniform) replay worth it vs just sampling evenly? Three knobs decide it.</p>
+
+<table>
+  <tr><th>Knob</th><th>What it is</th><th>Their finding</th></tr>
+  <tr><td><b>Replay volume</b></td><td>how many old moves you study per new step (UTD × batch)</td><td>Fancy replay helps <b>only when this is LOW</b>. Study a lot → uniform is fine.</td></tr>
+  <tr><td><b>Recency</b></td><td>how new the studied moves are, on average</td><td>Newer helps — but <b>how</b> you get newer matters.</td></tr>
+  <tr><td><b>Sampling entropy</b></td><td>how <b>spread out</b> your actual draws are</td><td><b>Spread-out (high entropy) wins. Narrow/peaked loses</b> — even at the same recency.</td></tr>
+</table>
+
+<h3>The result that pokes us</h3>
+<div class="two">
+  <div class="card" style="flex:1;min-width:260px;border-color:var(--red)">
+    <div class="label">PEAKED draws — all on a few spots</div>
+    <div class="mono" style="font-size:20px;letter-spacing:2px">▁▁▁█▁▁▁▁▁▁</div>
+    <p>low entropy · loses coverage</p>
+    <p class="no"><b>underperforms — even worse than uniform</b></p>
+  </div>
+  <div class="card" style="flex:1;min-width:260px;border-color:var(--green)">
+    <div class="label">SMOOTH draws — biased but full-support</div>
+    <div class="mono" style="font-size:20px;letter-spacing:2px">▂▃▄▅▆▇▆▅▄▃</div>
+    <p>high entropy · keeps coverage</p>
+    <p class="yes"><b>best of the bunch</b></p>
+  </div>
+</div>
+<div class="quote">"ERE, which has the lowest entropy, underperforms even the Uniform baseline … Truncated Geometric, which has the highest entropy, achieves the best performance." — §3.2</div>
+
+<div class="card" style="border-color:var(--amber)">
+  <h3 style="margin-top:0">⚠ The conflict with us</h3>
+  <p>Our metric #4 assumed <b>"CCE wins because it concentrates replay on the cliffs — more focus = good."</b> This paper found the opposite sign: <b>concentrated draws hurt.</b></p>
+  <p><b>But here is the catch — two different things were being mixed up:</b></p>
+  <div class="grid2">
+    <div class="key">
+      <div class="label" style="color:var(--green)">WHICH spots are important</div>
+      <p>the target set of high-stakes moves. A property of the task. <b>Fine to be lumpy.</b></p>
+    </div>
+    <div class="key">
+      <div class="label" style="color:var(--red)">HOW peaked your DRAWS are</div>
+      <p>the actual sampling each step. <b>If razor-sharp → lose coverage → hurt.</b></p>
+    </div>
+  </div>
+  <p class="mono" style="color:var(--green)"><b>Reconcile:</b> you can <b>lean</b> toward the cliffs while still drawing <b>smoothly</b> across the whole buffer. Bias, don't spike.</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">…but does it even apply to us? (scope)</h3>
+  <p>Honest answer: <b>their test bed is not ours.</b></p>
+  <ul>
+    <li>They ran <b>big continuous-control robot sims</b> (Humanoid, Isaac, DMC, Meta-World).</li>
+    <li><b>No</b> sparse-reward, <b>no</b> tiny deterministic discrete games like FrozenLake.</li>
+    <li>They <b>never sampled by stakes</b> — only by recency.</li>
+  </ul>
+  <div class="quote">"Extending … to discrete-action domains such as Atari … remains an important direction for future work." — Appendix A</div>
+  <p><b>So treat it as a loud warning, not a law.</b> We must check it ourselves in FrozenLake — and report how spread our draws are, instead of assuming peaky = good.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>3 · Verdict — what changes in our metric set</h2>
+
+<table>
+  <tr><th>Metric</th><th>Status</th><th>Why / what changes</th></tr>
+  <tr>
+    <td><b>1. SNR</b><br>noise-normalized action gap</td>
+    <td><span class="pill keep">KEEP — lead</span></td>
+    <td>Strongest. Backed by action-gap theory + ReLo + noisy-TV. The det→stoch flip is our headline experiment.</td>
+  </tr>
+  <tr>
+    <td><b>2. Stakes concentration</b><br>Gini over states</td>
+    <td><span class="pill keep">KEEP +</span></td>
+    <td>Keep, but also report <b>entropy / top-k mass</b> (field-standard). This is a task property — lumpy is OK here.</td>
+  </tr>
+  <tr>
+    <td><b>3. Score↔Stakes</b><br>does CCE point right?</td>
+    <td><span class="pill keep">KEEP</span></td>
+    <td>Good. In FrozenLake, also compare against <b>EVB = Gain×Need</b>, not just the action gap.</td>
+  </tr>
+  <tr>
+    <td><b>NEW · NEED check</b><br>visit-frequency of high-stakes spots</td>
+    <td><span class="pill keep">ADD</span></td>
+    <td>From Paper 1. Catch the "Case B trap": high stakes but never revisited = not worth it.</td>
+  </tr>
+  <tr>
+    <td><b>4. Replay-focus</b><br>"concentration = good"</td>
+    <td><span class="pill rework">REWORK</span></td>
+    <td>From Paper 2. <b>Drop "peaky = good."</b> Instead measure <b>top-k OVERLAP</b> (are the drilled spots the right ones?) and report <b>spread (ESS / entropy)</b> as a risk flag.</td>
+  </tr>
+</table>
+
+<h3>The reconciled picture</h3>
+<div class="key mono">
+ENV FORECAST (before training):<br>
+&nbsp;&nbsp;1. SNR &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— move louder than noise?<br>
+&nbsp;&nbsp;2. Concentration — few cliffs? (Gini + entropy + top-k)<br>
+&nbsp;&nbsp;★ NEED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— are those cliffs actually visited? &nbsp;<span style="color:var(--amber)">(new)</span><br>
+<br>
+ALGORITHM CHECK (during/after):<br>
+&nbsp;&nbsp;3. Score↔Stakes — CCE points at the right spots? (vs action-gap AND EVB)<br>
+&nbsp;&nbsp;4. Overlap &nbsp;&nbsp;&nbsp;— drilled spots = right spots? + report ESS &nbsp;<span style="color:var(--amber)">(reframed)</span>
+</div>
+
+<p>One line: <b>CCE measures GAIN well. We bolt on a NEED check, and we stop confusing "lean toward the cliffs" with "spike all draws on the cliffs."</b></p>
+
+<div class="footer">
+  Sources: Mattar &amp; Daw 2018, <i>Nature Neuroscience</i> 21:1609–1617 (EVB = Gain×Need).
+  Korniak et al. 2026, arXiv:2605.10236 (replay volume / recency / entropy).
+  Supporting: Bellemare 2016 action gap; Karino 2020 state importance; Sujit 2023 ReLo; Mesnard 2021 CCA.
+  Diagrams are illustrative cartoons, not experimental results.
+</div>
+
+</div>
+</body>
+</html>

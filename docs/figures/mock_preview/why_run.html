@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why run the suitability pipeline?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0d10; --panel:#15171d; --line:#262a33; --ink:#ece7dd; --dim:#8b93a1;
+    --cold:#33c0cf; --hot:#ff6a3d; --gold:#f5c451; --good:#5fd97a;
+    --disp:"Big Shoulders Display","Arial Narrow",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 80% -10%, #1a1d26 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, #181a22 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);font-family:var(--mono);font-size:15px;line-height:1.6;background-attachment:fixed;}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.035;
+    background-image:repeating-linear-gradient(0deg,#fff 0 1px,transparent 1px 3px);}
+  .wrap{max-width:1080px;margin:0 auto;padding:54px 26px 110px}
+  .kicker{letter-spacing:.42em;text-transform:uppercase;font-size:11px;color:var(--gold);margin:0 0 14px}
+  h1{font-family:var(--disp);font-weight:800;font-size:clamp(44px,8vw,92px);line-height:.92;margin:0 0 18px;
+    letter-spacing:-.01em;text-transform:uppercase}
+  h1 .em{color:var(--gold)}
+  .lede{font-size:19px;max-width:660px;color:#cfd3da;border-left:2px solid var(--gold);padding-left:18px;margin:22px 0 0}
+  h2{font-family:var(--disp);font-weight:700;font-size:34px;text-transform:uppercase;letter-spacing:.01em;margin:74px 0 6px}
+  .num{color:var(--gold);font-size:14px;letter-spacing:.3em}
+  p{max-width:700px;color:#c7ccd4}
+  .big{font-size:17px;color:var(--ink)}
+  .hl{color:var(--gold)} .tcold{color:var(--cold)} .thot{color:var(--hot)}
+  .tag{font-size:10px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase}
+  .panel{background:linear-gradient(180deg,var(--panel),#101218);border:1px solid var(--line);border-radius:16px;padding:24px 26px;margin:18px 0}
+
+  /* reveal on scroll */
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ===== interactive calibration bench ===== */
+  .bench{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:18px;align-items:stretch;margin:26px 0}
+  @media(max-width:860px){.bench{grid-template-columns:1fr}}
+  .bath{border-radius:16px;padding:22px;border:1px solid var(--line);position:relative;cursor:pointer;
+    transition:transform .25s,box-shadow .25s,border-color .25s}
+  .bath:hover{transform:translateY(-4px)}
+  .bath.active{box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .bath h3{font-family:var(--disp);font-size:28px;margin:0 0 2px;text-transform:uppercase;letter-spacing:.02em}
+  .bath .sub{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.2em}
+  .bath .truth{margin-top:13px;font-size:13px;color:#c7ccd4}
+  .bath .dipbtn{margin-top:16px;display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);
+    font-size:18px;text-transform:uppercase;letter-spacing:.06em;padding:8px 16px;border-radius:10px;
+    border:1px solid;background:transparent;cursor:pointer;transition:.2s}
+  .cold{background:radial-gradient(120% 120% at 50% 0,rgba(51,192,207,.16),transparent 70%),#0f1820}
+  .cold h3{color:var(--cold)} .cold.active{border-color:var(--cold)}
+  .cold .dipbtn{color:var(--cold);border-color:var(--cold)} .cold .dipbtn:hover{background:rgba(51,192,207,.14)}
+  .hot{background:radial-gradient(120% 120% at 50% 0,rgba(255,106,61,.16),transparent 70%),#1d1310}
+  .hot h3{color:var(--hot)} .hot.active{border-color:var(--hot)}
+  .hot .dipbtn{color:var(--hot);border-color:var(--hot)} .hot .dipbtn:hover{background:rgba(255,106,61,.14)}
+  .instr{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    background:repeating-linear-gradient(135deg,#14161c 0 9px,#121319 9px 18px);
+    border:1px dashed #3a3f4a;border-radius:16px;padding:18px 18px 22px}
+  .instr .label{font-family:var(--disp);font-size:21px;text-transform:uppercase;color:var(--gold);letter-spacing:.04em;text-align:center;line-height:1}
+  .instr .label small{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.2em;margin-top:6px}
+  .thermo{width:50px;height:184px;margin:16px 0 10px;border-radius:26px;border:2px solid #3a3f4a;position:relative;
+    background:#0c0d11;display:flex;flex-direction:column-reverse;align-items:center;padding:6px}
+  .thermo .mercury{width:16px;border-radius:10px;height:8%;transition:height .9s cubic-bezier(.3,1.2,.4,1),background .6s;
+    background:linear-gradient(0deg,#2a2f3a,#39404d)}
+  .thermo .bulb{position:absolute;bottom:-13px;left:50%;transform:translateX(-50%);width:32px;height:32px;border-radius:50%;
+    border:2px solid #3a3f4a;background:#2a2f3a;transition:background .6s,box-shadow .6s}
+  .readout{margin-top:16px;width:100%;text-align:center;min-height:96px}
+  .readout .placeholder{color:var(--dim);font-size:12px;letter-spacing:.15em;text-transform:uppercase;padding-top:24px}
+  .readout .snr{font-family:var(--disp);font-size:40px;line-height:1}
+  .readout .snrlab{font-size:11px;color:var(--dim);letter-spacing:.25em;text-transform:uppercase}
+  .readout .verdict{margin-top:10px;font-size:13px}
+  .readout .match{color:var(--good);font-weight:600}
+
+  /* ===== setup: accordion rail ===== */
+  .rail{display:flex;flex-wrap:wrap;margin:24px -5px 6px}
+  .rail .chip{flex:1;min-width:130px;background:#101218;border:1px solid var(--line);border-radius:12px;padding:14px;margin:5px;
+    position:relative;cursor:pointer;transition:border-color .2s,transform .2s,background .2s}
+  .rail .chip:hover{border-color:#3a4150;transform:translateY(-3px)}
+  .rail .chip.active{border-color:var(--gold);background:#161922}
+  .rail .chip::after{content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:#3a3f4a;font-size:16px}
+  .rail .chip:last-child::after{content:""}
+  .rail .chip .n{font-size:10px;letter-spacing:.25em;color:var(--gold)}
+  .rail .chip .t{font-family:var(--disp);font-size:20px;text-transform:uppercase;margin:2px 0;line-height:1}
+  .rail .chip .hint{font-size:10px;color:var(--dim);letter-spacing:.05em}
+  .detail{overflow:hidden;max-height:0;transition:max-height .4s ease,opacity .4s;opacity:0;
+    background:#0e1016;border:1px solid var(--line);border-radius:12px;margin:4px 5px}
+  .detail.open{max-height:240px;opacity:1}
+  .detail .inner{padding:16px 18px;font-size:13.5px;color:#c7ccd4}
+  .detail .inner b{color:var(--gold)}
+
+  h3.eng{font-family:var(--disp);font-weight:700;font-size:24px;text-transform:uppercase;letter-spacing:.02em;margin:34px 0 4px;color:var(--gold)}
+  .atom{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:center;margin:16px 0}
+  @media(max-width:860px){.atom{grid-template-columns:1fr}}
+  .whatif{background:radial-gradient(120% 120% at 0 0,rgba(51,192,207,.12),transparent 70%),#0f1820;border:1px solid var(--cold);border-radius:14px;padding:20px}
+  .whatif .q{font-family:var(--disp);font-size:23px;text-transform:uppercase;color:var(--cold);line-height:1.05}
+  .whatif p{margin:10px 0 0;font-size:13.5px}
+  .runs{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .runs .r{font-size:11px;background:#0c0d11;border:1px solid var(--line);border-radius:6px;padding:3px 7px;color:var(--dim)}
+  .tcube{background:#0c0d11;border:1px solid var(--line);border-radius:12px;padding:12px}
+  .tgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+  .tgrid .cell{aspect-ratio:1;border-radius:5px;transition:transform .15s}
+  .tgrid .cell:hover{transform:scale(1.12)}
+  .colhead{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:6px;font-size:10px;color:var(--dim);text-align:center;letter-spacing:.1em}
+  .fan{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  @media(max-width:680px){.fan{grid-template-columns:1fr}}
+  .fan .m{background:#101218;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;
+    transition:transform .2s,box-shadow .2s}
+  .fan .m:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .fan .m b{font-family:var(--disp);font-size:17px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink)}
+  .fan .m .op{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.45}
+
+  .flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center;margin-top:18px;font-size:13px}
+  @media(max-width:860px){.flow{grid-template-columns:1fr}.flow .arrow{display:none}}
+  .step{background:#101218;border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center;transition:transform .2s}
+  .step:hover{transform:translateY(-3px)}
+  .step .t{font-family:var(--disp);font-size:20px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+  .arrow{color:var(--dim);font-size:22px;text-align:center}
+  .new{border-color:var(--gold);box-shadow:0 0 0 1px rgba(245,196,81,.25)}
+  .foot{color:var(--dim);font-size:12px;margin-top:64px;border-top:1px solid var(--line);padding-top:16px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker reveal">Suitability pipeline · the idea of running it · <span style="color:var(--good)">interactive</span></p>
+  <h1 class="reveal">You don't trust a ruler<br>you've <span class="em">never checked</span>.</h1>
+  <p class="lede reveal">We built metrics that <em>claim</em> to predict whether CCE will help in an
+  environment. Running the pipeline = <span class="hl">calibrating those metrics against cases where
+  we already KNOW the answer</span> — so we can trust them on cases where we don't.
+  <br><span class="tag" style="display:block;margin-top:12px">▸ dip the thermometer below · ▸ click any setup step to expand</span></p>
+
+  <h2 class="reveal"><span class="num">01 /</span> Calibrate like a thermometer</h2>
+  <p class="reveal">You don't trust a new thermometer blind. You dip it in <span class="tcold">ice water</span>
+  (you KNOW it's 0°) and <span class="thot">boiling water</span> (you KNOW it's 100°). If it reads
+  right on the known baths → it's honest. <b class="hl">Click a bath to dip the thermometer.</b></p>
+
+  <div class="bench reveal">
+    <div class="bath cold" data-bath="FL-stoch">
+      <span class="sub">Known bath · 0°</span>
+      <h3>FL&#8209;stoch</h3>
+      <div class="truth">We ALREADY KNOW: CCE gave <b>no gain</b> (NULL). Slippery ice adds noise that
+      should drown the action signal.</div>
+      <button class="dipbtn" data-bath="FL-stoch">◄ Dip · truth = NULL</button>
+    </div>
+    <div class="instr">
+      <div class="label">our metrics<small>the thermometer</small></div>
+      <div class="thermo"><div class="mercury" id="merc"></div><div class="bulb" id="bulb"></div></div>
+      <div class="readout" id="readout"><div class="placeholder">← choose a bath to dip →</div></div>
+    </div>
+    <div class="bath hot" data-bath="FL-det">
+      <span class="sub">Known bath · 100°</span>
+      <h3>FL&#8209;det</h3>
+      <div class="truth">We ALREADY KNOW: CCE <b>WON</b> big (mul ≈1.00 vs PER 0.46). Deterministic =
+      clean signal the method can exploit.</div>
+      <button class="dipbtn" data-bath="FL-det">Dip · truth = WIN ►</button>
+    </div>
+  </div>
+  <p class="tag reveal">the headline reading is SNR — "is the action's effect louder than the noise?" · numbers from the real run</p>
+
+  <h2 class="reveal"><span class="num">02 /</span> How a reading is actually taken</h2>
+  <p class="reveal">No new training. We take a <span class="hl">frozen brain</span> (a saved snapshot) and
+  make it answer <span class="tcold">"what if I took action A here, then played normally?"</span> from
+  every state, many times. Every metric is just a <span class="hl">statistic over those playouts</span>.
+  <b class="hl">Click a step.</b></p>
+
+  <div class="rail reveal" id="rail">
+    <div class="chip" data-d="d1"><div class="n">01 · ON DISK</div><div class="t">Run folder</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d2"><div class="n">02 · PICK</div><div class="t">4 snapshots</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d3"><div class="n">03 · LOAD</div><div class="t">The brain</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d4"><div class="n">04 · ENV</div><div class="t">+ states</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d5"><div class="n">05 · ATOM</div><div class="t">Rollouts</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d6"><div class="n">06 · SQUEEZE</div><div class="t">6 metrics</div><div class="hint">tap to expand</div></div>
+    <div class="chip" data-d="d7"><div class="n">07 · CHECK</div><div class="t">Validate</div><div class="hint">tap to expand</div></div>
+  </div>
+  <div class="detail" id="d1"><div class="inner"><b>On disk:</b> a finished training run = one folder with
+    <b>brain snapshots</b> (Q-net weights saved every N episodes) and <b>metrics.log</b> (win rate per episode).
+    Nothing is retrained — we only read.</div></div>
+  <div class="detail" id="d2"><div class="inner"><b>Pick 4 snapshots:</b> random · 10% · 30% · <b>BEST</b>.
+    "Best" = the highest-win checkpoint, NOT the last — FL DQN often collapses late (final checkpoint can be 0% win).</div></div>
+  <div class="detail" id="d3"><div class="inner"><b>Load the brain:</b> open the .pkl → the Q-network weights →
+    pour them into an agent. The agent now plays <b>exactly</b> like that snapshot.</div></div>
+  <div class="detail" id="d4"><div class="inner"><b>Env + states:</b> rebuild the matched env (deterministic or
+    slippery) and list the <b>53 decision cells</b> of the 8×8 grid (drop holes + goal). We score all of them.</div></div>
+  <div class="detail" id="d5"><div class="inner"><b>The atom:</b> for each state, force each action then follow the
+    brain's greedy moves to the end → a discounted return. Repeat 60×. Stack → <b>returns[53×4×60]</b> (next panel).</div></div>
+  <div class="detail" id="d6"><div class="inner"><b>Squeeze:</b> every metric is a statistic of that one tensor
+    (plus one exact value-iteration solve and one greedy visit-count). See the fan-out below.</div></div>
+  <div class="detail" id="d7"><div class="inner"><b>Validate:</b> re-evaluate the loaded brain's win rate and
+    compare to metrics.log. Match → right checkpoint. Mismatch / best&lt;20% → STOP (the past failure mode).</div></div>
+
+  <h3 class="eng reveal">The atom — the engine every metric reuses</h3>
+  <div class="atom reveal">
+    <div class="whatif">
+      <div class="q">"What if → A,<br>then play normally?"</div>
+      <p>From state <b>s</b>, force action <b>A</b> → follow the brain's greedy moves → step the env to
+      the end → add up discounted reward = <b>one return</b>. Repeat <b>N = 60×</b>.</p>
+      <div class="runs"><span class="r">0.0</span><span class="r">0.94</span><span class="r">0.0</span><span class="r">0.90</span><span class="r">0.0</span><span class="r">0.94</span><span class="r">… ×60</span></div>
+    </div>
+    <div>
+      <div class="tag" style="margin-bottom:6px">stack every state × action × run · hover a cell</div>
+      <div class="tcube">
+        <div class="colhead"><div>↑</div><div>↓</div><div>←</div><div>→</div></div>
+        <div class="tgrid" id="tgrid"></div>
+      </div>
+      <div class="tag" style="margin-top:8px">returns[ 53 states × 4 actions × 60 runs ] · bright = high return · dark = ~0</div>
+    </div>
+  </div>
+
+  <p class="reveal">Then each metric is a statistic of that one tensor (plus one exact solve + one visit count):</p>
+  <div class="fan reveal">
+    <div class="m"><b>Concentration</b><div class="op">spread of mean returns across states → Gini (are there forks?)</div></div>
+    <div class="m"><b>SNR</b><div class="op">var BETWEEN actions ÷ var WITHIN one action (signal vs env noise)</div></div>
+    <div class="m"><b>CCE → Distinct-TD</b><div class="op">TV of the 4 return dists, rank-vs |TD| from the Q-net</div></div>
+    <div class="m"><b>Gain-fidelity</b><div class="op">CCE vs EXACT Q* (value iteration on the known env)</div></div>
+    <div class="m"><b>Need</b><div class="op">stakes vs greedy visit counts (are the forks revisited?)</div></div>
+    <div class="m"><b>Horizon-fit</b><div class="op">rerun rollouts at horizons 10–200, find where stakes stabilize</div></div>
+  </div>
+
+  <h2 class="reveal"><span class="num">03 /</span> The payoff: aim it where we're blind</h2>
+  <p class="reveal">Once the readings match the known baths, the instrument is trusted. Now point it at
+  environments where we <em>don't</em> know the answer — forecast win / skip <b>before</b> spending days of GPU.</p>
+  <div class="flow reveal">
+    <div class="step"><div class="t">Build</div>the rulers (metrics)</div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="t">Run</div>calibrate on FL-det &amp; FL-stoch <span class="tag">(known answers)</span></div>
+    <div class="arrow">→</div>
+    <div class="step new"><div class="t">Forecast</div>aim at Connect 4 / SMAX <span class="tag">(unknown → predict)</span></div>
+  </div>
+
+  <h2 class="reveal"><span class="num">04 /</span> So — why run it?</h2>
+  <div class="panel reveal">
+    <p class="big" style="margin-top:0">Three reasons, in one breath:</p>
+    <p style="margin:0">
+    <span class="hl">1. Prove the rulers aren't lying</span> — do the real numbers match the case we know cold?<br>
+    <span class="hl">2. Turn the mock dashboard into a real one</span> — preview numbers become measured numbers, with checkpoint + win-rate provenance.<br>
+    <span class="hl">3. Earn the right to forecast</span> — once calibrated, the same cheap rulers predict new environments before we commit GPUs.</p>
+  </div>
+  <p class="big reveal">And if a reading had <span class="thot">disagreed</span> with the known truth — that's the
+  most valuable result of all: a ruler is broken, fix it before trusting any forecast. <span class="hl">(This run:
+  SNR matched both baths ✓; GAIN-fidelity did NOT — flagged for repair.)</span></p>
+
+  <div class="foot">
+    Calibration metaphor for the CCE suitability pipeline · readings shown are from the real run
+    (FL-det 257440, FL-stoch 255545, best-win checkpoints, validated vs metrics.log).
+  </div>
+</div>
+
+<script>
+  // ----- dip the thermometer -----
+  const BATHS = {
+    "FL-stoch": {h:9,  col:"var(--cold)", glow:"rgba(51,192,207,.6)", snr:"0.04", lab:"COLD",
+                 truth:"NULL", note:"env noise drowns the action signal"},
+    "FL-det":   {h:94, col:"var(--gold)", glow:"rgba(245,196,81,.6)", snr:"1000", lab:"HOT",
+                 truth:"WIN",  note:"within-action noise = 0 → perfectly clean signal"},
+  };
+  const merc=document.getElementById("merc"), bulb=document.getElementById("bulb"), readout=document.getElementById("readout");
+  function dip(name){
+    const b=BATHS[name];
+    document.querySelectorAll(".bath").forEach(x=>x.classList.toggle("active", x.dataset.bath===name));
+    merc.style.height=b.h+"%";
+    merc.style.background = name==="FL-det"
+      ? "linear-gradient(0deg,var(--hot),var(--gold))" : "linear-gradient(0deg,#1f6f78,var(--cold))";
+    bulb.style.background=b.col; bulb.style.boxShadow="0 0 18px "+b.glow;
+    readout.innerHTML =
+      `<div class="snr" style="color:${b.col}">${b.snr}</div>`+
+      `<div class="snrlab">SNR reading · ${b.lab}</div>`+
+      `<div class="verdict">known truth = <b style="color:${b.col}">${b.truth}</b><br>`+
+      `<span class="match">✓ reading matches the truth</span><br>`+
+      `<span class="tag" style="text-transform:none;letter-spacing:.02em">${b.note}</span></div>`;
+  }
+  document.querySelectorAll("[data-bath]").forEach(el=>el.addEventListener("click",()=>dip(el.dataset.bath)));
+
+  // ----- setup accordion -----
+  document.querySelectorAll("#rail .chip").forEach(chip=>{
+    chip.addEventListener("click",()=>{
+      const id=chip.dataset.d, det=document.getElementById(id), open=det.classList.contains("open");
+      document.querySelectorAll(".detail").forEach(d=>d.classList.remove("open"));
+      document.querySelectorAll("#rail .chip").forEach(c=>c.classList.remove("active"));
+      if(!open){det.classList.add("open"); chip.classList.add("active");}
+    });
+  });
+
+  // ----- returns-tensor heatmap (deterministic pattern) -----
+  const pal=["#1a3a44","#243b42","#33c0cf","#f5c451","#ff8c5a","#ffae6a","#1a3a44","#33c0cf"];
+  const seq=[0,3,0,4, 2,1,2,3, 1,2,5,0, 0,3,1,2, 4,0,2,1, 6,3,0,7];
+  const tg=document.getElementById("tgrid");
+  seq.forEach(i=>{const c=document.createElement("div");c.className="cell";c.style.background=pal[i];tg.appendChild(c);});
+
+  // ----- reveal on scroll (staggered) -----
+  const io=new IntersectionObserver((es)=>es.forEach((e,i)=>{
+    if(e.isIntersecting){setTimeout(()=>e.target.classList.add("in"), (i%4)*70); io.unobserve(e.target);}
+  }),{threshold:.12});
+  document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
