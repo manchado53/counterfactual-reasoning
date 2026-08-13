@@ -82,11 +82,19 @@ def main(agg="max"):
             a.spines[s].set_color(GRID)
         a.tick_params(colors=INK2, labelsize=9.5)
 
+    # Computed, never hardcoded: a stale literal in the subtitle would silently
+    # misreport the statistic if the underlying records changed.
+    from scipy.stats import fisher_exact
+    (_, _, l0, r0), (_, _, l1, r1) = data
+    w0, w1 = int((l0 >= r0).sum()), int((l1 >= r1).sum())
+    pval = fisher_exact([[w0, len(l0) - w0], [w1, len(l1) - w1]],
+                        alternative="greater")[1]
+
     fig.suptitle("CCE's replay signal is useful only where CCE actually won",
                  fontsize=15.5, fontweight="bold", color=INK, x=0.085, ha="left", y=0.945)
     fig.text(0.085, 0.845,
              "FrozenLake 8×8 · neutral DQN-uniform checkpoints · matched by achieved win rate · "
-             f"{agg} aggregation · Fisher one-sided p = 0.026",
+             f"{agg} aggregation · Fisher one-sided p = {pval:.3f}",
              fontsize=10, color=INK2, ha="left")
 
     path = os.path.join(OUT_DIR, "fig_predicate_by_env.png")
