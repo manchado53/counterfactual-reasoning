@@ -99,5 +99,80 @@ def main(agg="max"):
     print(f"  Fisher one-sided p = {pval:.4f}")
 
 
+
+
+def figure_slip_axis(agg="max"):
+    """Step 5 — the predicate across the whole graded-slip axis."""
+    import glob
+    from counterfactual_rl.analysis.theorem3.priority_flatness import OUT_DIR as _O
+
+    rows = []
+    for f in sorted(glob.glob(os.path.join(_O, "step2_graded_slip*_dqn-uniform.json"))):
+        recs = json.load(open(f))
+        good = [r for r in recs if r["global_err"] < 1.0
+                and r.get("achieved_win_rate", 0) > 0.5 and r.get(f"{agg}_predicate")]
+        if not good:
+            continue
+        lhs = np.array([r[f"{agg}_predicate"]["lhs"] for r in good])
+        rhs = np.array([r[f"{agg}_predicate"]["rhs"] for r in good])
+        rows.append((recs[0]["slip"], len(good), int((lhs >= rhs).sum()),
+                     np.median(lhs), np.median(rhs)))
+    rows.sort()
+    slip = np.array([r[0] for r in rows])
+    n = np.array([r[1] for r in rows])
+    w = np.array([r[2] for r in rows])
+    lm = np.array([r[3] for r in rows])
+    rm = np.array([r[4] for r in rows])
+    x = np.arange(len(rows))
+
+    fig, (axa, axb) = plt.subplots(2, 1, figsize=(10.2, 8.4), sharex=True)
+    fig.subplots_adjust(left=0.115, right=0.965, top=0.80, bottom=0.10, hspace=0.28)
+
+    axa.bar(x, w / n, color=BLUE, zorder=3, width=0.62)
+    for xi, wi, ni in zip(x, w, n):
+        axa.text(xi, wi / ni + 0.018, f"{wi}/{ni}", ha="center", fontsize=9.5, color=INK2)
+    axa.set_ylim(0, 0.55)
+    axa.set_ylabel("fraction of runs where\nCCE beats TD error", color=INK2, fontsize=11)
+    axa.set_title("CCE wins the predicate only at slip 0, and only sometimes",
+                  color=INK, fontsize=12.5, fontweight="bold", loc="left", pad=8)
+
+    axb.axhline(0, color=INK2, lw=1.5, zorder=4)
+    axb.plot(x, rm, "-o", color=ORANGE, lw=2, ms=7, mec="white", mew=1.4, zorder=3,
+             label="TD side   Cov(d,u)/E[d]")
+    axb.plot(x, lm, "-o", color=BLUE, lw=2, ms=7, mec="white", mew=1.4, zorder=3,
+             label="CCE side  Cov(c,u)/E[c]")
+    axb.set_yscale("symlog", linthresh=1e-4)
+    axb.set_ylabel("median covariance ratio", color=INK2, fontsize=11)
+    axb.set_xticks(x)
+    axb.set_xticklabels([f"{s:g}" for s in slip], fontsize=10)
+    axb.set_xlabel("slip probability", color=INK2, fontsize=11)
+    axb.set_title("The TD side is positive everywhere; the CCE side never is",
+                  color=INK, fontsize=12.5, fontweight="bold", loc="left", pad=8)
+    axb.legend(frameon=False, fontsize=10.5, loc="upper left", labelcolor=INK2)
+
+    for a in (axa, axb):
+        a.grid(axis="y", color=GRID, lw=0.8, alpha=0.7, zorder=0)
+        a.set_axisbelow(True)
+        for s in ("top", "right"):
+            a.spines[s].set_visible(False)
+        for s in ("left", "bottom"):
+            a.spines[s].set_color(GRID)
+        a.tick_params(colors=INK2, labelsize=9.5)
+
+    fig.suptitle("Across the whole noise axis, CCE's score does not track replay utility",
+                 fontsize=15.5, fontweight="bold", color=INK, x=0.115, ha="left", y=0.955)
+    fig.text(0.115, 0.875,
+             f"FrozenLake 8×8 · neutral DQN-uniform checkpoints, matched by achieved win rate · "
+             f"{agg} aggregation · {w.sum()}/{n.sum()} runs total",
+             fontsize=10.5, color=INK2, ha="left", va="top")
+
+    path = os.path.join(_O, "fig_predicate_slip_axis.png")
+    fig.savefig(path, dpi=170, facecolor="white")
+    print("wrote", path)
+    print(f"  total CCE wins {w.sum()}/{n.sum()};  "
+          f"LHS median > 0 at {int((lm > 0).sum())}/{len(lm)} slip levels")
+
+
 if __name__ == "__main__":
     main()
+    figure_slip_axis()

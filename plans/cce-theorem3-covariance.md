@@ -86,18 +86,40 @@ Each of these silently produces a confident wrong answer.
   checkpoint's own saved config and assert `abs(env_slip - manifest_slip) < 1e-9` on every load.
 - **`score_states.py` collapses per-(s,a) to per-state.** The full tensor exists inside it and is
   discarded. Use `compute_return_tensor` instead.
-- **Graded-slip checkpoints are gone.** Run dirs were deleted; only win-rate arrays survive in
-  `paper/repro/cache/claim2_graded_slip.npz`, and only for the 5 coarse levels. A retrain is
-  required, and its checkpoints must be cached out before anyone cleans disk.
+- ~~**Graded-slip checkpoints are gone.**~~ **WRONG — they exist.** 798 run dirs with 22,725
+  `.pkl` files survive in the graded-slip *worktree*
+  (`.claude/worktrees/graded-slip-frozenlake/.../frozen_lake/runs/`), roughly 40 checkpoints per
+  run, across **11** slip levels (0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.133, 0.166, 0.333, 0.5,
+  0.666) x {dqn-uniform, dqn, consequence-dqn}. The sweep ran *from* that worktree so its outputs
+  landed there, not under the main repo path. Each run's `metrics.log` header records its own
+  `slip_prob`, so runs are self-describing. **No retrain is needed.** Read them in place — `/home`
+  is full — and pin the worktree before building on it.
+- **The saved config does not survive a bare load.** `load()` restores weights but never rebuilds
+  the env, and `score_states.py` constructed `FrozenLakeDQN()` with no config, so a graded-slip
+  checkpoint was silently scored in the default slippery MDP — no error, plausible numbers. Fixed
+  in `181390d`: use `FrozenLakeDQN.from_checkpoint(path)`, and `load()` now raises on a slip or
+  map mismatch (`strict_env=False` is the explicit escape hatch).
+- **dqn-uniform diverges at slip 0.** 16 of 30 seeds collapse to 0% win rate while |Q| blows up to
+  2513. Diverged runs never early-stop, so they hold the *most* checkpoints and any
+  fraction-based selection samples them preferentially — that produced `mean|Q-Q*| = 178` and a
+  covariance ratio of `+2.5e5` before the guard went in. Skip runs that never reach a nonzero win
+  rate; flag records above `mean|Q-Q*| > 5`.
+- **The theorems describe a sampler we do not ship.** Eq 5 defines `p^c ∝ c`; the buffer computes
+  `(c + 0.01)^0.25`. Report the predicate under both measures — they agree so far, but they are
+  not the same measure, and the exponent is what makes the deployed one near-uniform.
 
 ## Order of work
 
 Cheapest first. Each of the first three can kill the idea before any GPU is spent.
 
-1. **Free check** — read the priorities the buffer actually samples with. `(score + 0.01)**0.25`
-   caps the max/min spread at ~3.2x, so the deployed sampler may be close to uniform. Report ESS
-   and Gini vs slip. If it is near-uniform, the slip sweep never tested the theory at all — it
-   tested near-uniform replay. One hour, no GPU, no checkpoints needed.
+1. ~~**Free check**~~ — **DONE (`f462126`). Answer: yes, near-uniform.** `(score + 0.01)^0.25`
+   caps the spread at `((1+eps)/eps)^0.25 = 3.17x` — arithmetic, independent of the data. Measured
+   across 11 slip levels x 3 seeds x 2 aggregations (66 records): ESS never below **79% of
+   uniform**, Gini 0.04–0.24. The graded-slip win-rate cliff was produced by a sampler running
+   close to uniform. Second finding: the CCE score is blunt where CCE wins and rich where it does
+   not — 2–4 distinct values at slip 0 versus 52–53 at slip 0.666 — and score magnitude is
+   bimodal across seeds, since a policy that rarely reaches the goal scores `c ≈ 0` everywhere.
+   Figures and data in `docs/figures/theorem3_step1/`.
 2. **Build + validate** — compute c, d, u on the three checkpoints already committed at
    `paper/repro/cache/checkpoints/seed_{0,1,2}/`. Exercises every code path with zero cluster
    time. Expect a real edge case: on an untrained net no rollout reaches the goal, every `c` is
@@ -108,12 +130,14 @@ Cheapest first. Each of the first three can kill the idea before any GPU is spen
    Better found here than in review. Run this BEFORE the sweep.
 4. **Gate** — slip {0, 0.333} only. If the covariances do not move between the extremes, the
    five middle levels are wasted GPU.
-5. **Sweep** — 7 levels for fresh checkpoints, ~30 GPU-h (a fifth of the dense sweep). Primary
-   arm is **dqn-uniform**, so neither priority scheme shaped the weights being scored — anything
-   else is circular. Index stages by **achieved win rate, not episode**: at slip 0.10 a net
-   learns faster, so a fixed episode means different competence at different slip, which lets the
-   confound back in through the checkpoint. Set `early_stop_win_rate: None`. Re-add `dh-node12`
-   to `--exclude` — it got reverted on master and SIGKILLed 7% of the last sweep.
+5. **Sweep** — **11** levels, **no GPU and no retrain**: the checkpoints already exist (see
+   landmines). Primary arm is **dqn-uniform**, so neither priority scheme shaped the weights being
+   scored — anything else is circular. Index stages by **achieved win rate, not episode**: at slip
+   0.10 a net learns faster, so a fixed episode means different competence at different slip,
+   which lets the confound back in through the checkpoint. Implemented as
+   `select_by_winrate()`; deduplicate targets, because early-stopped runs jump 0 → 1 with nothing
+   at 0.5. Apply the divergence guard. Any *fresh* runs still need `early_stop_win_rate: None`
+   and `dh-node12` in `--exclude`.
 6. **Figures + PROVENANCE**, following the graded-slip template. Write the primary analysis down
    **before** the sweep runs so the crossing point cannot be called cherry-picked.
 
