@@ -66,8 +66,10 @@ def score_all_states(ckpt_path, non_terminal, n_rollouts=20, horizon=10,
     -------
     dict {state_idx: float}
     """
-    agent = FrozenLakeDQN()
-    agent.load(ckpt_path)
+    # Build the env from the checkpoint's own config. A bare FrozenLakeDQN()
+    # would score the default slippery map regardless of what this checkpoint
+    # trained on, because load() restores weights but never rebuilds the env.
+    agent = FrozenLakeDQN.from_checkpoint(ckpt_path)
 
     rollout_fn = _build_rollout_fn(agent.env, agent.network, horizon, gamma)
 
