@@ -1,3 +1,8 @@
+# Agent worktrees (18 GB of checked-out trees; never belongs in the repo)
+.claude/worktrees/
+# Literal dir created when an unset $WT shell var got expanded into a path
+$WT/
+
 # Python
 __pycache__/
 *.py[cod]
