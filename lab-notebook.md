@@ -31,18 +31,29 @@ NOT done experimenting — no claim hits its target scenario count yet.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
 5. [side track, not a paper scenario] JaxNav robotics-transfer (branch
-   worktree-research+cce-robotics-transfer): the 25-seed/96k run (see LOG 2026-08-13) showed
-   none of the CCE curves had converged by ep 96k (PER flat, CCE+max still rising, CCE+wmean
-   still falling) — so on 2026-08-13 relaunched the SAME 75 jobs (same seeds, same 3 arms:
-   cce-max/cce-wmean/per) at 150,000 episodes instead. IN FLIGHT as of this NEXT update —
-   check with `sacct -j <jobid> -o JobID,State,Elapsed -X` (jobs are fresh runs, not resumes,
-   so they start from 0 again). Job IDs 272116-272140 (cce-max), 272141-272165 (cce-wmean),
-   272166-272190 (per). Manifest:
-   `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`. Expect ~4h30m worst case
-   (scaled from the 96k run's 2h30m). Once done, rerun
+   worktree-research+cce-robotics-transfer): 25-seed/150k rerun of the 3 arms
+   (cce-max/cce-wmean/per) IN FLIGHT as of 2026-08-13. Job IDs 272116-272140 (cce-max),
+   272141-272165 (cce-wmean), 272166-272190 (per); manifest
+   `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`. Fresh runs, not resumes.
+   Check with `sacct -j <jobid> -o JobID,State,Elapsed -X`. PER finishes ~3x faster than the
+   CCE arms (no counterfactual rollouts). When all 75 are done:
    `PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`
-   (add a `fig_25seed_150k` variant pointed at this new manifest, mirroring `fig_25seed_power`)
-   to get the comparison figure, then commit + push per the pattern in the 2026-08-13 LOG entry.
+   — `fig_25seed_150k` already exists and reads the manifest; nothing to add.
+   **CORRECTION to the 2026-08-13 LOG entry (that entry is append-only, so it stands as
+   written — this is the fix).** Its tail-trend read, "PER flat (+0.3pp), CCE+max rising
+   (+4.2pp), CCE+wmean falling (-4.3pp)", is an artifact of the estimator, not a finding. It
+   used last-minus-first of a trailing window, which is dominated by endpoint noise and flips
+   sign with the window (PER: -1.2pp at 3k, +15.9pp at 20k on the same data). Refitted per
+   seed with a CI across seeds (commits 3d5f2c8, bae75a7), the 96k truth is that ALL THREE
+   arms were still climbing: PER +11.8pp [+5.5,+18.2] over its last 20k, CCE+wmean +10.3pp
+   [+1.4,+19.3], CCE+max +7.3pp [-4.7,+19.3]. So 96k undershot for every arm, PER included —
+   the relaunch was right, its stated reason was not. Do not cite "PER had converged at 96k".
+   Early read of the 150k run (17 PER seeds already at full budget): PER 62.0% mean / 64.2%
+   IQM vs 60.3% / 62.7% at 96k, trend +1.9pp [-9.6,+13.5] = consistent with settled. So 150k
+   buys PER ~2pp and does look like a plateau; the CCE arms decide the comparison.
+   Analysis now refuses to hide a thinned arm: it prints per-arm coverage and excludes seeds
+   that did not reach 95% of the manifest's budget (before, a seed that died at 40k silently
+   contributed its ep-40k score to a "150k final" mean, and truncated the whole IQM curve).
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]
