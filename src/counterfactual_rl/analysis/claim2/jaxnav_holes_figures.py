@@ -74,14 +74,54 @@ def load(job, runs_dir=None):
     return (np.array(eps), np.array(wins)) if eps else None
 
 
-def finals(jobs, k=5, runs_dir=None):
-    """Each seed's final score = mean of its last k evaluations."""
+def finals(jobs, k=5, runs_dir=None, min_episode=None):
+    """Each seed's final score = mean of its last k evaluations.
+
+    `min_episode` guards against mixing budgets: a seed that died early (bad
+    node, timeout) still has a metrics.log, and averaging its last 5 evals
+    silently drops an early-training number into a full-budget mean. Pass the
+    target budget and those seeds are excluded instead of quietly counted."""
     out = []
     for j in jobs:
         r = load(j, runs_dir)
-        if r is not None and len(r[1]) >= k:
-            out.append(float(np.mean(r[1][-k:])))
+        if r is None or len(r[1]) < k:
+            continue
+        if min_episode is not None and r[0][-1] < min_episode:
+            continue
+        out.append(float(np.mean(r[1][-k:])))
     return out
+
+
+def coverage(jobs, runs_dir=None):
+    """Per-arm truth about what is actually on disk: {job: last_episode},
+    plus the jobs with no readable metrics.log at all."""
+    reached, missing = {}, []
+    for j in jobs:
+        r = load(j, runs_dir)
+        if r is None or len(r[0]) == 0:
+            missing.append(j)
+        else:
+            reached[j] = int(r[0][-1])
+    return reached, missing
+
+
+def report_coverage(name, jobs, target, runs_dir=None, tol=0.95):
+    """Print what this arm really contains and return the seeds that finished.
+
+    Silence is the enemy here: a figure built from 22 of 25 seeds, or from
+    seeds that stopped at a third of the budget, looks identical to a clean
+    one unless the shortfall is printed."""
+    reached, missing = coverage(jobs, runs_dir)
+    cutoff = target * tol
+    short = {j: e for j, e in reached.items() if e < cutoff}
+    ok = [j for j in jobs if j in reached and j not in short]
+    print(f"  {name:10s} {len(ok)}/{len(jobs)} seeds reached >={cutoff:.0f} episodes")
+    if missing:
+        print(f"    !! no metrics.log: {missing}")
+    if short:
+        print(f"    !! stopped early (excluded): "
+              f"{ {j: e for j, e in sorted(short.items())} }")
+    return ok
 
 
 def iqm(vals):
@@ -91,7 +131,11 @@ def iqm(vals):
 
 
 def iqm_curve(jobs, runs_dir=None):
-    """IQM computed fresh at every checkpoint, on a common episode grid."""
+    """IQM computed fresh at every checkpoint, on a common episode grid.
+
+    The grid stops at the SHORTEST seed, so one seed that died early drags the
+    whole curve back -- callers should check the returned grid's endpoint
+    against the budget they think they are plotting."""
     curves = [c for c in (load(j, runs_dir) for j in jobs) if c is not None]
     if not curves:
         return None, None
@@ -99,6 +143,36 @@ def iqm_curve(jobs, runs_dir=None):
     grid = np.linspace(250, hi, 300)
     stack = np.vstack([np.interp(grid, e, w) for e, w in curves])
     return grid, np.array([iqm(col) for col in stack.T])
+
+
+def tail_trend(grid, curve, windows=(5000, 10000, 20000)):
+    """Least-squares slope of the IQM curve over each trailing window, given as
+    the percentage-point change across that window. ~0 = the arm has settled.
+
+    Reported at several windows on purpose. The obvious version of this check
+    -- last value minus first value of the window -- is dominated by noise in
+    the two endpoints and flips sign with the window: on the 96k run PER reads
+    -1.2pp at a 3k window but +15.9pp at 20k. One number here is not evidence
+    of convergence, so `settled` demands agreement across all windows."""
+    if grid is None or len(grid) < 2:
+        return None
+    out = {}
+    for w in windows:
+        sel = grid >= grid[-1] - w
+        if sel.sum() < 3:
+            continue
+        out[w] = float(np.polyfit(grid[sel], curve[sel], 1)[0] * w * 100)
+    return out or None
+
+
+def trend_verdict(trend, flat_pp=2.0):
+    """'settled' only if every window agrees the curve is flat."""
+    if not trend:
+        return "no data"
+    if all(abs(v) < flat_pp for v in trend.values()):
+        return "flat (settled)"
+    worst = max(trend.values(), key=abs)
+    return "still RISING" if worst > 0 else "still FALLING"
 
 
 def perm_p(a, b):
@@ -228,6 +302,16 @@ def _power_arms(manifest_path=POWER_MANIFEST):
     return arms
 
 
+def _target_episodes(manifest_path=POWER_MANIFEST):
+    """The episode budget this sweep was launched with, taken from the manifest
+    so nothing downstream has to hardcode 96k vs 150k."""
+    manifest = json.load(open(manifest_path))
+    budgets = {cfg["n_episodes"] for cfg in manifest.values() if "n_episodes" in cfg}
+    if len(budgets) != 1:
+        raise ValueError(f"mixed episode budgets in {manifest_path}: {sorted(budgets)}")
+    return budgets.pop()
+
+
 def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
                       out_name="fig_jaxnav_25seed_power.png", runs_dir=None):
     """25 seeds/arm: CCE+max (the old aggregation bug, kept on purpose as a
@@ -239,21 +323,33 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     the figure for any episode-budget rerun of this comparison (e.g. the
     150k follow-up) -- just point it at that run's manifest.json."""
     arms = _power_arms(manifest_path)
+    target = _target_episodes(manifest_path)
     labels = {"cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)", "per": "PER"}
     colors = {"cce_max": BROWN, "cce_wmean": ORANGE, "per": BLUE}
+
+    # Keep only seeds that actually ran the full budget, and say out loud which
+    # ones were dropped -- a quietly-thinned arm is the easiest way to read a
+    # win that is not there.
+    print(f"\n  coverage (target {target} episodes):")
+    kept = {k: report_coverage(k, arms[k], target, runs_dir)
+            for k in ("per", "cce_max", "cce_wmean")}
 
     fig, (ax, bx) = plt.subplots(
         1, 2, figsize=(14.2, 5.2), gridspec_kw={"width_ratios": [1.55, 1]})
 
-    vals_by_arm = {}
+    vals_by_arm, slopes = {}, {}
     for key in ("per", "cce_max", "cce_wmean"):
-        jobs = arms[key]
-        vals_by_arm[key] = finals(jobs, runs_dir=runs_dir)
+        jobs = kept[key]
+        vals_by_arm[key] = finals(jobs, runs_dir=runs_dir, min_episode=target * 0.95)
         g, y = iqm_curve(jobs, runs_dir)
         if g is None:
             continue
+        slopes[key] = tail_trend(g, y)
+        if g[-1] < target * 0.95:
+            print(f"    !! {key} curve stops at episode {g[-1]:.0f}, "
+                  f"short of the {target}-episode budget")
         ax.plot(g / 1000, y * 100, color=colors[key], lw=2.2,
-                label=f"{labels[key]}  (n={len(jobs)})")
+                label=f"{labels[key]}  (n={len(vals_by_arm[key])})")
     ax.set_xlabel("training episodes (thousands)", color=INK2, fontsize=11)
     ax.set_ylabel("evaluation win rate  (%)", color=INK2, fontsize=11)
     ax.set_title(f"Holes map, {budget_label} budget — 25 seeds/arm (properly powered)",
@@ -265,6 +361,13 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     for i, key in enumerate(order):
         vals = np.array(vals_by_arm[key])
         col = colors[key]
+        if len(vals) == 0:
+            # Normal while a sweep is still running: no seed has hit the budget
+            # yet. Draw nothing for this arm rather than dying, so the script
+            # stays usable mid-flight.
+            bx.text(i, 50, "no finished\nseeds yet", ha="center", va="center",
+                    fontsize=9.5, color=GREY)
+            continue
         x = np.full(len(vals), i) + np.linspace(-0.16, 0.16, len(vals))
         bx.scatter(x, vals * 100, s=32, color=col, alpha=0.75,
                    edgecolor="white", lw=0.4, zorder=3)
@@ -289,10 +392,29 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     print("\n  stats (Welch t-test / Mann-Whitney U):")
     for a_key, b_key in (("cce_max", "per"), ("cce_wmean", "per"), ("cce_max", "cce_wmean")):
         a, b = np.array(vals_by_arm[a_key]), np.array(vals_by_arm[b_key])
+        if len(a) < 2 or len(b) < 2:
+            print(f"  {labels[a_key]:16s} vs {labels[b_key]:16s}  "
+                  f"skipped (n={len(a)} vs n={len(b)}, sweep not finished)")
+            continue
         t, p_t = scipy_stats.ttest_ind(a, b, equal_var=False)
         u, p_u = scipy_stats.mannwhitneyu(a, b, alternative="two-sided")
         print(f"  {labels[a_key]:16s} vs {labels[b_key]:16s}  "
               f"diff={a.mean()-b.mean():+.1%}  t-test p={p_t:.4f}  MannWhitney p={p_u:.4f}")
+
+    # Why the budget was raised. The original read of the 96k run was "PER has
+    # settled, the CCE arms have not", but that came from the endpoint-diff
+    # estimator; with the least-squares version below, all three arms -- PER
+    # included -- are still climbing at 96k. So 96k undershot for everyone,
+    # and no arm's final number there was a converged one.
+    print("\n  convergence (IQM trend over trailing windows, pp across window):")
+    for key in ("per", "cce_max", "cce_wmean"):
+        tr = slopes.get(key)
+        if not tr:
+            continue
+        cells = "  ".join(f"{w//1000}k:{v:+5.1f}" for w, v in sorted(tr.items()))
+        print(f"  {labels[key]:16s} {cells}   -> {trend_verdict(tr)}")
+    print("  (an arm that is not 'flat' has not converged: its final number is\n"
+          "   a snapshot mid-climb, not the level it would reach.)")
     return out
 
 
