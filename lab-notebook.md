@@ -4,7 +4,18 @@ Read first. LOG = append-only (never edit). Rewrite only STATUS/NEXT.
 Before /clear: append a dated LOG entry, especially DEAD ENDS.
 
 ## GOAL
-ICLR 2027 (iclr.cc). Deadline ~late Sep 2026 (est.; recheck). ~16 weeks from 2026-06-02.
+ICLR 2027 (iclr.cc). Dates CONFIRMED 2026-08-13 from iclr.cc/Conferences/2027/Dates
+and /CallForPapers (both agree; third-party trackers disagree — ignore them):
+```
+  ABSTRACT deadline   Sep 18 2026 AOE   <- the real gate: 36 days from 2026-08-13
+  PAPER    deadline   Sep 25 2026 AOE      43 days
+  reviews out         Nov 05 2026
+  decisions           Dec 16 2026
+  conference          Apr 26-30 2027 (location TBA)
+```
+The abstract deadline is a week before the paper deadline and is binding — no abstract,
+no paper. So the planning horizon is 36 days, not 43. Old estimate "~late Sep" was close
+on the paper date but hid the abstract gate.
 
 ## THE BAR
   C2 (speeds learning):   have FL-det ✓  → need 2 MORE clean scenarios
