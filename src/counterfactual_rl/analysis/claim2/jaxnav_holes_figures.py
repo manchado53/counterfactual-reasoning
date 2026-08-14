@@ -66,11 +66,57 @@ AGG_MAX = range(271931, 271934)
 POWER_MANIFEST = os.path.join(EXPERIMENTS, "holes_25seed_power", "manifest.json")
 
 
+DATA = os.path.join(OUT_DIR, "data")
+
+# `**/runs` and `**/experiments/` are both gitignored, so a fresh clone has
+# neither the metrics.log files nor the sweep manifests these figures read.
+# Everything needed to rebuild them is mirrored into DATA (committed): the
+# manifests as JSON, the per-seed curves as compressed npz. load() and
+# _resolve_manifest() fall back to that mirror when the raw run tree is gone --
+# which is not hypothetical here, /home is a shared disk at 100% and an earlier
+# set of runs has already vanished off it once.
+_CACHE = {}
+
+
+def _cache():
+    """job -> (episodes, win_rates), lazily read from the committed npz files."""
+    if _CACHE:
+        return _CACHE
+    if not os.path.isdir(DATA):
+        return _CACHE
+    for fn in sorted(os.listdir(DATA)):
+        if not fn.startswith("curves_") or not fn.endswith(".npz"):
+            continue
+        z = np.load(os.path.join(DATA, fn))
+        for key in z.files:
+            job, _, field = key.rpartition("_")
+            if field == "ep":
+                win = z.get(f"{job}_win")
+                if win is not None:
+                    _CACHE[str(job)] = (z[key], win)
+    return _CACHE
+
+
+def _resolve_manifest(path):
+    """The sweep manifest, or its committed copy if the sweep tree is gone."""
+    if os.path.exists(path):
+        return path
+    name = os.path.basename(os.path.dirname(path))
+    mirrored = os.path.join(DATA, f"manifest_{name.replace('holes_', '')}.json")
+    if os.path.exists(mirrored):
+        return mirrored
+    raise FileNotFoundError(
+        f"no manifest at {path} and no committed copy at {mirrored}")
+
+
 def load(job, runs_dir=None):
-    """Return (episodes, win_rates) from a run's metrics.log, or None."""
+    """Return (episodes, win_rates) from a run's metrics.log, or None.
+
+    Falls back to the committed curve cache when the run tree is unavailable."""
     path = os.path.join(runs_dir or RUNS, str(job), "metrics.log")
     if not os.path.exists(path):
-        return None
+        hit = _cache().get(str(job))
+        return (hit[0].copy(), hit[1].copy()) if hit else None
     eps, wins = [], []
     for line in open(path):
         if line.startswith("#") or "episode" in line:
@@ -409,7 +455,7 @@ def fig_agg(runs_dir=None):
 def _power_arms(manifest_path=POWER_MANIFEST):
     """Arm -> sorted job-id list, read from the manifest (ground truth, not a
     hardcoded range) so resubmitted/replacement seeds are picked up correctly."""
-    manifest = json.load(open(manifest_path))
+    manifest = json.load(open(_resolve_manifest(manifest_path)))
     arms = {"cce_max": [], "cce_wmean": [], "per": []}
     for jid, cfg in manifest.items():
         if cfg["algorithm"] == "dqn":
@@ -426,7 +472,7 @@ def _power_arms(manifest_path=POWER_MANIFEST):
 def _target_episodes(manifest_path=POWER_MANIFEST):
     """The episode budget this sweep was launched with, taken from the manifest
     so nothing downstream has to hardcode 96k vs 150k."""
-    manifest = json.load(open(manifest_path))
+    manifest = json.load(open(_resolve_manifest(manifest_path)))
     budgets = {cfg["n_episodes"] for cfg in manifest.values() if "n_episodes" in cfg}
     if len(budgets) != 1:
         raise ValueError(f"mixed episode budgets in {manifest_path}: {sorted(budgets)}")
@@ -638,6 +684,39 @@ MANIFEST_150K = os.path.join(EXPERIMENTS, "holes_25seed_150k", "manifest.json")
 def fig_25seed_150k(runs_dir=None):
     return fig_25seed_power(MANIFEST_150K, budget_label="150k",
                              out_name="fig_jaxnav_25seed_150k.png", runs_dir=runs_dir)
+
+
+
+def export_cache(manifest_path, tag, runs_dir=None):
+    """Mirror a sweep's manifest and per-seed curves into the committed DATA dir.
+
+    Run this once after a sweep finishes. Without it the figures depend on the
+    gitignored runs/ and experiments/ trees, so nobody -- including us, after a
+    disk cleanup -- can rebuild them from a clone."""
+    os.makedirs(DATA, exist_ok=True)
+    src_manifest = _resolve_manifest(manifest_path)
+    manifest = json.load(open(src_manifest))
+    out_manifest = os.path.join(DATA, f"manifest_{tag}.json")
+    with open(out_manifest, "w") as f:
+        json.dump(manifest, f, indent=1, sort_keys=True)
+
+    arrays, missing = {}, []
+    for jid in manifest:
+        path = os.path.join(runs_dir or RUNS, str(jid), "metrics.log")
+        if not os.path.exists(path):
+            missing.append(jid)
+            continue
+        eps, wins = load(jid, runs_dir)
+        arrays[f"{jid}_ep"] = np.asarray(eps, dtype=np.int32)
+        # float64, not float32: the rank tests are tie-sensitive, and rounding
+        # the win rates moves Mann-Whitney p-values in the third decimal.
+        arrays[f"{jid}_win"] = np.asarray(wins, dtype=np.float64)
+    out_npz = os.path.join(DATA, f"curves_{tag}.npz")
+    np.savez_compressed(out_npz, **arrays)
+    n = len(arrays) // 2
+    print(f"cached {n}/{len(manifest)} runs -> {out_npz}"
+          + (f"  MISSING {missing}" if missing else ""))
+    return out_manifest, out_npz
 
 
 if __name__ == "__main__":

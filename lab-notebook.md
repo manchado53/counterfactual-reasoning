@@ -164,10 +164,67 @@ never read a JaxNav sweep before every seed lands (fast seeds are the good ones,
 +0.49; cost a 10pp overestimate), and never compare runs at matched episode count when the
 epsilon schedules differ (made healthy CCE arms look catastrophic).
 
-Jobs (Rosie, checkpoints not committed): 272116-272140 cce-max, 272141-272165 cce-wmean,
-272166-272190 per. Manifest `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`.
+**IS ANY OF IT SIGNIFICANT? One thing, and it is not the thing we set out to test.**
+The t-test and Mann-Whitney disagreed on the mean (p=0.021 vs 0.214) because PER's dead tail
+flatters the t-test, so the arbiter is a permutation test (200k shuffles, no normality
+assumption). With Bonferroni over the 6 tests run:
+```
+                                        raw p    x6      survives
+  wmean vs PER  mean (permutation)      0.0183  0.110    no
+  max   vs PER  mean (permutation)      0.0639  0.384    no
+  wmean vs PER  SPREAD (Brown-Forsythe) 0.0005  0.0033   YES
+  max   vs PER  SPREAD                  0.0119  0.071    marginal
+  wmean vs PER  collapse count (Fisher) 0.0096  0.058    marginal
+  max   vs PER  collapse count (Fisher) 0.0488  0.293    no
+```
+So: the planned claim ("CCE speeds learning") does NOT reach significance here. The spread
+result does. BUT it is POST-HOC — found by looking at the data, with the 25pp/41-eval choice
+made after the fact, and it did not appear at 96k. Treat it as a hypothesis needing a
+pre-registered confirmation, not a result. Do not write it up as confirmed.
+
+**Mechanism of the collapse (checked, not assumed).** Collapsed seeds' episodes get LONGER as
+win rate falls (e.g. 97 -> 151 steps, cap 200) while healthy seeds get shorter (157 -> 90). So
+the robot stops reaching the goal and wanders to timeout — forgetting, not extra crashing.
+Plausible cause, NOT proven: PER prioritises by TD error, so a route that has been mastered
+stops being surprising, stops being replayed, and is forgotten; CCE prioritises by whether the
+action choice changed the outcome, which stays high at decision-critical states even once they
+are predicted well. UNTESTED because the sweep has no uniform-replay arm — cannot separate "PER
+causes it" from "PER fails to prevent a general DQN instability" (vanilla DQN already collapsed
+on JaxNav once, see 2026-08-06). One 25-seed uniform run at 150k settles it; uniform runs at
+PER speed (~1h), and `--algorithm dqn-uniform` already exists.
+
+**Ruled out as causes** (all checked): jobs all COMPLETED and ran the full 150k with 600 evals;
+fall is gradual over 16k-46k episodes, not an instant cliff; collapsed seeds spread over 5 nodes
+with healthy seeds on the same nodes; zero NaN/inf in all 75 runs; log warnings identical in
+healthy and collapsed runs; collapsed seed sets do not overlap between arms (PER 0,6,7,8,10,14,20
+vs cce_max only 2 vs cce_wmean none), so it is not a cursed-seed artifact.
+
+**CAVEAT on the word "IQM" in these figures.** `jaxnav_holes_figures.iqm()` trims ONE value from
+each end (n=25 -> 4% trim), which is NOT the interquartile mean the paper's `compute_metrics.py`
+uses via rliable (middle 50%). They differ most for PER, exactly because of its failure tail:
+PER 52.1% (this script) vs 56.4% (true IQM). Fix or rename before any of these numbers go near
+the paper.
+
+**Setup, for the record.** Every episode draws a NEW random map, start and goal together
+(`reset(key)` -> `sample_test_case`), 8x8, fill=0.1, goal_radius=0.8, max_steps=200, 15 discrete
+actions, 205-dim obs. Training runs 256 envs in parallel with auto-reset to a fresh map. Eval =
+100 fresh random maps every 250 episodes, and the eval maps CHANGE every evaluation — so the
+curve carries map-draw luck on top of counting noise, which is why 41-eval smoothing is needed.
+Worth fixing a held-out eval map set in any follow-up run; it would sharpen every curve here.
+
+Jobs (Rosie): 272116-272140 cce-max, 272141-272165 cce-wmean, 272166-272190 per.
+REPRODUCIBILITY: `**/runs` and `**/experiments/` are gitignored, so the raw tree is NOT in git.
+Everything needed to rebuild the figures IS committed under
+`docs/figures/real/claim2/jaxnav/data/` — `manifest_25seed_{power,150k}.json` plus
+`curves_25seed_{power,150k}.npz` (per-seed episode/win-rate arrays, float64). The figure module
+falls back to that cache automatically when the run tree is missing; verified to reproduce every
+statistic bit-exactly with `RUNS` pointed at a nonexistent path. Regenerate the cache after a new
+sweep with `export_cache(manifest_path, tag)`.
 Figures: `fig_jaxnav_25seed_150k.png`, `fig_jaxnav_collapse_{96k,150k}.png`. Rerun with
 `PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`.
+Videos of the best seed per arm on identical maps: `docs/figures/real/claim2/jaxnav/video/`,
+regenerate with `...analysis.claim2.jaxnav_rollout_video <outdir>` (needs last.pkl, i.e. the run
+tree — weights are too big to commit).
 
 OPEN: is "CCE prevents late collapse" a paper claim or a side note? It is a different claim
 from C2-as-written ("speeds learning") — this is "doesn't fall over". Needs a decision, and
