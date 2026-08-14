@@ -41,15 +41,12 @@ NOT done experimenting — no claim hits its target scenario count yet.
 2. Redo C1 on deterministic FL.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
-5. [side track, not a paper scenario] JaxNav robotics-transfer (branch
-   worktree-research+cce-robotics-transfer): 25-seed/150k rerun of the 3 arms
-   (cce-max/cce-wmean/per) IN FLIGHT as of 2026-08-13. Job IDs 272116-272140 (cce-max),
-   272141-272165 (cce-wmean), 272166-272190 (per); manifest
-   `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`. Fresh runs, not resumes.
-   Check with `sacct -j <jobid> -o JobID,State,Elapsed -X`. PER finishes ~3x faster than the
-   CCE arms (no counterfactual rollouts). When all 75 are done:
-   `PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`
-   — `fig_25seed_150k` already exists and reads the manifest; nothing to add.
+5. [side track — see OPEN question in the 2026-08-14 LOG entry about promoting it] JaxNav
+   robotics-transfer (branch worktree-research+cce-robotics-transfer): the 25-seed/150k run is
+   **DONE (2026-08-14), all 75 COMPLETED, analysed, figures committed** — result in the LOG.
+   Headline: CCE's edge here is stability (PER collapses late in 7/25 seeds, CCE+wmean 0/25),
+   not a higher ceiling. Decide whether that becomes a paper claim; if yes it needs replication
+   on a paper env (FL-det long-run is the cheap test).
    **CORRECTION to the 2026-08-13 LOG entry (that entry is append-only, so it stands as
    written — this is the fix).** Its tail-trend read, "PER flat (+0.3pp), CCE+max rising
    (+4.2pp), CCE+wmean falling (-4.3pp)", is an artifact of the estimator, not a finding. It
@@ -109,6 +106,72 @@ NOT done experimenting — no claim hits its target scenario count yet.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-14 — JaxNav 150k/25-seed DONE: CCE's edge is STABILITY, not a higher ceiling
+All 75 jobs COMPLETED, zero failures, all 25 seeds/arm at full budget. This is the cleanest
+JaxNav result so far and it reframes what CCE is doing on this task.
+
+**The arms reach the same ceiling and differ at the floor.**
+```
+150k, 25 seeds/arm, holes map          mean    IQM    std    worst5   best5
+  PER                                  51.5%  52.1%  25.5pp   12.8%   79.5%
+  CCE+max   (old buggy aggregation)    62.5%  63.4%  14.1pp   40.5%   78.4%
+  CCE+wmean (the issue-#3 fix)         64.6%  64.7%   8.8pp   52.5%   76.4%
+```
+best5 is the same for all three (76-80%). The whole difference is the bottom of the
+distribution. Brown-Forsythe on the spread: CCE+max p=0.0119, CCE+wmean p=0.0005.
+Bootstrap 95% CI on the mean gap vs PER: max +11.0pp [0.0,+22.2], wmean +13.1pp [+2.9,+23.8].
+
+**Why: PER learns and then throws it away.** 7/25 PER seeds end >25pp below their own smoothed
+peak (e.g. job 272176 peaked 75.6% at ep 131k, finished 14.6%). CCE+max 1/25, CCE+wmean 0/25.
+Fisher p=0.0488 / p=0.0096. See `fig_jaxnav_collapse_150k.png` — the failure is invisible in an
+IQM curve and obvious per seed.
+
+**This is why 96k showed nothing.** The PER collapses start at ep 104k-134k, past the old
+budget. At 96k the collapse counts are PER 2/25, max 1/25, wmean 1/25 (p=1.0) and the spreads
+are identical (~16pp, BF p=0.74/0.99). Nothing was there to find.
+
+**t-test and Mann-Whitney disagree on purpose** (wmean vs PER: t p=0.021, MW p=0.214). Correct
+behaviour, not a bug: the medians are close (60.8% vs 64.8%), so ranks barely move; the means
+separate because PER has a failure tail. Report the spread and the collapse count, not the
+mean gap — the mean gap is a side effect.
+
+**The aggregation fix now looks right.** At 96k the buggy `max` scored highest, which muddied
+the issue-#3 story. At 150k with everything converged, `weighted_mean` is best on every
+reliability measure (std 8.8pp vs 14.1pp, 0 collapses vs 1, worst5 52.5% vs 40.5%), while the
+two are tied on the mean (-2.1pp, p=0.53). So the fix helps where it matters.
+
+CAVEAT: the 96k and 150k sweeps differ in epsilon decay (40000 vs 62500) as well as length, so
+cross-run comparisons are confounded. Every claim above is a WITHIN-150k-run comparison —
+same schedule, same seeds — except the "why 96k showed nothing" timing note.
+
+Method fixes this session (all in `analysis/claim2/jaxnav_holes_figures.py`):
+- coverage printed per arm; seeds short of 95% of the manifest budget are excluded, not
+  silently averaged in at whatever episode they died on.
+- convergence check refitted PER SEED with a CI across seeds. The old last-minus-first version
+  is endpoint-noise dominated and flips sign with the window (PER: -1.2pp at 3k, +15.9pp at
+  20k on identical data). See the correction in NEXT — the 2026-08-13 entry's "PER flat, CCE
+  rising/falling" read is an artifact and should not be cited.
+- collapse detection compares smoothed peak to smoothed final (both 41 evals). Comparing a
+  smoothed peak to a raw 5-eval tail flags noise as collapse; that mismatch was inventing a
+  CCE+wmean "collapse" whose curve is visibly flat to the end.
+- the full threshold x smoothing grid is printed rather than one hand-picked cell, because
+  the 25pp/41-eval choice was made after seeing the data. Direction is robust: PER is strictly
+  highest in 20/20 cells at 150k (and only 5/20 at 96k, i.e. no effect there).
+
+Two measurement traps that produced WRONG numbers before being caught — both in NEXT:
+never read a JaxNav sweep before every seed lands (fast seeds are the good ones, Spearman
++0.49; cost a 10pp overestimate), and never compare runs at matched episode count when the
+epsilon schedules differ (made healthy CCE arms look catastrophic).
+
+Jobs (Rosie, checkpoints not committed): 272116-272140 cce-max, 272141-272165 cce-wmean,
+272166-272190 per. Manifest `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`.
+Figures: `fig_jaxnav_25seed_150k.png`, `fig_jaxnav_collapse_{96k,150k}.png`. Rerun with
+`PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`.
+
+OPEN: is "CCE prevents late collapse" a paper claim or a side note? It is a different claim
+from C2-as-written ("speeds learning") — this is "doesn't fall over". Needs a decision, and
+if it counts, it needs replication on a paper env (FL-det long-run would be the cheap test).
 
 ### 2026-08-13 — JaxNav: found+fixed a real aggregation bug (issue #3), reran properly powered — mixed result, not a clean win
 Branch `worktree-research+cce-robotics-transfer`. Follow-up to 2026-08-06's port. Two things
