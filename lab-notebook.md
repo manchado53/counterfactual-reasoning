@@ -48,12 +48,27 @@ NOT done experimenting — no claim hits its target scenario count yet.
    arms were still climbing: PER +11.8pp [+5.5,+18.2] over its last 20k, CCE+wmean +10.3pp
    [+1.4,+19.3], CCE+max +7.3pp [-4.7,+19.3]. So 96k undershot for every arm, PER included —
    the relaunch was right, its stated reason was not. Do not cite "PER had converged at 96k".
-   Early read of the 150k run (17 PER seeds already at full budget): PER 62.0% mean / 64.2%
-   IQM vs 60.3% / 62.7% at 96k, trend +1.9pp [-9.6,+13.5] = consistent with settled. So 150k
-   buys PER ~2pp and does look like a plateau; the CCE arms decide the comparison.
+   **PER at 150k is DONE, all 25 seeds: mean 51.6%, IQM 52.3%, std 25.4pp, tail trend +1.5pp
+   [-9.7,+12.7] = settled.** Note that is BELOW the 96k run's PER (60.3% / 62.7%, std 16.4pp)
+   — not a contradiction, the two runs differ in more than length (eps_decay 62500 vs 40000),
+   so they are separate experiments, not a resume. CCE arms still running; they decide it.
    Analysis now refuses to hide a thinned arm: it prints per-arm coverage and excludes seeds
    that did not reach 95% of the manifest's budget (before, a seed that died at 40k silently
    contributed its ep-40k score to a "150k final" mean, and truncated the whole IQM curve).
+
+   **GOTCHA — never read a JaxNav sweep before every seed lands (cost me a wrong number this
+   session).** An episode ends on goal-reach, collision, or max_steps, so a GOOD agent has
+   short episodes and burns through the budget FASTER. Finishing order tracks performance:
+   Spearman +0.49 (p=0.012) between how far a seed got and its win rate; furthest 10 PER seeds
+   63.3% vs slowest 10 at 43.9%. Reading early samples the winners — the mid-flight PER read
+   was 62.0% against 51.6% once all 25 landed, a 10pp overestimate. `fig_25seed_power` now
+   prints a loud SWEEP INCOMPLETE banner whenever any arm is short.
+
+   **GOTCHA — do not compare two runs at matched EPISODE COUNT when their epsilon schedules
+   differ.** At ep ~57k the 150k CCE arms looked catastrophic against the 96k run (16.9% vs
+   48.6%) — pure artifact: the 96k run finished exploring at ep 40k, the 150k run decays to
+   ep 62500 and was still exploring. Matched instead at equal epsilon (0.107), the 150k arms
+   are AHEAD: CCE+max 20.7% vs 10.7%, CCE+wmean 18.4% vs 10.6%. Both runs are healthy.
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]

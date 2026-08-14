@@ -350,6 +350,14 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     print(f"\n  coverage (target {target} episodes):")
     kept = {k: report_coverage(k, arms[k], target, runs_dir)
             for k in ("per", "cce_max", "cce_wmean")}
+    if any(len(kept[k]) < len(arms[k]) for k in kept):
+        print("\n  !! SWEEP INCOMPLETE -- these numbers are biased OPTIMISTIC.\n"
+              "     A JaxNav episode ends on goal-reach, collision, or max_steps, so a\n"
+              "     good agent's episodes are short and its seed runs through the budget\n"
+              "     FASTER. Finishing order therefore tracks performance (measured on the\n"
+              "     150k run: Spearman +0.49, p=0.012; furthest 10 seeds 63.3% vs slowest\n"
+              "     10 at 43.9%). Reading a sweep early samples the winners. Wait for all\n"
+              "     seeds before believing any of the numbers below.")
 
     fig, (ax, bx) = plt.subplots(
         1, 2, figsize=(14.2, 5.2), gridspec_kw={"width_ratios": [1.55, 1]})
