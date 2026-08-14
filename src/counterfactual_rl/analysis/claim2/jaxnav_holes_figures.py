@@ -211,10 +211,10 @@ def fig_agg(runs_dir=None):
     return out
 
 
-def _power_arms():
+def _power_arms(manifest_path=POWER_MANIFEST):
     """Arm -> sorted job-id list, read from the manifest (ground truth, not a
-    hardcoded range) so the 3 resubmitted seeds are picked up correctly."""
-    manifest = json.load(open(POWER_MANIFEST))
+    hardcoded range) so resubmitted/replacement seeds are picked up correctly."""
+    manifest = json.load(open(manifest_path))
     arms = {"cce_max": [], "cce_wmean": [], "per": []}
     for jid, cfg in manifest.items():
         if cfg["algorithm"] == "dqn":
@@ -228,12 +228,17 @@ def _power_arms():
     return arms
 
 
-def fig_25seed_power(runs_dir=None):
-    """25 seeds/arm, 96k budget: CCE+max (the old aggregation bug, kept on
-    purpose as a control), CCE+weighted_mean (the fix), PER. Priority mixing
-    is multiplicative (Eq5, mu_c=mu_delta=1.0 -- both defaults, never
-    overridden) for both CCE arms; 'mu' (additive-only) is unused."""
-    arms = _power_arms()
+def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
+                      out_name="fig_jaxnav_25seed_power.png", runs_dir=None):
+    """25 seeds/arm: CCE+max (the old aggregation bug, kept on purpose as a
+    control), CCE+weighted_mean (the fix), PER. Priority mixing is
+    multiplicative (Eq5, mu_c=mu_delta=1.0 -- both defaults, never
+    overridden) for both CCE arms; 'mu' (additive-only) is unused.
+
+    `manifest_path`/`budget_label`/`out_name` let this same function build
+    the figure for any episode-budget rerun of this comparison (e.g. the
+    150k follow-up) -- just point it at that run's manifest.json."""
+    arms = _power_arms(manifest_path)
     labels = {"cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)", "per": "PER"}
     colors = {"cce_max": BROWN, "cce_wmean": ORANGE, "per": BLUE}
 
@@ -251,7 +256,7 @@ def fig_25seed_power(runs_dir=None):
                 label=f"{labels[key]}  (n={len(jobs)})")
     ax.set_xlabel("training episodes (thousands)", color=INK2, fontsize=11)
     ax.set_ylabel("evaluation win rate  (%)", color=INK2, fontsize=11)
-    ax.set_title("Holes map, 96k budget — 25 seeds/arm (properly powered)",
+    ax.set_title(f"Holes map, {budget_label} budget — 25 seeds/arm (properly powered)",
                  color=INK, fontsize=12.5, fontweight="bold", loc="left")
     ax.legend(frameon=False, fontsize=10, loc="upper left")
     _frame(ax)
@@ -276,7 +281,7 @@ def fig_25seed_power(runs_dir=None):
 
     fig.tight_layout()
     os.makedirs(OUT_DIR, exist_ok=True)
-    out = os.path.join(OUT_DIR, "fig_jaxnav_25seed_power.png")
+    out = os.path.join(OUT_DIR, out_name)
     fig.savefig(out, dpi=150, facecolor="white")
     plt.close(fig)
     print(f"wrote {out}")
@@ -291,7 +296,18 @@ def fig_25seed_power(runs_dir=None):
     return out
 
 
+# 150k follow-up run's manifest (relaunched because none of the 96k CCE curves had converged).
+MANIFEST_150K = os.path.join(EXPERIMENTS, "holes_25seed_150k", "manifest.json")
+
+
+def fig_25seed_150k(runs_dir=None):
+    return fig_25seed_power(MANIFEST_150K, budget_label="150k",
+                             out_name="fig_jaxnav_25seed_150k.png", runs_dir=runs_dir)
+
+
 if __name__ == "__main__":
     fig_v4()
     fig_agg()
     fig_25seed_power()
+    if os.path.exists(MANIFEST_150K):
+        fig_25seed_150k()
