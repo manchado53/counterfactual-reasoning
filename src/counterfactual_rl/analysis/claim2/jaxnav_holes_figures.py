@@ -687,6 +687,27 @@ def fig_25seed_150k(runs_dir=None):
 
 
 
+def export_jobs(jobs, tag, runs_dir=None):
+    """Mirror an explicit job list into the committed DATA dir.
+
+    For the earlier figures (fig_v4, fig_agg), whose job ids are hardcoded
+    ranges rather than a manifest."""
+    os.makedirs(DATA, exist_ok=True)
+    arrays, missing = {}, []
+    for jid in jobs:
+        r = load(jid, runs_dir)
+        if r is None:
+            missing.append(jid)
+            continue
+        arrays[f"{jid}_ep"] = np.asarray(r[0], dtype=np.int32)
+        arrays[f"{jid}_win"] = np.asarray(r[1], dtype=np.float64)
+    out_npz = os.path.join(DATA, f"curves_{tag}.npz")
+    np.savez_compressed(out_npz, **arrays)
+    print(f"cached {len(arrays)//2}/{len(list(jobs))} runs -> {out_npz}"
+          + (f"  MISSING {missing}" if missing else ""))
+    return out_npz
+
+
 def export_cache(manifest_path, tag, runs_dir=None):
     """Mirror a sweep's manifest and per-seed curves into the committed DATA dir.
 
