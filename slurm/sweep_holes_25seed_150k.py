@@ -1,0 +1,54 @@
+"""Same 25-seed/arm holes-map comparison as sweep_holes_25seed_power.py, but
+150,000 episodes instead of 96,000 (1.5625x). Follow-up to that run: none of
+the CCE curves had converged by ep 96k (tail trend: max still climbing
++4.2pp/5k-eps, weighted_mean still falling -4.3pp/5k-eps; only PER was flat),
+so cutting off there was premature. Same seeds (0-24) as the 96k run, so each
+seed's trajectory is directly comparable past the point it was cut off before.
+"""
+import base64
+import json
+import os
+import subprocess
+
+WT = "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer"
+SBATCH = os.path.join(WT, "slurm", "sweep_job.sbatch")
+N_SEEDS = 25
+
+BASE = dict(
+    scenario=None, map_id="Grid-Rand-Poly", map_size=[8, 8], fill=0.1,
+    goal_radius=0.8, coll_rew=0.0, max_steps=200, sparse_reward=True,
+    epsilon_decay_episodes=62500, n_episodes=150000,  # keeps the ~42% decay ratio used throughout
+    eval_interval=250, eval_episodes=100,
+    n_envs=256, collect_steps=32, vectorized=True,
+    early_stop_patience=100000,  # disabled, same as the 96k run
+)
+
+ARMS = {
+    "cce-max":   dict(algorithm="consequence-dqn", priority_mixing="multiplicative",
+                       score_interval=500, cf_rollout_temperature=0.5,
+                       cf_horizon=20, cf_n_rollouts=20, consequence_aggregation="max"),
+    "cce-wmean": dict(algorithm="consequence-dqn", priority_mixing="multiplicative",
+                       score_interval=500, cf_rollout_temperature=0.5,
+                       cf_horizon=20, cf_n_rollouts=20, consequence_aggregation="weighted_mean"),
+    "per":       dict(algorithm="dqn"),
+}
+
+manifest = {}
+for arm, acfg in ARMS.items():
+    for seed in range(N_SEEDS):
+        cfg = {**BASE, **acfg, "seed": seed}
+        b64 = base64.b64encode(json.dumps(cfg).encode()).decode()
+        out = subprocess.check_output(
+            ["sbatch", "--parsable", "--time=04:30:00", "--exclude=dh-node12",
+             f"--export=ALL,CONFIG_OVERRIDES_B64={b64}", SBATCH]
+        )
+        jid = out.decode().strip()
+        manifest[jid] = cfg
+        print(f"{arm:10s} seed={seed:2d}  job={jid}")
+
+out_dir = os.path.join(WT, "src", "counterfactual_rl", "agents", "jax_nav", "experiments", "holes_25seed_150k")
+os.makedirs(out_dir, exist_ok=True)
+mpath = os.path.join(out_dir, "manifest.json")
+with open(mpath, "w") as f:
+    json.dump(manifest, f, indent=2)
+print(f"\n{len(manifest)} jobs submitted. Manifest: {mpath}")

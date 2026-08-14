@@ -31,9 +31,18 @@ NOT done experimenting — no claim hits its target scenario count yet.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
 5. [side track, not a paper scenario] JaxNav robotics-transfer (branch
-   worktree-research+cce-robotics-transfer): found + fixed a real aggregation bug (same as repo
-   issue #3), reran properly-powered (25 seeds/arm, 96k episodes) — result is a genuine mixed
-   bag, not a clean win either way. Open decision: run longer vs. more seeds. See LOG below.
+   worktree-research+cce-robotics-transfer): the 25-seed/96k run (see LOG 2026-08-13) showed
+   none of the CCE curves had converged by ep 96k (PER flat, CCE+max still rising, CCE+wmean
+   still falling) — so on 2026-08-13 relaunched the SAME 75 jobs (same seeds, same 3 arms:
+   cce-max/cce-wmean/per) at 150,000 episodes instead. IN FLIGHT as of this NEXT update —
+   check with `sacct -j <jobid> -o JobID,State,Elapsed -X` (jobs are fresh runs, not resumes,
+   so they start from 0 again). Job IDs 272116-272140 (cce-max), 272141-272165 (cce-wmean),
+   272166-272190 (per). Manifest:
+   `agents/jax_nav/experiments/holes_25seed_150k/manifest.json`. Expect ~4h30m worst case
+   (scaled from the 96k run's 2h30m). Once done, rerun
+   `PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`
+   (add a `fig_25seed_150k` variant pointed at this new manifest, mirroring `fig_25seed_power`)
+   to get the comparison figure, then commit + push per the pattern in the 2026-08-13 LOG entry.
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]
