@@ -30,8 +30,10 @@ NOT done experimenting — no claim hits its target scenario count yet.
 2. Redo C1 on deterministic FL.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
-5. [side track, not a paper scenario] JaxNav robotics-transfer: 5-seed/48k-episode holes-map
-   confirmation run in flight (branch worktree-research+cce-robotics-transfer) — see LOG below.
+5. [side track, not a paper scenario] JaxNav robotics-transfer (branch
+   worktree-research+cce-robotics-transfer): found + fixed a real aggregation bug (same as repo
+   issue #3), reran properly-powered (25 seeds/arm, 96k episodes) — result is a genuine mixed
+   bag, not a clean win either way. Open decision: run longer vs. more seeds. See LOG below.
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]
@@ -61,6 +63,79 @@ NOT done experimenting — no claim hits its target scenario count yet.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-13 — JaxNav: found+fixed a real aggregation bug (issue #3), reran properly powered — mixed result, not a clean win
+Branch `worktree-research+cce-robotics-transfer`. Follow-up to 2026-08-06's port. Two things
+happened this session: a real bug fix, and a statistically honest re-test that came back murkier
+than the earlier small-seed runs suggested.
+
+**The bug (repo issue #3, confirmed present in the JaxNav port too, not just FrozenLake).**
+`compute_consequence_metric(..., aggregation='weighted_mean')` only takes the weighted-mean
+branch if `action_probs` is supplied (`analysis/metrics.py:306`); JaxNav's
+`_score_buffer_transitions` never supplied it, so despite the config saying `weighted_mean`, the
+code silently fell through to `max` over the 14 alternative-action divergences — every score was
+"how different was the single weirdest alternative," not a real average. Same bug as FrozenLake,
+carried over because the JaxNav port mirrored that file. **Fix**: `consequence_dqn.py` now
+computes real `action_probs` = `softmax(Q(obs)/cf_rollout_temperature)` per scored state and
+passes them through, so `weighted_mean` genuinely averages, weighted by how likely the policy
+would have taken each alternative. Cheap pre-retrain check confirmed the fix changes the score
+*distribution* (53 distinct values vs 18, no more ceiling-saturation) but barely reorders which
+states get flagged on a late checkpoint (Spearman 0.997) — real effect, uncertain practical size.
+
+**Also new**: a `PlateauEarlyStopper` (`agents/shared/early_stopping.py`) — smoothed, patience-based
+early stop for runs where different arms converge to different final levels (the existing
+`early_stop_win_rate` target-threshold stop doesn't fit that case). Wired into both vectorized
+trainers. Left disabled (`early_stop_patience=100000`) for the runs below after an earlier
+96k attempt (v3) showed it firing prematurely, right as exploration ended, on every single seed.
+
+**Results, in the order run (holes map throughout — 8x8, 10% obstacles, `coll_rew=0`):**
+```
+12k episodes, 3 seeds/arm (quick fix-vs-bug check):
+  CCE+weighted_mean(fix)  24.4%   CCE+max(bug, on purpose)  20.5%   PER  16.0%
+  -> fix beat bug beat PER, but n=3, not powered.
+
+96k episodes, 5 seeds/arm, OLD buggy aggregation (v4, no early-stop):
+  CCE-mul  70.3% (IQM 70.1%)   vs   PER  56.1% (IQM 60.9%)
+  Exact permutation test (all 252 splits): p=0.310 -- NOT significant despite the size of the gap.
+  [Earlier in this session I mis-recalled this comparison from memory against a DIFFERENT run's
+  numbers (v3, the buggy-early-stop one) and reported PER winning -- that was wrong. Re-verified
+  against docs/figures/real/claim2/jaxnav/fig_jaxnav_iqm_v4.png, generated straight from
+  runs/271903-271912/metrics.log. This is the corrected, code-verified number.]
+
+96k episodes, 25 seeds/arm, power-analysis-justified (a Monte Carlo power sim off the 5-seed
+stats above said ~25/arm needed for 80% power at this effect size and PER's variance):
+  CCE+max(bug)        68.7%  (IQM 71.7%,  std 15.7%)
+  CCE+weighted_mean(fix) 62.2%  (IQM 66.0%,  std 15.7%)
+  PER                 60.3%  (IQM 62.7%,  std 16.4%)
+  CCE+max vs PER:      t-test p=0.079,  Mann-Whitney p=0.012   (borderline)
+  CCE+wmean vs PER:    t-test p=0.691,  Mann-Whitney p=0.491   (not significant)
+  CCE+max vs CCE+wmean: t-test p=0.160,  Mann-Whitney p=0.051   (borderline)
+  -> Honest read: CCE (either aggregation) is at least holding its own vs PER, never losing to
+  it, but nothing here clears a real significance bar. The "fix helps" story from the 12k test
+  did NOT reproduce cleanly at scale -- if anything the old buggy 'max' scored highest.
+  Tail-trend check (slope of IQM over the last 5000 episodes): PER flat (+0.3pp), CCE+max still
+  RISING (+4.2pp), CCE+wmean still FALLING (-4.3pp) -- none of the CCE curves had converged by
+  ep 96k, unlike PER. Open decision: run longer (to let CCE settle) vs. more seeds (to shrink
+  PER's own 16pp std, which is the main driver of the wide CIs) -- not yet chosen.
+
+**Reminder on what "CCE" means in every number above**: `priority_mixing='multiplicative'`
+(Eq5), `mu_c=mu_delta=1.0` (both default, never overridden). This is CCE+TD combined
+(`p_C^mu_c * p_TD^mu_delta`), not a CCE-only arm. `mu` (the additive-mixing weight) is unused
+here entirely -- multiplicative mixing never reads it.
+
+**Infra**: `dh-node12` now confirmed bad (2nd incident — 3 co-scheduled jobs in the 25-seed run
+all died SIGKILL at the same elapsed time). `--exclude=dh-node12` from now on.
+
+Figures + generating code: `analysis/claim2/jaxnav_holes_figures.py` (extends a script found
+already in the repo from earlier in this session, before a context summarization — same
+job-ID-driven, no-hardcoded-numbers style) → `docs/figures/real/claim2/jaxnav/` (3 PNGs) +
+`docs/figures/real/claim2/jaxnav/data/` (4 manifests, job_id → config). Rerun with
+`PYTHONPATH=<worktree>/src python -m counterfactual_rl.analysis.claim2.jaxnav_holes_figures`.
+
+Job ranges (Rosie, checkpoints not committed): v4 96k/5seed 271903-271912; 12k agg test
+271925-271930; 12k max-control 271931-271933; 25-seed power run 271949-272023 (cce-max),
+271974-271998 (cce-wmean, 3 replaced as 272041-272043 after the dh-node12 failure), 271999-272023
+(per).
 
 ### 2026-08-06 — JaxNav robotics-transfer port: CCE wins on obstacles, loses without them
 Branch `worktree-research+cce-robotics-transfer` (off `research/cce-robotics-transfer`), NOT

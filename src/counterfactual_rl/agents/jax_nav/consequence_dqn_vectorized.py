@@ -22,6 +22,7 @@ from tqdm import tqdm
 from .consequence_dqn import JaxNavConsequenceDQN
 from .dqn import _MetricsLogger
 from .dqn_vectorized import JaxNavDQNVectorized, _tree_where
+from ..shared.early_stopping import PlateauEarlyStopper
 
 
 class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
@@ -121,6 +122,13 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
         best_path = os.path.join(self.metrics_logger.dir, 'best.pkl')
         best_success = -1.0
         early_stop_win_rate = self.config.get('early_stop_win_rate', None)
+        plateau_stopper = PlateauEarlyStopper(
+            patience=self.config.get('early_stop_patience', 20),
+            min_delta=self.config.get('early_stop_min_delta', 0.02),
+            smooth_window=self.config.get('early_stop_smooth_window', 5),
+            min_episodes=self.config.get('early_stop_min_episodes')
+                or self.epsilon_decay_episodes,
+        )
 
         n_ckpts = self.config.get('n_checkpoints', 100)
         ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
@@ -213,7 +221,11 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
                         print(f"\n  New best: {best_success:.1%} at ep {total_episodes}")
                 if early_stop_win_rate and metrics['win_rate'] >= early_stop_win_rate:
                     if verbose:
-                        print(f"\n  Early stop: {metrics['win_rate']:.1%} >= {early_stop_win_rate:.1%}")
+                        print(f"\n  Early stop (target): {metrics['win_rate']:.1%} >= {early_stop_win_rate:.1%}")
+                    break
+                if plateau_stopper.update(total_episodes, metrics['win_rate']):
+                    if verbose:
+                        print(f"\n  Early stop (plateau) at ep {total_episodes}: {plateau_stopper.status()}")
                     break
                 prev_eval_ep = total_episodes
 

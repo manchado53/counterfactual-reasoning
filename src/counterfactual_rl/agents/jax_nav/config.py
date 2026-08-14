@@ -40,6 +40,17 @@ DEFAULT_CONFIG = {
     'seed': 0,
     'PER_parameters': {'eps': 0.01, 'beta': 0.25, 'maximum_priority': 1.0},
 
+    # --- Early stopping ---
+    'early_stop_win_rate': None,      # target-score stop: stop once win_rate >= this. Unset by
+                                       # default -- doesn't fit runs where algorithms converge to
+                                       # different final levels (no single shared "success" score).
+    'early_stop_patience': 20,        # plateau stop: eval checkpoints with no improvement before
+                                       # stopping (at eval_interval=250, that's 5000 episodes flat)
+    'early_stop_min_delta': 0.02,     # smoothed win-rate improvement below this doesn't count
+    'early_stop_smooth_window': 5,    # evals averaged before comparing (damps single-eval noise)
+    'early_stop_min_episodes': None,  # no plateau checks before this episode; None -> defaults to
+                                       # epsilon_decay_episodes (don't judge a still-exploring policy)
+
     # --- Consequence-weighted PER (identical knobs to FrozenLake) ---
     'mu': 0.5,
     'priority_mixing': 'additive',

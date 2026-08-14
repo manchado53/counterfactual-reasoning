@@ -114,12 +114,13 @@ class JaxNavConsequenceDQN(JaxNavDQN):
 
         transitions, indices = self.buffer.sample_uniform(n_score)
 
-        valid_states, valid_actions_taken, valid_indices = [], [], []
+        valid_states, valid_obs, valid_actions_taken, valid_indices = [], [], [], []
         for i, (t, idx) in enumerate(zip(transitions, indices)):
             s = self.buffer.get_jax_state(idx)
             if s is None:
                 continue
             valid_states.append(s)                 # a JaxNav State pytree (numpy leaves)
+            valid_obs.append(t['s'])                # the observation at that state (for action_probs)
             valid_actions_taken.append(int(t['a']))
             valid_indices.append(i)
 
@@ -144,14 +145,29 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         returns = jax.block_until_ready(returns)
         returns_np = np.array(returns)  # (B, A, N)
 
+        # action_probs for weighted_mean aggregation (fixes the bug where 'weighted_mean' was
+        # requested but compute_consequence_metric silently fell back to 'max' whenever
+        # action_probs was None -- see repo issue #3, which found the same bug on FrozenLake's
+        # near-identical scoring code). Softmax the scored state's own Q-values (same temperature
+        # as the rollout continuation policy) so every alternative gets a real nonzero weight --
+        # a pure argmax-derived action_probs would put 0 on every alternative and just fall
+        # through to a plain mean anyway (per the issue), so softmax is what actually makes
+        # 'weighted_mean' behave as a genuine weighted mean instead of degenerating either way.
+        obs_batch = jnp.asarray(np.stack(valid_obs), dtype=jnp.float32)
+        q_batch = jax.vmap(self.network.apply, in_axes=(None, 0))(self.params, obs_batch)
+        temp = max(self.cf_rollout_temperature, 1e-3)
+        probs_batch = np.array(jax.nn.softmax(q_batch / temp, axis=-1))  # (B, A)
+
         scores = np.zeros(B)
         for i in range(B):
             taken_action = valid_actions_taken[i]
             return_distributions = {(a,): returns_np[i, a] for a in range(A)}
+            action_probs = {(a,): float(probs_batch[i, a]) for a in range(A)}
             scores[i] = compute_consequence_metric(
                 action=(taken_action,),
                 return_distributions=return_distributions,
                 metric=self.consequence_metric,
+                action_probs=action_probs,
                 aggregation=self.consequence_aggregation,
             )
         scores = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
