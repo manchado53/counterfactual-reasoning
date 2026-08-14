@@ -145,34 +145,51 @@ def iqm_curve(jobs, runs_dir=None):
     return grid, np.array([iqm(col) for col in stack.T])
 
 
-def tail_trend(grid, curve, windows=(5000, 10000, 20000)):
-    """Least-squares slope of the IQM curve over each trailing window, given as
-    the percentage-point change across that window. ~0 = the arm has settled.
+def seed_tail_slopes(jobs, window=20000, runs_dir=None):
+    """Per-seed least-squares slope over the trailing `window` episodes, as the
+    percentage-point change across that window.
 
-    Reported at several windows on purpose. The obvious version of this check
-    -- last value minus first value of the window -- is dominated by noise in
-    the two endpoints and flips sign with the window: on the 96k run PER reads
-    -1.2pp at a 3k window but +15.9pp at 20k. One number here is not evidence
-    of convergence, so `settled` demands agreement across all windows."""
-    if grid is None or len(grid) < 2:
-        return None
-    out = {}
-    for w in windows:
-        sel = grid >= grid[-1] - w
+    Fitted per seed and aggregated afterwards, NOT as one fit to the pooled IQM
+    curve. Each eval point is only 100 episodes, so a single curve's tail is
+    very noisy and one fit to it gives a number with no error bar and no
+    stability: on this data, adding one seed moved a pooled 5k-window fit from
+    +4.6pp to +13.2pp. Per-seed slopes give a spread, and the spread is what
+    says whether a trend is real."""
+    out = []
+    for j in jobs:
+        r = load(j, runs_dir)
+        if r is None:
+            continue
+        eps, wins = r
+        sel = eps >= eps[-1] - window
         if sel.sum() < 3:
             continue
-        out[w] = float(np.polyfit(grid[sel], curve[sel], 1)[0] * w * 100)
-    return out or None
+        out.append(float(np.polyfit(eps[sel], wins[sel], 1)[0] * window * 100))
+    return np.array(out)
 
 
-def trend_verdict(trend, flat_pp=2.0):
-    """'settled' only if every window agrees the curve is flat."""
-    if not trend:
+def trend_ci(slopes):
+    """Mean per-seed slope with a 95% t interval across seeds."""
+    if len(slopes) < 2:
+        return None
+    m = float(slopes.mean())
+    half = float(scipy_stats.t.ppf(0.975, len(slopes) - 1)
+                 * slopes.std(ddof=1) / np.sqrt(len(slopes)))
+    return m, m - half, m + half
+
+
+def trend_verdict(stat):
+    """Converged = the trend across seeds is consistent with zero.
+
+    Judged by whether the interval covers 0 rather than by the point estimate,
+    because the point estimate alone cannot separate 'flat' from 'too noisy to
+    tell' -- and those call for opposite decisions (report it vs run longer)."""
+    if stat is None:
         return "no data"
-    if all(abs(v) < flat_pp for v in trend.values()):
-        return "flat (settled)"
-    worst = max(trend.values(), key=abs)
-    return "still RISING" if worst > 0 else "still FALLING"
+    m, lo, hi = stat
+    if lo <= 0 <= hi:
+        return "consistent with settled"
+    return "still RISING (not converged)" if m > 0 else "still FALLING (not converged)"
 
 
 def perm_p(a, b):
@@ -344,7 +361,8 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
         g, y = iqm_curve(jobs, runs_dir)
         if g is None:
             continue
-        slopes[key] = tail_trend(g, y)
+        slopes[key] = {w: trend_ci(seed_tail_slopes(jobs, w, runs_dir))
+                       for w in (10000, 20000)}
         if g[-1] < target * 0.95:
             print(f"    !! {key} curve stops at episode {g[-1]:.0f}, "
                   f"short of the {target}-episode budget")
@@ -406,15 +424,19 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     # estimator; with the least-squares version below, all three arms -- PER
     # included -- are still climbing at 96k. So 96k undershot for everyone,
     # and no arm's final number there was a converged one.
-    print("\n  convergence (IQM trend over trailing windows, pp across window):")
+    print("\n  convergence (mean per-seed trend over the trailing window,")
+    print("               pp across window, 95% CI across seeds):")
     for key in ("per", "cce_max", "cce_wmean"):
-        tr = slopes.get(key)
-        if not tr:
-            continue
-        cells = "  ".join(f"{w//1000}k:{v:+5.1f}" for w, v in sorted(tr.items()))
-        print(f"  {labels[key]:16s} {cells}   -> {trend_verdict(tr)}")
-    print("  (an arm that is not 'flat' has not converged: its final number is\n"
-          "   a snapshot mid-climb, not the level it would reach.)")
+        tr = slopes.get(key) or {}
+        for w in sorted(tr):
+            stat = tr[w]
+            if stat is None:
+                continue
+            m, lo, hi = stat
+            print(f"  {labels[key]:16s} {w//1000}k: {m:+5.1f} "
+                  f"[{lo:+5.1f},{hi:+5.1f}]   {trend_verdict(stat)}")
+    print("  (an arm whose interval clears 0 is still moving: its final number\n"
+          "   is a snapshot mid-climb, not the level it would reach.)")
     return out
 
 
