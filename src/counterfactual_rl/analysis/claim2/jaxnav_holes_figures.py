@@ -1,6 +1,9 @@
 """JaxNav holes-map figures, built straight from the run logs.
 
-Three figures, one claim each:
+Every figure is the same two-panel shape: an IQM-over-seeds curve on the left,
+one dot per seed on the right.
+
+One claim each:
 
   fig_jaxnav_iqm_v4.png   the 96k full-budget run (v4, jobs 271903-271912).
                           IQM win-rate over training, plus every seed's final
@@ -18,6 +21,15 @@ Three figures, one claim each:
                           CCE+weighted_mean seeds died on a bad compute node
                           (dh-node12) and were resubmitted under different
                           job IDs (272041-272043).
+
+  fig_jaxnav_25seed_150k.png  the same comparison rerun at a 150k budget,
+                          where all three arms have converged.
+
+  fig_jaxnav_collapse_{96k,150k}.png  the late-collapse result. Right panel is
+                          each seed's drop from its OWN peak rather than its
+                          final score, because the arms finish at the same
+                          ceiling and differ only in how often a seed throws
+                          its progress away late in training.
 
 Every number is read from `runs/<job>/metrics.log`. Nothing is hard-coded:
 the p-value and every mean are computed here from those arrays.
@@ -543,54 +555,79 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
 
 
 def fig_collapse(manifest_path, budget_label, out_name, runs_dir=None, drop=0.25):
-    """Every seed's own curve, one panel per arm, collapses drawn in red.
+    """Same two-panel grammar as the other figures: IQM over seeds on the left,
+    one dot per seed on the right.
 
-    The IQM curve in the main figure hides this: a seed that climbs to 75% and
-    falls back to 15% is averaged in with 24 others and shows up only as a
-    slightly lower line. The failure mode is only visible per seed."""
+    The right panel plots each seed's DROP FROM ITS OWN PEAK rather than its
+    final score, because that is the quantity the arms actually differ on --
+    they finish at the same ceiling and differ in how often a seed throws its
+    progress away late in training. Peak and final are both read off the same
+    smoothed curve so the comparison is like-for-like."""
     arms = _power_arms(manifest_path)
     target = _target_episodes(manifest_path)
     labels = {"per": "PER", "cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)"}
+    colors = {"per": BLUE, "cce_max": BROWN, "cce_wmean": ORANGE}
     order = ["per", "cce_max", "cce_wmean"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(15.4, 4.8), sharey=True)
-    for ax, key in zip(axes, order):
-        jobs = [j for j in arms[key]
-                if (r := load(j, runs_dir)) is not None and r[0][-1] >= target * 0.95]
-        n_bad = 0
-        for j in jobs:
-            r = load(j, runs_dir)
+    fig, (ax, bx) = plt.subplots(
+        1, 2, figsize=(14.2, 5.2), gridspec_kw={"width_ratios": [1.55, 1]})
+
+    kept, drops = {}, {}
+    for key in order:
+        kept[key] = [j for j in arms[key]
+                     if (r := load(j, runs_dir)) is not None and r[0][-1] >= target * 0.95]
+        d = []
+        for j in kept[key]:
             pf = peak_and_final(j, runs_dir=runs_dir)
-            bad = pf is not None and pf[0] - pf[1] > drop
-            n_bad += bad
-            # Each eval point averages only 100 episodes, so a raw per-seed line
-            # is a noise band ~40pp tall and 25 of them overlap into a solid
-            # block -- the collapse is invisible without smoothing first.
-            win = SMOOTH
-            if len(r[1]) > win:
-                sm = np.convolve(r[1], np.ones(win) / win, mode="valid")
-                xs = r[0][win - 1:]
-            else:
-                sm, xs = r[1], r[0]
-            ax.plot(xs / 1000, sm * 100,
-                    color="#c0392b" if bad else GREY,
-                    lw=1.5 if bad else 0.9,
-                    alpha=0.9 if bad else 0.5, zorder=3 if bad else 2)
-        ax.set_title(f"{labels[key]}\n{n_bad}/{len(jobs)} seeds collapse",
-                     color=INK, fontsize=11.5, fontweight="bold", loc="left")
-        ax.set_xlabel("training episodes (thousands)", color=INK2, fontsize=10.5)
-        _frame(ax)
-    axes[0].set_ylabel("evaluation win rate  (%)", color=INK2, fontsize=11)
-    axes[0].set_ylim(0, 100)
-    fig.suptitle(f"JaxNav holes map, {budget_label} budget — one line per seed "
-                 f"(smoothed over {SMOOTH} evals); red = ended >{int(drop*100)}pp below its own peak",
-                 color=INK, fontsize=12.5, fontweight="bold", x=0.005, ha="left")
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+            if pf is not None:
+                d.append(pf[0] - pf[1])
+        drops[key] = np.array(d)
+        g, y = iqm_curve(kept[key], runs_dir)
+        if g is not None:
+            ax.plot(g / 1000, y * 100, color=colors[key], lw=2.2,
+                    label=f"{labels[key]}  (n={len(kept[key])})")
+    ax.set_xlabel("training episodes (thousands)", color=INK2, fontsize=11)
+    ax.set_ylabel("evaluation win rate  (%)", color=INK2, fontsize=11)
+    ax.set_title(f"Holes map, {budget_label} budget — IQM over seeds",
+                 color=INK, fontsize=12.5, fontweight="bold", loc="left")
+    ax.legend(frameon=False, fontsize=10, loc="upper left")
+    _frame(ax)
+
+    for i, key in enumerate(order):
+        v = drops[key]
+        col = colors[key]
+        if len(v) == 0:
+            continue
+        n_bad = int((v > drop).sum())
+        x = np.full(len(v), i) + np.linspace(-0.16, 0.16, len(v))
+        bx.scatter(x, v * 100, s=32, color=col, alpha=0.75,
+                   edgecolor="white", lw=0.4, zorder=3)
+        bx.plot([i - 0.28, i + 0.28], [v.mean() * 100] * 2, lw=2.6, color=col, zorder=4)
+        bx.text(i, 93, f"{n_bad}/{len(v)}", ha="center", fontsize=11,
+                color=col, fontweight="bold")
+    bx.axhline(drop * 100, color=GREY, lw=1.4, ls=(0, (5, 3)), zorder=2)
+    bx.text(2.55, drop * 100 + 1.5, f"{int(drop*100)}pp", fontsize=9,
+            color=INK2, ha="right", va="bottom")
+    bx.set_xticks(range(len(order)))
+    bx.set_xticklabels([labels[k] for k in order], fontsize=9.5, color=INK2)
+    bx.set_xlim(-0.6, 2.6)
+    bx.set_ylim(0, 100)
+    bx.set_ylabel("drop from own peak  (pp)", color=INK2, fontsize=11)
+    bx.set_title("Every seed; label = seeds ending >25pp below peak",
+                 color=INK, fontsize=11, loc="left")
+    _frame(bx)
+
+    fig.tight_layout()
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, out_name)
     fig.savefig(out, dpi=150, facecolor="white")
     plt.close(fig)
     print(f"wrote {out}")
+    for key in order:
+        v = drops[key]
+        if len(v):
+            print(f"  {labels[key]:16s} mean drop {v.mean()*100:5.1f}pp   "
+                  f"collapsed {(v > drop).sum()}/{len(v)}")
     return out
 
 
