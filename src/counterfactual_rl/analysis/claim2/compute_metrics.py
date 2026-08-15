@@ -15,6 +15,21 @@ from rliable import metrics as rl_metrics
 ALG_ORDER = ['DQN-Uniform', 'DQN+PER', 'DQN+CCE-only', 'CCE+TD (add)', 'CCE+TD (mul)']
 
 
+def iqm(scores) -> float:
+    """Interquartile mean of a 1-D score array -- the project's single definition.
+
+    Delegates to rliable so every figure in the repo aggregates the same way as
+    the paper. rliable's aggregate_iqm is scipy.stats.trim_mean(..., 0.25):
+    the middle 50%, i.e. 25% trimmed from each tail.
+
+    Exists because the JaxNav figures used to carry their own `iqm` that
+    trimmed a single value from each end (23 of 25 seeds rather than 13) and
+    still called the result IQM. On a bimodal arm those disagree by several
+    points, so the name has to mean one thing repo-wide.
+    """
+    return float(rl_metrics.aggregate_iqm(np.asarray(scores, dtype=float)))
+
+
 def iqm_curves(raw: Dict[str, np.ndarray], reps: int = 50000) -> Dict[str, Tuple]:
     """IQM learning curves with 95% bootstrap CI.
 

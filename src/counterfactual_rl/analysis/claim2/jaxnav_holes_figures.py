@@ -193,10 +193,12 @@ def report_coverage(name, jobs, target, runs_dir=None, tol=0.95):
     return ok
 
 
-def iqm(vals):
-    """Interquartile mean: drop the extremes, average the middle."""
-    s = sorted(vals)
-    return float(np.mean(s[1:-1])) if len(s) > 2 else float(np.mean(s))
+# IQM comes from compute_metrics -- the same rliable call the paper's figures
+# use -- so "IQM" means one thing across the repo. This module used to define
+# its own, trimming a single value from each end (23 of 25 seeds) rather than
+# the middle 50% (13 of 25), and still labelling it IQM. On these bimodal arms
+# the two differ by several points.
+from .compute_metrics import iqm  # noqa: E402
 
 
 def iqm_curve(jobs, runs_dir=None):

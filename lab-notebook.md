@@ -79,10 +79,10 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
      22/25, 18/25 and 13/25 seeds; the rest diverge from the first eval, most likely GPU float
      nondeterminism (CCE, which does the most GPU work, diverges most). Set deterministic XLA
      flags before any seed-level claim.
-   - `jaxnav_holes_figures.iqm()` trims ONE value per end, which is NOT the rliable
-     interquartile mean the paper's `compute_metrics.py` uses (middle 50%). PER reads 52.1% vs
-     56.4% depending which you mean. STILL UNFIXED — rename it or change it before any JaxNav
-     number goes near the paper.
+   - IQM: FIXED 2026-08-15. `jaxnav_holes_figures` now imports `compute_metrics.iqm`, which is
+     rliable's aggregate_iqm, so there is one definition repo-wide. It previously trimmed one
+     value per end and called that IQM. See the top LOG entry for which reported numbers moved
+     (no conclusion did). `rliable` is now installed in the `counterfactual` env.
    - Post-hoc findings need fresh seeds. The 150k result was found by looking, confirmed
      nothing, and the 500k run reused the same seeds 0-24 by choice (continuation over
      independence), so it deepened the story without ever independently testing it.
@@ -115,6 +115,44 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-15 (later still) — JaxNav figures now use the paper's IQM; some reported IQMs shift
+`jaxnav_holes_figures.py` defined its own `iqm()` that trimmed ONE value from each end (23 of 25
+seeds) and called the result IQM. IQM means the middle 50% — 25% trimmed per tail, 13 of 25 —
+which is what `compute_metrics.py` computes via `rliable.metrics.aggregate_iqm`
+(itself `scipy.stats.trim_mean(..., 0.25)`). Same word, two numbers.
+
+Fixed by pointing the JaxNav module at the paper's definition: `compute_metrics.iqm()` is now
+the single repo-wide IQM and `jaxnav_holes_figures` imports it. Repo-wide search confirmed the
+trim-one version existed in that ONE file — every paper figure (FL, SMAX) already went through
+`compute_metrics`, so **no paper number was ever affected**. `docs/_archive/mock_claim2_figures.py`
+has a third, percentile-masking variant, but that tree is already marked do-not-cite.
+
+`rliable` was missing from the `counterfactual` conda env (it lives in the broken `~/.local`
+that `PYTHONNOUSERSITE=1` deliberately bypasses), so it is now installed into the env properly.
+Only added `arch` + `rliable`; jax and jaxmarl verified still importable afterwards.
+
+REPORTED IQM VALUES THAT CHANGE (means, std, all p-values and all collapse counts are
+UNAFFECTED — they never used this function):
+```
+              old(trim-1)  true IQM
+  96k   per      61.3%      62.7%     <- the true values match what the 2026-08-13 entry
+        cce_max  70.1%      71.7%        already recorded (62.7/71.7/66.0), so the notebook
+        cce_wm   63.2%      66.0%        was right and only the script had drifted
+  150k  per      52.1%      56.4%
+        cce_max  63.4%      64.9%
+        cce_wm   64.7%      64.5%
+  500k  uniform  38.7%      34.6%
+        per      49.7%      53.2%
+        cce_max  56.8%      64.1%
+        cce_wm   49.3%      51.2%
+```
+The 2026-08-14 and 2026-08-15 entries below quote the old trim-1 IQMs; read the table above for
+the corrected ones. **No conclusion changes** — every significance test and every collapse count
+is computed from per-seed finals or per-seed curves, not from this aggregate. The IQM curve
+panels in all 8 figures shift up slightly (500k peaks ~78% rather than ~74%) because the true
+IQM trims the dead seeds out of the middle; shape, ordering and the decline after ep ~250k are
+identical.
 
 ### 2026-08-15 (later) — 500k figures committed; the decline is visible in the IQM itself
 Follow-up to the entry below, which closed with "no committed figure for this run yet". There
