@@ -44,9 +44,12 @@ NOT done experimenting — no claim hits its target scenario count yet.
 5. [side track — see OPEN question in the 2026-08-14 LOG entry about promoting it] JaxNav
    robotics-transfer (branch worktree-research+cce-robotics-transfer): the 25-seed/150k run is
    **DONE (2026-08-14), all 75 COMPLETED, analysed, figures committed** — result in the LOG.
-   Headline: CCE's edge here is stability (PER collapses late in 7/25 seeds, CCE+wmean 0/25),
-   not a higher ceiling. Decide whether that becomes a paper claim; if yes it needs replication
-   on a paper env (FL-det long-run is the cheap test).
+   **RETRACTED by the 2026-08-15 500k run — see that LOG entry.** The "CCE's edge is stability"
+   headline (PER 7/25 collapses vs CCE+wmean 0/25) held only at 150k. With a uniform-replay
+   control and 500k episodes, uniform collapses MOST (14/25), so collapse is a general DQN
+   failure rather than something PER causes, and CCE+wmean rises to 11/25 — it delays collapse
+   rather than preventing it. Nothing reaches significance at 500k. Do not cite the 150k
+   stability claim.
    **CORRECTION to the 2026-08-13 LOG entry (that entry is append-only, so it stands as
    written — this is the fix).** Its tail-trend read, "PER flat (+0.3pp), CCE+max rising
    (+4.2pp), CCE+wmean falling (-4.3pp)", is an artifact of the estimator, not a finding. It
@@ -106,6 +109,60 @@ NOT done experimenting — no claim hits its target scenario count yet.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-15 — JaxNav 500k + uniform control: the collapse result DOES NOT HOLD. Negative.
+All 100 jobs COMPLETED, every seed at the full 500k (jobs 272275-272374; cce-max 272275-99,
+cce-wmean 272300-24, per 272325-49, uniform 272350-74). This run kills the 2026-08-14 headline.
+
+**Two things it establishes, both against us.**
+
+1. **Collapse is a general DQN failure here, not something PER causes.** The uniform-replay arm
+   collapses MORE than any other: 14/25 vs PER 9/25, CCE+max 7/25, CCE+wmean 11/25. So the
+   mechanism story ("PER stops replaying mastered routes, so they are forgotten") cannot be the
+   explanation — uniform replay never deprioritises anything and collapses worst of all.
+2. **CCE does not prevent collapse. It delays it.** Truncating the SAME runs at increasing
+   budgets shows the 150k result evaporating:
+```
+   collapse count /25      150k   250k   350k   500k
+     uniform                 3      7     13     14
+     per                     7      4      6      9
+     cce_max                 1      4      4      7
+     cce_wmean               1      8     10     11     <- was the 0/25 star at 150k
+```
+   At 150k this run reproduces the earlier one almost exactly (per 7, max 1, wmean 1 against the
+   original 7/1/0) — so the metric and pipeline are sound and the old numbers were real. They
+   just do not survive more training.
+
+**Nothing is significant at 500k.** Final win rate: uniform 39.3%, PER 49.3%, CCE+wmean 49.2%,
+CCE+max 56.2%. Permutation tests: CCE+max vs PER +6.8pp p=0.38; CCE+wmean vs PER -0.1pp p=0.99;
+CCE+max vs uniform +16.9pp p=0.0498 (and that is 1 of 5 tests, so it does not survive
+correction); PER vs uniform +10.0pp p=0.23. The spread result that was the whole 2026-08-14
+story is gone: Brown-Forsythe PER vs CCE+wmean was p=0.0005 at 150k, now p=0.25 (std 27.3 vs
+33.3pp — CCE+wmean is now the MORE variable arm, not the less).
+
+**So the 2026-08-14 entry's conclusion is retracted.** "CCE's edge is stability" was true at 150k
+and false at 500k. It was a post-hoc finding, flagged as needing confirmation, and the
+confirmation went against it. Recording this rather than quietly dropping it: the honest summary
+of JaxNav is now that CCE+max is nominally best on both final score and collapse count, no
+comparison reaches significance, and every arm degrades badly with long training.
+
+**Reproducibility caveat found here.** Seeds and epsilon schedule were identical to the 150k run,
+so its first 150k episodes should have been bit-identical. Only 22/25 (per), 18/25 (cce_max) and
+13/25 (cce_wmean) seeds actually matched; the rest diverge from the FIRST eval. numpy is seeded
+in all four trainers (`np.random.seed(config['seed'])`), so the likely cause is GPU float
+nondeterminism (XLA reductions), consistent with CCE — which does the most GPU work — diverging
+most. Not proven. Practical consequence: "same seed" does NOT guarantee a reproducible run here,
+so continuation runs are only partly continuations, and any future claim resting on seed-level
+comparison needs `XLA_FLAGS=--xla_gpu_deterministic_ops=true` or similar first.
+
+Data committed: `docs/figures/real/claim2/jaxnav/data/manifest_25seed_500k.json` +
+`curves_25seed_500k.npz` (100/100 runs). Driver `slurm/sweep_holes_25seed_500k.py` (has
+--dry-run). Timing came in near projection: uniform 2.15h, PER 3.29h, CCE ~9.6-10.0h mean
+(max 12.1h) against a 20h limit.
+
+STILL OWED: the figure module only knows 3 arms (`_power_arms`), so there is no committed figure
+for this run yet — the numbers above are from direct analysis. Adding a uniform arm to the figure
+code is the next task.
 
 ### 2026-08-14 — JaxNav 150k/25-seed DONE: CCE's edge is STABILITY, not a higher ceiling
 All 75 jobs COMPLETED, zero failures, all 25 seeds/arm at full budget. This is the cleanest
