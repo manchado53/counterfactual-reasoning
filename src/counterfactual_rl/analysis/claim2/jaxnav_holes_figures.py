@@ -47,6 +47,9 @@ import matplotlib.pyplot as plt
 
 BLUE, ORANGE = "#2a78d6", "#eb6834"
 BROWN = "#8c5a2b"
+GREEN = "#2f9e44"        # uniform-replay control, added for the 500k sweep
+SHORT = {"uniform": "Uniform", "per": "PER",
+         "cce_max": "CCE+max", "cce_wmean": "CCE+wmean"}
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#d8d7d2"
 GREY = "#8c8b87"
 
@@ -95,6 +98,14 @@ def _cache():
                 if win is not None:
                     _CACHE[str(job)] = (z[key], win)
     return _CACHE
+
+
+def _resolve_manifest_safe(path):
+    """_resolve_manifest, but returns '' instead of raising when nothing exists."""
+    try:
+        return _resolve_manifest(path)
+    except FileNotFoundError:
+        return ""
 
 
 def _resolve_manifest(path):
@@ -295,7 +306,7 @@ def reliability_report(vals_by_arm, arms, labels, runs_dir=None):
     differ in how often a seed throws its progress away late in training."""
     per = np.array(vals_by_arm.get("per", []))
     print("\n  reliability (the arms differ in floor, not ceiling):")
-    for key in ("per", "cce_max", "cce_wmean"):
+    for key in [k for k in ("uniform", "per", "cce_max", "cce_wmean") if k in arms]:
         v = np.array(vals_by_arm.get(key, []))
         if len(v) < 5:
             continue
@@ -309,15 +320,13 @@ def reliability_report(vals_by_arm, arms, labels, runs_dir=None):
 
     print("\n  late collapse (ended >25pp below own smoothed peak):")
     counts = {}
-    for key in ("per", "cce_max", "cce_wmean"):
+    for key in [k for k in ("uniform", "per", "cce_max", "cce_wmean") if k in arms]:
         n, where = collapse_count(arms[key], runs_dir=runs_dir)
         counts[key] = n
         span = f"peaks at ep {where[0]}-{where[-1]}" if where else ""
         print(f"  {labels[key]:16s} {n}/{len(arms[key])}   {span}")
     if "per" in counts:
-        for key in ("cce_max", "cce_wmean"):
-            if key not in counts:
-                continue
+        for key in [k for k in ("cce_max", "cce_wmean", "uniform") if k in counts]:
             a_n, b_n = counts["per"], counts[key]
             tot_a, tot_b = len(arms["per"]), len(arms[key])
             _, p = scipy_stats.fisher_exact([[a_n, tot_a - a_n], [b_n, tot_b - b_n]])
@@ -333,7 +342,7 @@ def reliability_report(vals_by_arm, arms, labels, runs_dir=None):
         cells = []
         for drop in (0.15, 0.20, 0.25, 0.30, 0.40):
             c = [collapse_count(arms[k], drop=drop, smooth=win, runs_dir=runs_dir)[0]
-                 for k in ("per", "cce_max", "cce_wmean")]
+                 for k in [x for x in ("per", "cce_max", "cce_wmean") if x in arms]]
             cells.append(f"{c[0]:2d}/{c[1]:2d}/{c[2]:2d}")
             n_cells += 1
             n_per_higher += c[0] > max(c[1], c[2])
@@ -456,17 +465,19 @@ def _power_arms(manifest_path=POWER_MANIFEST):
     """Arm -> sorted job-id list, read from the manifest (ground truth, not a
     hardcoded range) so resubmitted/replacement seeds are picked up correctly."""
     manifest = json.load(open(_resolve_manifest(manifest_path)))
-    arms = {"cce_max": [], "cce_wmean": [], "per": []}
+    arms = {"uniform": [], "per": [], "cce_max": [], "cce_wmean": []}
     for jid, cfg in manifest.items():
-        if cfg["algorithm"] == "dqn":
+        if cfg["algorithm"] == "dqn-uniform":
+            arms["uniform"].append(int(jid))
+        elif cfg["algorithm"] == "dqn":
             arms["per"].append(int(jid))
         elif cfg.get("consequence_aggregation") == "max":
             arms["cce_max"].append(int(jid))
         elif cfg.get("consequence_aggregation") == "weighted_mean":
             arms["cce_wmean"].append(int(jid))
-    for k in arms:
-        arms[k].sort()
-    return arms
+    # Sweeps before the 500k run have no uniform arm; drop empty ones so every
+    # caller can just iterate whatever this returns.
+    return {k: sorted(v) for k, v in arms.items() if v}
 
 
 def _target_episodes(manifest_path=POWER_MANIFEST):
@@ -491,15 +502,16 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     150k follow-up) -- just point it at that run's manifest.json."""
     arms = _power_arms(manifest_path)
     target = _target_episodes(manifest_path)
-    labels = {"cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)", "per": "PER"}
-    colors = {"cce_max": BROWN, "cce_wmean": ORANGE, "per": BLUE}
+    labels = {"uniform": "Uniform", "per": "PER",
+              "cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)"}
+    colors = {"uniform": GREEN, "per": BLUE, "cce_max": BROWN, "cce_wmean": ORANGE}
+    order = [k for k in ("uniform", "per", "cce_max", "cce_wmean") if k in arms]
 
     # Keep only seeds that actually ran the full budget, and say out loud which
     # ones were dropped -- a quietly-thinned arm is the easiest way to read a
     # win that is not there.
     print(f"\n  coverage (target {target} episodes):")
-    kept = {k: report_coverage(k, arms[k], target, runs_dir)
-            for k in ("per", "cce_max", "cce_wmean")}
+    kept = {k: report_coverage(k, arms[k], target, runs_dir) for k in order}
     if any(len(kept[k]) < len(arms[k]) for k in kept):
         print("\n  !! SWEEP INCOMPLETE -- these numbers are biased OPTIMISTIC.\n"
               "     A JaxNav episode ends on goal-reach, collision, or max_steps, so a\n"
@@ -513,7 +525,7 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
         1, 2, figsize=(14.2, 5.2), gridspec_kw={"width_ratios": [1.55, 1]})
 
     vals_by_arm, slopes = {}, {}
-    for key in ("per", "cce_max", "cce_wmean"):
+    for key in order:
         jobs = kept[key]
         vals_by_arm[key] = finals(jobs, runs_dir=runs_dir, min_episode=target * 0.95)
         g, y = iqm_curve(jobs, runs_dir)
@@ -528,12 +540,11 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
                 label=f"{labels[key]}  (n={len(vals_by_arm[key])})")
     ax.set_xlabel("training episodes (thousands)", color=INK2, fontsize=11)
     ax.set_ylabel("evaluation win rate  (%)", color=INK2, fontsize=11)
-    ax.set_title(f"Holes map, {budget_label} budget — 25 seeds/arm (properly powered)",
+    ax.set_title(f"Holes map, {budget_label} budget — {len(order)} arms, 25 seeds/arm",
                  color=INK, fontsize=12.5, fontweight="bold", loc="left")
     ax.legend(frameon=False, fontsize=10, loc="upper left")
     _frame(ax)
 
-    order = ["per", "cce_max", "cce_wmean"]
     for i, key in enumerate(order):
         vals = np.array(vals_by_arm[key])
         col = colors[key]
@@ -551,8 +562,9 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
         bx.text(i, vals.max() * 100 + 5, f"{vals.mean()*100:.1f}%",
                 ha="center", fontsize=10.5, color=col, fontweight="bold")
     bx.set_xticks(range(len(order)))
-    bx.set_xticklabels([labels[k] for k in order], fontsize=9.5, color=INK2)
-    bx.set_xlim(-0.6, 2.6)
+    bx.set_xticklabels([SHORT.get(k, labels[k]) for k in order], fontsize=9.5,
+                       color=INK2)
+    bx.set_xlim(-0.6, len(order) - 0.4)
     bx.set_ylim(0, 102)
     bx.set_ylabel("final win rate  (mean of last 5 evals)", color=INK2, fontsize=11)
     bx.set_title("Every seed (n=25 each)", color=INK, fontsize=11, loc="left")
@@ -566,7 +578,11 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     print(f"wrote {out}")
 
     print("\n  stats (Welch t-test / Mann-Whitney U):")
-    for a_key, b_key in (("cce_max", "per"), ("cce_wmean", "per"), ("cce_max", "cce_wmean")):
+    pairs = [(a, b) for a, b in (("cce_max", "per"), ("cce_wmean", "per"),
+                                 ("cce_max", "cce_wmean"), ("per", "uniform"),
+                                 ("cce_max", "uniform"), ("cce_wmean", "uniform"))
+             if a in order and b in order]
+    for a_key, b_key in pairs:
         a, b = np.array(vals_by_arm[a_key]), np.array(vals_by_arm[b_key])
         if len(a) < 2 or len(b) < 2:
             print(f"  {labels[a_key]:16s} vs {labels[b_key]:16s}  "
@@ -586,7 +602,7 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     # and no arm's final number there was a converged one.
     print("\n  convergence (mean per-seed trend over the trailing window,")
     print("               pp across window, 95% CI across seeds):")
-    for key in ("per", "cce_max", "cce_wmean"):
+    for key in order:
         tr = slopes.get(key) or {}
         for w in sorted(tr):
             stat = tr[w]
@@ -600,6 +616,15 @@ def fig_25seed_power(manifest_path=POWER_MANIFEST, budget_label="96k",
     return out
 
 
+MANIFEST_500K = os.path.join(EXPERIMENTS, "holes_25seed_500k", "manifest.json")
+
+
+def fig_25seed_500k(runs_dir=None):
+    """The 500k sweep, which adds the uniform-replay control."""
+    return fig_25seed_power(MANIFEST_500K, budget_label="500k",
+                            out_name="fig_jaxnav_25seed_500k.png", runs_dir=runs_dir)
+
+
 def fig_collapse(manifest_path, budget_label, out_name, runs_dir=None, drop=0.25):
     """Same two-panel grammar as the other figures: IQM over seeds on the left,
     one dot per seed on the right.
@@ -611,9 +636,10 @@ def fig_collapse(manifest_path, budget_label, out_name, runs_dir=None, drop=0.25
     smoothed curve so the comparison is like-for-like."""
     arms = _power_arms(manifest_path)
     target = _target_episodes(manifest_path)
-    labels = {"per": "PER", "cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)"}
-    colors = {"per": BLUE, "cce_max": BROWN, "cce_wmean": ORANGE}
-    order = ["per", "cce_max", "cce_wmean"]
+    labels = {"uniform": "Uniform", "per": "PER",
+              "cce_max": "CCE+max (bug)", "cce_wmean": "CCE+wmean (fix)"}
+    colors = {"uniform": GREEN, "per": BLUE, "cce_max": BROWN, "cce_wmean": ORANGE}
+    order = [k for k in ("uniform", "per", "cce_max", "cce_wmean") if k in arms]
 
     fig, (ax, bx) = plt.subplots(
         1, 2, figsize=(14.2, 5.2), gridspec_kw={"width_ratios": [1.55, 1]})
@@ -652,11 +678,12 @@ def fig_collapse(manifest_path, budget_label, out_name, runs_dir=None, drop=0.25
         bx.text(i, 93, f"{n_bad}/{len(v)}", ha="center", fontsize=11,
                 color=col, fontweight="bold")
     bx.axhline(drop * 100, color=GREY, lw=1.4, ls=(0, (5, 3)), zorder=2)
-    bx.text(2.55, drop * 100 + 1.5, f"{int(drop*100)}pp", fontsize=9,
+    bx.text(len(order) - 0.45, drop * 100 + 1.5, f"{int(drop*100)}pp", fontsize=9,
             color=INK2, ha="right", va="bottom")
     bx.set_xticks(range(len(order)))
-    bx.set_xticklabels([labels[k] for k in order], fontsize=9.5, color=INK2)
-    bx.set_xlim(-0.6, 2.6)
+    bx.set_xticklabels([SHORT.get(k, labels[k]) for k in order],
+                       fontsize=9.5, color=INK2)
+    bx.set_xlim(-0.6, len(order) - 0.4)
     bx.set_ylim(0, 100)
     bx.set_ylabel("drop from own peak  (pp)", color=INK2, fontsize=11)
     bx.set_title("Every seed; label = seeds ending >25pp below peak",
@@ -748,3 +775,6 @@ if __name__ == "__main__":
     if os.path.exists(MANIFEST_150K):
         fig_25seed_150k()
         fig_collapse(MANIFEST_150K, "150k", "fig_jaxnav_collapse_150k.png")
+    if os.path.exists(_resolve_manifest_safe(MANIFEST_500K)):
+        fig_25seed_500k()
+        fig_collapse(MANIFEST_500K, "500k", "fig_jaxnav_collapse_500k.png")
