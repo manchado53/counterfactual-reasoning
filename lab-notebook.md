@@ -32,54 +32,60 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-06-02)
-Data so far = verified + frozen in paper/repro/ (master 861c0e3).
-NOT done experimenting — no claim hits its target scenario count yet.
+## STATUS (2026-08-15)
+Paper data = verified + frozen in paper/repro/ (master 861c0e3). NOT done experimenting — no
+claim hits its target scenario count yet, and the paper's COVERAGE table is unchanged since
+2026-06-02.
+
+JaxNav (side branch) is now CLOSED as a negative result. Four budgets were run — 96k, 150k and
+500k at 25 seeds/arm, the last with a uniform-replay control — and the promising 150k finding
+("CCE prevents late collapse") did not survive the longer run. At 500k nothing separates the
+arms significantly, every method degrades after ~ep 250k, and uniform replay collapses worst,
+which rules out the mechanism story. Do not cite the 150k stability claim. All JaxNav data,
+figures and videos are committed and rebuild from a clean checkout without the run tree.
+
+36 days to the ICLR abstract deadline as of 2026-08-13. The paper still needs 2 more clean C2
+scenarios and a C1 redo, and JaxNav did not become one of them.
 
 ## NEXT
 1. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
 2. Redo C1 on deterministic FL.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
-5. [side track — see OPEN question in the 2026-08-14 LOG entry about promoting it] JaxNav
-   robotics-transfer (branch worktree-research+cce-robotics-transfer): the 25-seed/150k run is
-   **DONE (2026-08-14), all 75 COMPLETED, analysed, figures committed** — result in the LOG.
-   **RETRACTED by the 2026-08-15 500k run — see that LOG entry.** The "CCE's edge is stability"
-   headline (PER 7/25 collapses vs CCE+wmean 0/25) held only at 150k. With a uniform-replay
-   control and 500k episodes, uniform collapses MOST (14/25), so collapse is a general DQN
-   failure rather than something PER causes, and CCE+wmean rises to 11/25 — it delays collapse
-   rather than preventing it. Nothing reaches significance at 500k. Do not cite the 150k
-   stability claim.
-   **CORRECTION to the 2026-08-13 LOG entry (that entry is append-only, so it stands as
-   written — this is the fix).** Its tail-trend read, "PER flat (+0.3pp), CCE+max rising
-   (+4.2pp), CCE+wmean falling (-4.3pp)", is an artifact of the estimator, not a finding. It
-   used last-minus-first of a trailing window, which is dominated by endpoint noise and flips
-   sign with the window (PER: -1.2pp at 3k, +15.9pp at 20k on the same data). Refitted per
-   seed with a CI across seeds (commits 3d5f2c8, bae75a7), the 96k truth is that ALL THREE
-   arms were still climbing: PER +11.8pp [+5.5,+18.2] over its last 20k, CCE+wmean +10.3pp
-   [+1.4,+19.3], CCE+max +7.3pp [-4.7,+19.3]. So 96k undershot for every arm, PER included —
-   the relaunch was right, its stated reason was not. Do not cite "PER had converged at 96k".
-   **PER at 150k is DONE, all 25 seeds: mean 51.6%, IQM 52.3%, std 25.4pp, tail trend +1.5pp
-   [-9.7,+12.7] = settled.** Note that is BELOW the 96k run's PER (60.3% / 62.7%, std 16.4pp)
-   — not a contradiction, the two runs differ in more than length (eps_decay 62500 vs 40000),
-   so they are separate experiments, not a resume. CCE arms still running; they decide it.
-   Analysis now refuses to hide a thinned arm: it prints per-arm coverage and excludes seeds
-   that did not reach 95% of the manifest's budget (before, a seed that died at 40k silently
-   contributed its ep-40k score to a "150k final" mean, and truncated the whole IQM curve).
+5. [side track — CLOSED, negative] JaxNav robotics-transfer, branch
+   worktree-research+cce-robotics-transfer. Nothing outstanding to run; see the two 2026-08-15
+   LOG entries for the result and the 2026-08-14 one for the claim it retracts.
+   Summary of the whole line of work, so nobody reopens it by accident:
+```
+     budget   arms                          outcome
+      96k     per/cce-max/cce-wmean         murky, nothing significant
+     150k     same 3                        CCE+wmean 0/25 collapses vs PER 7/25  <- RETRACTED
+     500k     + uniform control             uniform collapses MOST (14/25); CCE delays
+                                            collapse, does not prevent it; nothing significant
+```
+   Everything needed to rebuild is committed: `docs/figures/real/claim2/jaxnav/data/`
+   (manifests + per-seed curve npz for all four sweeps, 169+100 runs), 8 figures, 3 rollout
+   videos, drivers in `slurm/`. Verified: a checkout of tracked files ONLY rebuilds every
+   figure — `**/runs` and `**/experiments/` are gitignored, so this mirror is the only copy
+   that survives a disk cleanup.
 
-   **GOTCHA — never read a JaxNav sweep before every seed lands (cost me a wrong number this
-   session).** An episode ends on goal-reach, collision, or max_steps, so a GOOD agent has
-   short episodes and burns through the budget FASTER. Finishing order tracks performance:
-   Spearman +0.49 (p=0.012) between how far a seed got and its win rate; furthest 10 PER seeds
-   63.3% vs slowest 10 at 43.9%. Reading early samples the winners — the mid-flight PER read
-   was 62.0% against 51.6% once all 25 landed, a 10pp overestimate. `fig_25seed_power` now
-   prints a loud SWEEP INCOMPLETE banner whenever any arm is short.
-
-   **GOTCHA — do not compare two runs at matched EPISODE COUNT when their epsilon schedules
-   differ.** At ep ~57k the 150k CCE arms looked catastrophic against the 96k run (16.9% vs
-   48.6%) — pure artifact: the 96k run finished exploring at ep 40k, the 150k run decays to
-   ep 62500 and was still exploring. Matched instead at equal epsilon (0.107), the 150k arms
-   are AHEAD: CCE+max 20.7% vs 10.7%, CCE+wmean 18.4% vs 10.6%. Both runs are healthy.
+   IF IT IS EVER REOPENED, these are the traps already paid for:
+   - Never read a sweep before every seed lands. Good agents finish the budget FIRST
+     (short episodes), so an early read samples the winners — cost a 10pp overestimate once.
+   - Never compare two runs at matched EPISODE COUNT if their epsilon schedules differ.
+   - The tail-convergence check must be fitted per seed with a CI, not once to the pooled IQM
+     curve; the pooled fit flips sign with the window.
+   - "Same seed" does NOT reproduce a run here. Identical seeds/schedule reproduced only
+     22/25, 18/25 and 13/25 seeds; the rest diverge from the first eval, most likely GPU float
+     nondeterminism (CCE, which does the most GPU work, diverges most). Set deterministic XLA
+     flags before any seed-level claim.
+   - `jaxnav_holes_figures.iqm()` trims ONE value per end, which is NOT the rliable
+     interquartile mean the paper's `compute_metrics.py` uses (middle 50%). PER reads 52.1% vs
+     56.4% depending which you mean. STILL UNFIXED — rename it or change it before any JaxNav
+     number goes near the paper.
+   - Post-hoc findings need fresh seeds. The 150k result was found by looking, confirmed
+     nothing, and the 500k run reused the same seeds 0-24 by choice (continuation over
+     independence), so it deepened the story without ever independently testing it.
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]
@@ -109,6 +115,42 @@ NOT done experimenting — no claim hits its target scenario count yet.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-15 (later) — 500k figures committed; the decline is visible in the IQM itself
+Follow-up to the entry below, which closed with "no committed figure for this run yet". There
+is one now: `fig_jaxnav_25seed_500k.png` and `fig_jaxnav_collapse_500k.png`, both in the house
+two-panel format.
+
+What the curve panel adds beyond the numbers:
+- **The four arms are indistinguishable until ~ep 150k.** Whatever separation exists appears
+  only in the back half of training, which is why the 96k and 150k runs each told a different
+  story. Any JaxNav comparison stopped before ~200k is measuring noise.
+- **Every arm peaks around ep 200-300k and then declines for the rest of training.** This is not
+  a few seeds falling off a cliff dragging a mean down — the IQM, i.e. the middle of the
+  distribution, turns over and falls. Uniform declines most steeply (to ~40%), CCE+max holds
+  highest (~60%).
+- **Every arm is bimodal at the end**: a healthy clump at 55-90% and a dead clump under 20%,
+  with almost nothing between. So the reported means describe no actual seed, and that is the
+  real reason the t-test and Mann-Whitney disagreed throughout this line of work.
+
+Figure-code changes (`analysis/claim2/jaxnav_holes_figures.py`):
+- `_power_arms` recognises `dqn-uniform` and returns only the arms a sweep actually contains;
+  `fig_25seed_power` and `fig_collapse` iterate that list instead of a hardcoded triple, so one
+  code path draws the 3-arm 96k/150k figures and the 4-arm 500k one.
+- **Bug the 4th arm exposed**: the strip panel's x-limit was pinned to 3 arms, so CCE+wmean was
+  drawn off-axes with its mean label floating outside the frame. The earlier 3-arm figures were
+  unaffected.
+- Dropped "(properly powered)" from the title. That power analysis was for a MEAN comparison at
+  96k and was never redone for these budgets or for the variance/collapse endpoints; reasserting
+  it on every rerun claimed more than had been checked.
+
+Two verifications worth recording:
+- The left panel of both 500k figures is the SAME curve (checked: identical seed sets,
+  bit-identical IQM values, all 4 arms). They differ only in the right panel — final win rate
+  vs drop from each seed's own peak. Final score alone cannot separate "climbed steadily to 55%"
+  from "hit 85% and fell apart", which is why both views exist.
+- Clean-checkout test repeated with the 500k data: a worktree containing only git-tracked files
+  (no `runs/`, no `experiments/`) rebuilds all 8 figures, 25/25 coverage on all four arms.
 
 ### 2026-08-15 — JaxNav 500k + uniform control: the collapse result DOES NOT HOLD. Negative.
 All 100 jobs COMPLETED, every seed at the full 500k (jobs 272275-272374; cce-max 272275-99,
