@@ -36,6 +36,7 @@ ARM_LABEL = {
     'cceadd': 'CCE+TD (add)', 'ccemul': 'CCE+TD (mul)',
 }
 RUN_RE = re.compile(r'^bd_(\w+?)_b(\d+)_c(\d+)_s(\d+)$')
+RUN_RE_I = re.compile(r'^bdi_([a-z0-9]+)_(\w+?)_b(\d+)_c(\d+)_s(\d+)$')
 THRESHOLDS = (0.75, 0.90, 1.00)
 
 
@@ -56,19 +57,38 @@ def read_curve(path: Path):
     return np.array(eps), np.array(vals)
 
 
+def arm_order(data):
+    """Known arms first, then any tuning-probe arms discovered in the run names."""
+    found = {a for cell in data.values() for a in cell}
+    extra = sorted(found - set(ARMS))
+    return [a for a in ARMS if a in found] + extra
+
+
+def parse_name(name):
+    """-> (instance, arm, budget_mult, capacity, seed) or None."""
+    m = RUN_RE.match(name)
+    if m:
+        return ('default', m.group(1), int(m.group(2)) / 100.0, int(m.group(3)), int(m.group(4)))
+    m = RUN_RE_I.match(name)
+    if m:
+        return (m.group(1), m.group(2), int(m.group(3)) / 100.0,
+                int(m.group(4)), int(m.group(5)))
+    return None
+
+
 def collect(runs_dir: Path):
-    """{(budget_mult, capacity): {arm: [ {seed, eps, vals}, ... ]}}"""
+    """{(instance, budget_mult, capacity): {arm: [ {seed, eps, vals}, ... ]}}"""
     data = defaultdict(lambda: defaultdict(list))
-    for d in sorted(runs_dir.glob('bd_*')):
-        m = RUN_RE.match(d.name)
+    for d in sorted(list(runs_dir.glob('bd_*')) + list(runs_dir.glob('bdi_*'))):
+        parsed = parse_name(d.name)
         f = d / 'metrics.log'
-        if not m or not f.exists():
+        if not parsed or not f.exists():
             continue
-        arm, b, cap, seed = m.group(1), int(m.group(2)) / 100.0, int(m.group(3)), int(m.group(4))
+        inst, arm, b, cap, seed = parsed
         eps, vals = read_curve(f)
         if eps.size < 5:
             continue
-        data[(b, cap)][arm].append(dict(seed=seed, eps=eps, vals=vals))
+        data[(inst, b, cap)][arm].append(dict(seed=seed, eps=eps, vals=vals))
     return data
 
 
@@ -110,46 +130,46 @@ def main(argv=None):
         raise SystemExit(f"no bd_* runs found under {args.runs_dir}")
 
     summary = {}
-    for (b, cap) in sorted(data):
-        arms = data[(b, cap)]
-        print(f"\n=== budget {b:.2f}x   capacity {cap} "
-              f"===============================================")
+    for (inst, b, cap) in sorted(data):
+        arms = data[(inst, b, cap)]
+        print(f"\n=== {inst}   budget {b:.2f}x   capacity {cap} "
+              f"=====================================")
         print(f"{'arm':<14} {'n':>3} {'AUC':>8} {'final':>8} "
               f"{'ep@0.90':>9} {'P(>PER,AUC)':>12}")
         per_auc = curve_stats(arms['per'])[0] if 'per' in arms else np.array([])
         row = {}
-        for arm in ARMS:
+        for arm in arm_order(data):
             if arm not in arms:
                 continue
             auc, final, thr = curve_stats(arms[arm])
             hits = [x for x in thr[0.90] if x is not None]
             ep90 = f"{np.median(hits):.0f}" if hits else "never"
             p = boot_p_better(auc, per_auc) if arm != 'per' and per_auc.size else float('nan')
-            print(f"{ARM_LABEL[arm]:<14} {auc.size:>3} {auc.mean():>8.4f} "
+            print(f"{ARM_LABEL.get(arm, arm):<14} {auc.size:>3} {auc.mean():>8.4f} "
                   f"{final.mean():>8.4f} {ep90:>9} "
                   f"{('--' if arm == 'per' else f'{p:.3f}'):>12}")
             row[arm] = dict(n=int(auc.size), auc=float(auc.mean()), auc_std=float(auc.std()),
                             final=float(final.mean()), final_std=float(final.std()),
                             ep90=(float(np.median(hits)) if hits else None),
                             p_beats_per=(None if arm == 'per' else float(p)))
-        summary[f"b{b:.2f}_c{cap}"] = row
+        summary[f"{inst}_b{b:.2f}_c{cap}"] = row
 
     # ── the dial verdict ─────────────────────────────────────────────────────
     print("\n\n=== DOES THE ADVANTAGE TRACK THE DIAL? (P(arm > PER) on AUC) ===")
-    caps = sorted({c for (_, c) in data})
-    for cap in caps:
-        budgets = sorted({b for (b, c) in data if c == cap})
-        print(f"\ncapacity {cap}")
+    cells = sorted({(i, c) for (i, _, c) in data})
+    for inst, cap in cells:
+        budgets = sorted({b for (i, b, c) in data if c == cap and i == inst})
+        print(f"\n{inst}, capacity {cap}")
         print(f"{'arm':<14} " + " ".join(f"{b:>7.2f}x" for b in budgets))
-        for arm in ARMS:
+        for arm in arm_order(data):
             if arm == 'per':
                 continue
-            cells = []
+            row_cells = []
             for b in budgets:
-                r = summary.get(f"b{b:.2f}_c{cap}", {}).get(arm)
-                cells.append(f"{r['p_beats_per']:>8.3f}" if r and r['p_beats_per'] is not None
-                             else f"{'--':>8}")
-            print(f"{ARM_LABEL[arm]:<14} " + " ".join(cells))
+                r = summary.get(f"{inst}_b{b:.2f}_c{cap}", {}).get(arm)
+                row_cells.append(f"{r['p_beats_per']:>8.3f}"
+                                 if r and r['p_beats_per'] is not None else f"{'--':>8}")
+            print(f"{ARM_LABEL.get(arm, arm):<14} " + " ".join(row_cells))
     print("\nreading: 0.5 = indistinguishable from PER. >0.5 = better. "
           "Registered prediction = a PEAK in the middle of the dial.")
 
@@ -167,22 +187,22 @@ def _plot(summary, data, path):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    caps = sorted({c for (_, c) in data})
-    fig, axes = plt.subplots(1, len(caps), figsize=(6 * len(caps), 4.5), squeeze=False)
-    for ax, cap in zip(axes[0], caps):
-        budgets = sorted({b for (b, c) in data if c == cap})
-        for arm in ARMS:
+    cells = sorted({(i, c) for (i, _, c) in data})
+    fig, axes = plt.subplots(1, len(cells), figsize=(5.5 * len(cells), 4.5), squeeze=False)
+    for ax, (inst, cap) in zip(axes[0], cells):
+        budgets = sorted({b for (i, b, c) in data if c == cap and i == inst})
+        for arm in arm_order(data):
             if arm == 'per':
                 continue
             ys = []
             for b in budgets:
-                r = summary.get(f"b{b:.2f}_c{cap}", {}).get(arm)
+                r = summary.get(f"{inst}_b{b:.2f}_c{cap}", {}).get(arm)
                 ys.append(r['p_beats_per'] if r and r['p_beats_per'] is not None else np.nan)
-            ax.plot(budgets, ys, marker='o', label=ARM_LABEL[arm])
+            ax.plot(budgets, ys, marker='o', label=ARM_LABEL.get(arm, arm))
         ax.axhline(0.5, color='k', ls='--', lw=1, label='= PER')
         ax.set_xlabel('budget multiple of optimal tour  (the DIAL)')
         ax.set_ylabel('P(beats PER) on AUC')
-        ax.set_title(f'capacity {cap}')
+        ax.set_title(f'{inst}, capacity {cap}')
         ax.set_ylim(0, 1)
         ax.grid(alpha=.3)
     axes[0][-1].legend(fontsize=8)

@@ -62,6 +62,14 @@ def build_env(config: dict) -> CVRPEnv:
     from counterfactual_rl.envs.cvrp import INSTANCES
 
     name = config.get('instance', 'default')
+
+    # Budget mode carries its own instance table (it adds larger maps that plain CVRP
+    # cannot afford to enumerate), so resolve there first and fall back to the shared one.
+    if config.get('budget_mult') is not None or config.get('budget_units') is not None:
+        from counterfactual_rl.envs import routing_budget as _rb
+        if name in _rb.INSTANCES:
+            INSTANCES = _rb.INSTANCES
+
     if name not in INSTANCES:
         raise ValueError(f"Unknown instance '{name}'. Options: {sorted(INSTANCES)}")
     spec = INSTANCES[name]

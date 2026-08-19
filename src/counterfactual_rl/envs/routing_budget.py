@@ -76,10 +76,37 @@ import numpy as np
 
 from .cvrp import DEFAULT_XY, DEFAULT_DEMAND, DEFAULT_CAPACITY, SMALL_XY, SMALL_DEMAND, SMALL_CAPACITY, DEPOT
 
+# A LARGER instance — the size axis. 12 customers on a jittered ring around a central
+# depot, same flavour as the 10-stop default map. Measured cost with budget-spent in the
+# state: ~507k states / 15 s build / 1.0 GB at budget_mult 0.80, and the all-customers
+# optimum no longer fits the budget there (9 of 12 servable), which is exactly the
+# headroom the 10-customer map loses. 13 customers was measured too and REJECTED:
+# 4.4M states and 6.4 GB at 1.00x is too heavy to build inside every run.
+RING12_XY = np.array(
+    [
+        [0.500, 0.500],  # depot
+        [0.884, 0.500],  # C1,
+        [0.800, 0.673],  # C2,
+        [0.662, 0.781],  # C3,
+        [0.500, 0.822],  # C4,
+        [0.299, 0.848],  # C5,
+        [0.144, 0.706],  # C6,
+        [0.119, 0.500],  # C7,
+        [0.160, 0.304],  # C8,
+        [0.313, 0.176],  # C9,
+        [0.500, 0.086],  # C10,
+        [0.701, 0.152],  # C11,
+        [0.777, 0.340],  # C12
+    ],
+    dtype=np.float32,
+)
+RING12_DEMAND = np.array([0] + [2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4], dtype=np.int32)
+
 # Instances are shared with envs/cvrp.py so the two environments describe the SAME map.
 INSTANCES = {
     "default": {"xy": DEFAULT_XY, "demand": DEFAULT_DEMAND, "capacity": DEFAULT_CAPACITY},
     "small": {"xy": SMALL_XY, "demand": SMALL_DEMAND, "capacity": SMALL_CAPACITY},
+    "ring12": {"xy": RING12_XY, "demand": RING12_DEMAND, "capacity": 10},
 }
 
 
