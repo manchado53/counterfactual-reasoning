@@ -123,17 +123,48 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs-dir', required=True)
     ap.add_argument('--out', default=None, help='directory for the summary json + figure')
+    ap.add_argument('--require-seeds', type=int, default=None, metavar='N',
+                    help='only report cells where EVERY arm has N finished seeds. '
+                         'Unequal seed counts are the classic early-read trap: the seeds '
+                         'that finish first are not a random sample of seeds.')
     args = ap.parse_args(argv)
 
     data = collect(Path(args.runs_dir))
     if not data:
         raise SystemExit(f"no bd_* runs found under {args.runs_dir}")
 
+    # A cell is COMPLETE when every arm in it has the same number of seeds. Comparing an
+    # arm with 3 finished seeds against one with 12 measures which jobs finished first,
+    # not which algorithm is better.
+    def cell_n(cell):
+        counts = {a: len(rs) for a, rs in cell.items()}
+        return min(counts.values()), max(counts.values())
+
+    incomplete = []
+    if args.require_seeds is not None:
+        keep = {}
+        for k, cell in data.items():
+            lo, hi = cell_n(cell)
+            if lo >= args.require_seeds and lo == hi:
+                keep[k] = cell
+            else:
+                incomplete.append((k, lo, hi))
+        if incomplete:
+            print(f"SKIPPED {len(incomplete)} incomplete cells "
+                  f"(need every arm at {args.require_seeds} seeds):")
+            for k, lo, hi in sorted(incomplete):
+                print(f"   {k}  seeds per arm {lo}-{hi}")
+        if not keep:
+            raise SystemExit("no complete cells yet — the sweep is still running")
+        data = keep
+
     summary = {}
     for (inst, b, cap) in sorted(data):
         arms = data[(inst, b, cap)]
+        lo, hi = min(len(r) for r in arms.values()), max(len(r) for r in arms.values())
+        flag = "" if lo == hi else f"   [PARTIAL: seeds per arm {lo}-{hi} — DO NOT COMPARE]"
         print(f"\n=== {inst}   budget {b:.2f}x   capacity {cap} "
-              f"=====================================")
+              f"================================={flag}")
         print(f"{'arm':<14} {'n':>3} {'AUC':>8} {'final':>8} "
               f"{'ep@0.90':>9} {'P(>PER,AUC)':>12}")
         per_auc = curve_stats(arms['per'])[0] if 'per' in arms else np.array([])
@@ -167,11 +198,15 @@ def main(argv=None):
             row_cells = []
             for b in budgets:
                 r = summary.get(f"{inst}_b{b:.2f}_c{cap}", {}).get(arm)
-                row_cells.append(f"{r['p_beats_per']:>8.3f}"
+                cell = data.get((inst, b, cap), {})
+                ns = {len(v) for v in cell.values()} if cell else set()
+                star = '*' if len(ns) > 1 else ' '
+                row_cells.append((f"{r['p_beats_per']:>7.3f}" + star)
                                  if r and r['p_beats_per'] is not None else f"{'--':>8}")
             print(f"{ARM_LABEL.get(arm, arm):<14} " + " ".join(row_cells))
     print("\nreading: 0.5 = indistinguishable from PER. >0.5 = better. "
           "Registered prediction = a PEAK in the middle of the dial.")
+    print("* = arms in this cell have UNEQUAL seed counts; the comparison is not valid yet.")
 
     if args.out:
         out = Path(args.out)
