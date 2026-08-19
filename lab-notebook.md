@@ -19,19 +19,42 @@ SMAX-3m     no oracle                 MARGINAL 0.722 vs 0.710     (10 seeds)
 SMAX-8m     —                         UNFINISHED (never ran clean)
 C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
-CVRP        WIN ✓ ρ .52→.67→.65        NULL — measured, 50 runs
-(logistics)  exact oracle, 3 seeds      (solved in 750 ep → no headroom)
+CVRP        WIN ✓ ρ .52→.67→.65        NULL — CLOSED, ~2,000 runs
+(logistics)  exact oracle, 3 seeds      (domain has no dead decisions)
 ```
+CVRP Claim 2 is CLOSED as a negative result. Cause measured: CCE is a rare-event detector and
+routing has ~24% zero-stakes states vs FrozenLake's 86%. Survived every knob (aggregation,
+budget, capacity, size, cf_gamma, 4 CCE hyperparameters). Do not re-open without a NEW mechanism.
 
-## STATUS (2026-06-02)
+## STATUS (2026-08-19)
 Data so far = verified + frozen in paper/repro/ (master 861c0e3).
 NOT done experimenting — no claim hits its target scenario count yet.
 
+Two things landed 2026-08-18/19 on branch research/cce-cvrp-logistics:
+1. **CVRP Claim-2 is CLOSED (negative).** ~2,000 runs, 6 SLURM arrays, 0 failures, best CCE cell
+   P(beats PER)=0.594 while random replay reached 0.611. The pre-registered inverted-U was
+   FALSIFIED. Keep CVRP as a Claim-1-only environment.
+2. **LABELLING BUG, needs a human decision.** `consequence_aggregation='weighted_mean'` silently
+   executes as `max()` in `frozen_lake` and `cvrp` (they never pass `action_probs`; chess and
+   connect_four do). The FL results are still SOUND — max there is binary but selective, zero at
+   86.3% of states — so this is a paper-wording fix, not a re-run. Code behaviour left UNCHANGED
+   so paper/repro/ still reproduces; the fallback now emits a RuntimeWarning.
+
+**The strongest thing we learned is transferable:** CCE's prerequisite is a high fraction of
+ZERO-STAKES states, measurable from rollouts before spending compute. It retro-predicts every
+result we have (FL-det 86% → WIN, FL-stoch → NULL, routing 24% → NULL) and it is falsifiable.
+
 ## NEXT
-1. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
-2. Redo C1 on deterministic FL.
-3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
-4. Recheck ICLR 2027 deadline.
+1. **DECIDE: paper wording for aggregation.** It ran `max`, the paper says weighted mean. Relabel
+   (recommended — the FL probe shows max is the selective, correct-behaving choice there), or
+   re-run FL with true averaging. Do NOT silently change `analysis/metrics.py`.
+2. **Pick the next C2 env by DEAD-STATE FRACTION, not by domain appeal.** Measure it from rollouts
+   first (suitability pipeline); target >50% zero-stakes states. Routing failed because it is ~24%.
+3. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
+   (C4 is a plausible high-dead-state env: most board positions are not pivotal.)
+4. Redo C1 on deterministic FL.
+5. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
+6. Recheck ICLR 2027 deadline.
 
 ## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
 - [ ] rewards[agent_player], not rewards[0]
@@ -61,6 +84,11 @@ NOT done experimenting — no claim hits its target scenario count yet.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-19 — 12-customer sweep agrees: null. All six arrays complete, ~2,000 runs, 0 failures.
+`ring12mean` (360 runs, 12 customers, mean aggregation) finished 360/360. Best CCE cell
+P(beats PER)=0.514; most cells 0.17-0.46. The larger instance reproduces the 10-stop conclusion
+exactly, so the null is not an artefact of instance size. Claim-2 in routing is closed.
 
 ### 2026-08-19 — **DECISIVE: corrected sweep (720 runs) is a CLEAN NULL. Registered prediction FALSIFIED.**
 The mean-aggregation + cf_gamma=1.0 sweep finished 720/720 with zero failures: 4 budgets x 3
