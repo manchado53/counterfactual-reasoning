@@ -62,6 +62,30 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-19 — MAX-aggregation control COMPLETE (936 runs): another NULL. Corrected sweep running.
+The four sweeps launched before the aggregation bug was found are finished and clean (600 main +
+240 cap5 + 96 tuning, 0 failures; ring12-max cancelled at 76 runs to free nodes). They measure the
+BINARY max() score, so they are the CONTROL, not the test. Verdict: **no reliable CCE win.**
+P(beats PER) on AUC, 12 seeds per arm, complete cells only:
+```
+capacity 10   0.60x  0.70x  0.80x  0.90x  1.00x     capacity 5   0.70x  0.80x  0.90x  1.00x
+CCE+TD add    0.535  0.416  0.638  0.559  0.328     CCE+TD add   0.631  0.539  0.479  0.506
+CCE+TD mul    0.496  0.382  0.467  0.500  0.210     CCE+TD mul   0.375  0.448  0.425  0.312
+CCE-only      0.465  0.326  0.499  0.414  0.266     CCE-only     0.375  0.459  0.230  0.278
+DQN-Uniform   0.389  0.373  0.502  0.611  0.226     DQN-Uniform  0.477  0.302  0.415  0.402
+```
+CCE+TD(add) is the only arm that ever leads (0.631 / 0.638) and it never reaches a convincing
+margin. **DQN-Uniform hits 0.611 at cap10/0.90x** — random replay "beating" PER again, the same
+noise signature that discredited the original CVRP null. The registered inverted-U is at best
+weakly visible in cceadd and does not replicate across capacities. Treat as NULL.
+Tuning knobs did not rescue it either (cap6/0.70x): r60 0.366, mu50 0.459, mul-r60 0.465,
+score_interval=5 0.279 — **fresher scores were WORSE**.
+Figures: `docs/figures/real/claim2/fig_c2_cvrp_budget_dial.png` + `cvrp_budget_sweep_summary.json`.
+
+**This control is exactly what the aggregation bug predicts.** A binary score that fires at ~76% of
+states cannot prioritise, so CCE degenerates toward PER-with-noise. The real test is the
+mean-aggregation sweep (273435, 720 runs) plus ring12-mean (273492, 360 runs), both running.
+
 ### 2026-08-19 — **BUG: `weighted_mean` has been running as `max`.** CCE's score was BINARY.
 Probing the LIVE training loop (not offline — the notebook already records one offline probe
 lying about this) showed the CCE score in budget mode was still binary: **2 distinct values,
