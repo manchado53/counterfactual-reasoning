@@ -62,6 +62,41 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-19 — **DECISIVE: corrected sweep (720 runs) is a CLEAN NULL. Registered prediction FALSIFIED.**
+The mean-aggregation + cf_gamma=1.0 sweep finished 720/720 with zero failures: 4 budgets x 3
+capacities x 5 arms x 12 seeds, every cell complete. P(beats PER) on AUC:
+```
+capacity 5    0.70x  0.80x  0.90x  1.00x    capacity 10   0.70x  0.80x  0.90x  1.00x
+CCE+TD add    0.587  0.521  0.594  0.438    CCE+TD add    0.324  0.509  0.552  0.321
+CCE+TD mul    0.369  0.376  0.463  0.312    CCE+TD mul    0.526  0.508  0.562  0.209
+CCE-only      0.298  0.334  0.349  0.201    CCE-only      0.478  0.471  0.511  0.238
+DQN-Uniform   0.477  0.302  0.415  0.402    DQN-Uniform   0.373  0.502  0.611  0.226
+```
+Best CCE cell anywhere = 0.594. **DQN-Uniform reaches 0.611** (cap10/0.90x), out-scoring every CCE
+arm in that cell — random replay beating PER is the same noise signature that discredited the
+original CVRP null, and it recurs here. **NULL.**
+
+**THE PRE-REGISTERED INVERTED U IS FALSIFIED.** No consistent mid-dial peak; the weak bump moves
+between capacities (cap5 flat-then-drop, cap10 peaks at 0.90x, cap6 monotone-ish). We predicted
+it in advance, tested it on two independent axes, and it did not hold. Recording that as a
+falsification rather than reinterpreting the shape after the fact.
+
+**FULL LIST OF WHAT WAS TRIED, ALL NULL.** aggregation {max, mean} x budget {0.60..1.30} x
+capacity {10, 6, 5} x instance {10-stop, 12-stop} x cf_gamma {0.99, 1.0} x CCE knobs
+{cf_n_rollouts 20/60, mu 0.25/0.5/1.0, score_interval 5/20, additive/multiplicative}.
+Total ~2,000 runs across 6 SLURM arrays, 0 failures.
+
+**VERDICT: routing is a NEGATIVE result for Claim 2 and should be reported as one.** The cause is
+now measured, not guessed: CCE is a rare-event detector and routing has ~24% zero-stakes states
+against FrozenLake's 86%. Every knob we turned changed the SHAPE of the score; none could create
+dead decisions that the domain does not contain.
+
+**KEEP CVRP AS A CLAIM-1 ENVIRONMENT ONLY** (rho 0.52 -> 0.67 with an exact oracle stands), and
+use the Claim-2 null as the evidence for the suitability thesis — the dead-state fraction is a
+cheap, rollout-measurable predictor that retro-predicts FL-det (86%, WIN), FL-stoch (NULL) and
+routing (24%, NULL). That is a stronger contribution than a fourth win would have been, and it is
+falsifiable: find a domain with a high dead-state fraction and CCE should win there.
+
 ### 2026-08-19 — **FrozenLake is NOT broken by the aggregation bug — and this explains everything.**
 Measured FL's CCE score in the live training loop under both aggregations (1500 eps, 8x8):
 ```
