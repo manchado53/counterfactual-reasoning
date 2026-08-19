@@ -130,6 +130,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs-dir', required=True)
     ap.add_argument('--out', default=None, help='directory for the summary json + figure')
+    ap.add_argument('--curves', action='store_true',
+                    help='also write per-cell learning-curve figures (mean over seeds with a '
+                         '95%% bootstrap band), one PNG per instance group')
+    ap.add_argument('--curve-zoom', type=int, default=1500, metavar='EP',
+                    help='episode limit for the companion zoom figure (default 1500, where all '
+                         'the learning happens); 0 disables the zoom')
     ap.add_argument('--require-seeds', type=int, default=None, metavar='N',
                     help='only report cells where EVERY arm has N finished seeds. '
                          'Unequal seed counts are the classic early-read trap: the seeds '
@@ -220,8 +226,92 @@ def main(argv=None):
         out.mkdir(parents=True, exist_ok=True)
         (out / 'cvrp_budget_sweep_summary.json').write_text(json.dumps(summary, indent=2))
         _plot(summary, data, out / 'fig_c2_cvrp_budget_dial.png')
+        if args.curves:
+            for inst in sorted({i for (i, _, _) in data}):
+                _plot_curves(data, inst, out / f'fig_c2_cvrp_curves_{inst}.png', xmax=None)
+                if args.curve_zoom:
+                    _plot_curves(data, inst,
+                                 out / f'fig_c2_cvrp_curves_{inst}_zoom.png',
+                                 xmax=args.curve_zoom)
         print(f"\nwrote {out / 'cvrp_budget_sweep_summary.json'}")
     return summary
+
+
+ARM_COLOR = {
+    'uniform': '#7f7f7f', 'per': '#1f77b4', 'cceonly': '#2ca02c',
+    'cceadd': '#d62728', 'ccemul': '#9467bd',
+}
+
+
+def _band(curves, n_boot=2000, seed=0):
+    """Mean curve over seeds with a 95% percentile-bootstrap band."""
+    a = np.vstack(curves)                                   # (seeds, evals)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, a.shape[0], (n_boot, a.shape[0]))
+    boots = a[idx].mean(axis=1)                             # (n_boot, evals)
+    lo, hi = np.percentile(boots, [2.5, 97.5], axis=0)
+    return a.mean(axis=0), lo, hi
+
+
+def _plot_curves(data, inst, path, xmax=None):
+    """
+    Learning curves per cell: rows = capacity, cols = budget, one line per arm.
+
+    Summary scalars (AUC, final) hide WHERE arms differ; these show the whole trajectory,
+    so a mid-training lead that washes out by the end is visible rather than averaged away.
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    caps = sorted({c for (i, _, c) in data if i == inst})
+    budgets = sorted({b for (i, b, _) in data if i == inst})
+    if not caps or not budgets:
+        return
+
+    fig, axes = plt.subplots(len(caps), len(budgets), squeeze=False, sharey=True,
+                             figsize=(3.6 * len(budgets), 2.9 * len(caps)))
+    handles = {}
+    for r, cap in enumerate(caps):
+        for c, b in enumerate(budgets):
+            ax = axes[r][c]
+            cell = data.get((inst, b, cap))
+            if not cell:
+                ax.set_axis_off()
+                continue
+            for arm in arm_order(data):
+                runs = cell.get(arm)
+                if not runs:
+                    continue
+                n = min(len(r_['vals']) for r_ in runs)
+                eps = runs[0]['eps'][:n]
+                curves = [r_['vals'][:n] for r_ in runs]
+                if xmax:
+                    keep = eps <= xmax
+                    eps, curves = eps[keep], [v[keep] for v in curves]
+                mean, lo, hi = _band(curves)
+                col = ARM_COLOR.get(arm)
+                ln, = ax.plot(eps, mean, color=col, lw=1.4,
+                              label=f"{ARM_LABEL.get(arm, arm)} (n={len(runs)})")
+                ax.fill_between(eps, lo, hi, color=col, alpha=0.15, linewidth=0)
+                handles.setdefault(arm, ln)
+            ax.set_title(f"budget {b:.2f}x · cap {cap}", fontsize=9)
+            ax.grid(alpha=.3)
+            if r == len(caps) - 1:
+                ax.set_xlabel('episode')
+            if c == 0:
+                ax.set_ylabel('opt_ratio\n(served / max servable)')
+
+    fig.legend(handles.values(), [h.get_label() for h in handles.values()],
+               loc='lower center', ncol=min(5, len(handles)), fontsize=9,
+               frameon=False, bbox_to_anchor=(0.5, -0.01))
+    zoom = f" — first {xmax} episodes" if xmax else ""
+    fig.suptitle(f"Learning curves, {inst}{zoom} "
+                 f"(mean over seeds, 95% bootstrap band)", fontsize=11)
+    fig.tight_layout(rect=[0, 0.05, 1, 0.97])
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"wrote {path}")
 
 
 def _plot(summary, data, path):
