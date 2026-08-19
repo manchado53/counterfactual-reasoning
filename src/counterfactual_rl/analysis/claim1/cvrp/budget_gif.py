@@ -193,6 +193,65 @@ def progression_panels(env, run_dir: Path, stages):
     return out
 
 
+def render_static(env, panels, out_path, suptitle):
+    """
+    One still frame per policy: the whole route at once, with the abandoned customers
+    marked. For a TIE this reads far better than an animation — three trucks driving
+    different loops to the same score is motion that hides the answer.
+    """
+    n = len(panels)
+    xy = env.node_xy
+    fig, axes = plt.subplots(1, n, figsize=(4.3 * n, 5.0), squeeze=False)
+    allc = set(range(1, env.n_nodes))
+
+    for ax, (label, tour, _) in zip(axes[0], panels):
+        served = [p for p in tour if p != DEPOT]
+        skipped = sorted(allc - set(served))
+        ax.set_xlim(-0.06, 1.06); ax.set_ylim(-0.08, 1.12)
+        ax.set_aspect('equal'); ax.axis('off')
+
+        # the route, drawn as arrows in travel order
+        for i in range(len(tour) - 1):
+            a, b = xy[tour[i]], xy[tour[i + 1]]
+            ax.annotate('', xy=b, xytext=a,
+                        arrowprops=dict(arrowstyle='-|>', color='#1f77b4',
+                                        lw=1.9, alpha=.85, shrinkA=11, shrinkB=11))
+        ax.scatter(xy[served, 0], xy[served, 1], s=260, color='#2ca02c', zorder=3)
+        if skipped:
+            ax.scatter(xy[skipped, 0], xy[skipped, 1], s=260, facecolors='none',
+                       edgecolors='#c0392b', linewidths=2.0, zorder=3)
+            ax.scatter(xy[skipped, 0], xy[skipped, 1], marker='x', s=150,
+                       color='#c0392b', linewidths=2.4, zorder=4)
+        for j in range(1, env.n_nodes):
+            ax.text(xy[j, 0], xy[j, 1] - 0.062, str(j), ha='center', fontsize=8.5,
+                    color=('#c0392b' if j in skipped else '#2ca02c'), weight='bold')
+        ax.scatter([xy[DEPOT, 0]], [xy[DEPOT, 1]], marker='s', s=250,
+                   color='#222222', zorder=5)
+        ax.text(xy[DEPOT, 0], xy[DEPOT, 1] + 0.06, 'depot', ha='center', fontsize=8.5)
+
+        ax.set_title(f"{label}\nserved {len(served)}   ·   gave up on "
+                     f"{', '.join(str(k) for k in skipped) if skipped else 'nobody'}"
+                     f"\nfuel {env.tour_units(tour)}/{env.budget}", fontsize=10.5)
+
+    from matplotlib.lines import Line2D
+    fig.legend(handles=[
+        Line2D([], [], marker='s', color='none', markerfacecolor='#222222',
+               markersize=10, label='depot'),
+        Line2D([], [], marker='o', color='none', markerfacecolor='#2ca02c',
+               markersize=11, label='served'),
+        Line2D([], [], marker='x', color='#c0392b', lw=0, markersize=10,
+               markeredgewidth=2.4, label='abandoned (no fuel left for it)'),
+        Line2D([], [], color='#1f77b4', lw=2, label='route, in travel order'),
+    ], loc='lower center', ncol=4, frameon=False, fontsize=10)
+
+    fig.suptitle(suptitle, fontsize=12)
+    fig.tight_layout(rect=[0, 0.07, 1, 0.94])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"wrote {out_path}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs-dir', required=True)
@@ -203,6 +262,8 @@ def main(argv=None):
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--no-oracle', action='store_true')
+    ap.add_argument('--static', action='store_true',
+                    help='write a still PNG comparing whole routes instead of an animation')
     ap.add_argument('--progression', nargs='+', default=None, metavar='RUN',
                     help='run dir names to show as a training progression (one row each)')
     ap.add_argument('--stages', type=int, default=4)
@@ -248,9 +309,12 @@ def main(argv=None):
         built.append((f"{ARM_LABEL.get(arm, arm)}  —  {served}/{opt_n}",
                       tour, tour_frames(env, tour)))
 
-    sup = (f"Budget routing · {env.n_customers} customers · capacity {env.capacity} · "
-           f"B={env.budget}u ({env.budget_mult:.2f}x optimal tour) · seed {args.seed}")
-    render(env, built, args.out, sup)
+    sup = (f"Tank holds {env.budget} units — only {opt_n} of {env.n_customers} stops can be "
+           f"reached. Which {env.n_customers - opt_n} does each method give up on?")
+    if args.static:
+        render_static(env, built, args.out, sup)
+    else:
+        render(env, built, args.out, sup)
 
 
 if __name__ == '__main__':
