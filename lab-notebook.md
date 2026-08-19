@@ -62,6 +62,48 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-19 — **BUG: `weighted_mean` has been running as `max`.** CCE's score was BINARY.
+Probing the LIVE training loop (not offline — the notebook already records one offline probe
+lying about this) showed the CCE score in budget mode was still binary: **2 distinct values,
+~76% of scored states at the ceiling**, gini 0.000. Budget mode was built to fix precisely that,
+so the premise looked dead. It was not the environment.
+
+**ROOT CAUSE.** `analysis/metrics.py::compute_consequence_metric` honours `'weighted_mean'` only
+when `action_probs` is passed. Without it, control falls through to `return max(...)`.
+```
+passes action_probs:  chess YES   connect_four YES
+does NOT pass:        frozen_lake NO   cvrp NO      <- config says weighted_mean, runs max
+```
+With deterministic rollouts every pairwise total variation is 0 or 1, so **max() is binary by
+construction** — it fires whenever ANY alternative differs. mean() instead gives the FRACTION of
+alternatives that differ. Measured in-loop on budget routing:
+```
+aggregation   distinct values   at ceiling   gini
+max                  2             76.5%     0.000     <- what every FL and CVRP run has used
+mean                29             10.3%     0.262     <- graded and selective
+```
+
+**IMPLICATION FOR THE PAPER — needs a human decision.** FrozenLake is the paper's headline env
+and its published numbers were produced by this max fallback. The results are not invalid (max is
+a legitimate aggregation) but the paper DESCRIBES weighted_mean, which is not what ran. Either
+relabel the method as max-aggregation, or re-run FL with true averaging and see if the win holds.
+**Behaviour deliberately LEFT UNCHANGED** in code so `paper/repro/` still reproduces; the fallback
+now raises a RuntimeWarning explaining itself. Do not "fix" it silently.
+
+**SECOND KNOB, same root problem.** `cf_gamma=0.99` discounts the counterfactual return, so "same
+customers served, different ORDER" scores differently — which destroys exactly the ties budget
+mode exists to create. Corrected runs use `cf_gamma=1.0` so the return is the raw integer count.
+
+**ACTION.** Launched sweep 273435 (720 runs: 4 budgets x 3 capacities {10,6,5} x 5 arms x 12
+seeds) with `consequence_aggregation='mean'` + `cf_gamma=1.0`. Run prefix `bdm_`; the analysis
+keeps it in a separate `meanagg` cell group so it is never pooled with the max runs. The four
+earlier sweeps (273322/273382/273406/273411, 1,296 runs) all used the binary max score — they are
+still a valid measurement OF MAX, and are the control this compares against.
+
+**ALSO.** The main dial sweep finished 600/600 with zero failures. Analysis now refuses to compare
+cells whose arms have unequal seed counts (an early partial read produced P(beats PER)=0.000 and
+nan cells — the same "never read a sweep early" trap recorded for JaxNav).
+
 ### 2026-08-18 — BUDGET MODE built; 1,296-run dial sweep launched (results pending)
 Attacking the CVRP Claim-2 null at its diagnosed cause rather than re-running it. Switched the
 routing objective to the ORIENTEERING variant: serve as many customers as possible on a closed
