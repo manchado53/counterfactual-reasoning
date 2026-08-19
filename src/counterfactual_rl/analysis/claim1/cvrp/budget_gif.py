@@ -73,20 +73,25 @@ def tour_frames(env, tour):
     return out
 
 
-def render(env, panels, out_path, suptitle):
+def render(env, panels, out_path, suptitle, ncols=None):
     """panels = [(label, tour, frames)]; all animate together, short ones hold at the end."""
     n = len(panels)
+    ncols = ncols or n
+    nrows = (n + ncols - 1) // ncols
     n_frames = max(len(f) for _, _, f in panels) + HOLD_FRAMES
     xy = env.node_xy
     B = env.budget
 
-    fig, axes = plt.subplots(1, n, figsize=(4.0 * n, 4.9), squeeze=False)
-    axes = axes[0]
+    fig, axes_grid = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 5.5 * nrows),
+                                  squeeze=False)
+    axes = [ax for row in axes_grid for ax in row]
+    for ax in axes[n:]:
+        ax.set_axis_off()
     artists = []
 
     for ax, (label, tour, frames) in zip(axes, panels):
         ax.set_xlim(-0.05, 1.05)
-        ax.set_ylim(-0.16, 1.10)
+        ax.set_ylim(-0.30, 1.12)
         ax.set_aspect('equal')
         ax.axis('off')
         # customers: hollow until served
@@ -114,7 +119,9 @@ def render(env, panels, out_path, suptitle):
                             cap=cap, frames=frames, tour=tour))
 
     fig.suptitle(suptitle, fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    if nrows > 1:
+        fig.subplots_adjust(hspace=0.30)
 
     def update(k):
         out = []
@@ -143,6 +150,28 @@ def render(env, panels, out_path, suptitle):
     print(f"wrote {out_path}  ({out_path.stat().st_size / 1e6:.1f} MB)")
 
 
+def progression_panels(env, run_dir: Path, stages):
+    """One panel per training stage, replaying that checkpoint's greedy policy."""
+    from counterfactual_rl.agents.cvrp.dqn import CVRPDQN
+    ckpts = sorted((run_dir / 'checkpoints').glob('ckpt_*.pkl'))
+    if not ckpts:
+        raise SystemExit(f"no checkpoints under {run_dir}/checkpoints")
+    pick = [ckpts[min(len(ckpts) - 1, round(i * (len(ckpts) - 1) / max(1, stages - 1)))]
+            for i in range(stages)]
+
+    out = []
+    for c in pick:
+        with open(c, 'rb') as f:
+            config = pickle.load(f)['config']
+        agent = CVRPDQN(dict(config))
+        agent.load(str(c))
+        tour, _ = agent.rollout_greedy()
+        ep = int(c.stem.split('_')[1])
+        served = len([p for p in tour if p != DEPOT])
+        out.append((f"episode {ep} — served {served}", tour, tour_frames(env, tour)))
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs-dir', required=True)
@@ -153,7 +182,26 @@ def main(argv=None):
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--no-oracle', action='store_true')
+    ap.add_argument('--progression', nargs='+', default=None, metavar='RUN',
+                    help='run dir names to show as a training progression (one row each)')
+    ap.add_argument('--stages', type=int, default=4)
     args = ap.parse_args(argv)
+
+    if args.progression:
+        rows, env = [], None
+        for name in args.progression:
+            d = runs_dir_arg = Path(args.runs_dir) / name
+            _, _, env = load_policy_tour(d)
+            rows.append((name, d))
+        panels = []
+        for name, d in rows:
+            for lbl, tour, fr in progression_panels(env, d, args.stages):
+                panels.append((f"{name.replace('gifck_', '')} · {lbl}", tour, fr))
+        opt_n = optimal_served(env)
+        sup = (f"Policy improving during training · {env.n_customers} customers · "
+               f"capacity {env.capacity} · B={env.budget}u · optimal = {opt_n} served")
+        render(env, panels, args.out, sup, ncols=args.stages)
+        return
 
     runs = Path(args.runs_dir)
     panels, env = [], None
