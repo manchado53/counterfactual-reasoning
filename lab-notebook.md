@@ -62,6 +62,65 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-18 — BUDGET MODE built; 1,296-run dial sweep launched (results pending)
+Attacking the CVRP Claim-2 null at its diagnosed cause rather than re-running it. Switched the
+routing objective to the ORIENTEERING variant: serve as many customers as possible on a closed
+tour within travel budget B. Reward becomes an INTEGER COUNT, so action outcomes can TIE and the
+total-variation score stops saturating; B controls difficulty directly, so headroom is a knob.
+Prior art is deep (distance-constrained VRP — Laporte/Desrochers/Nobert 1984; the Orienteering
+Problem family), so this is a recognized OR variant, not an env invented to make CCE win.
+
+**BUILT** (branch research/cce-cvrp-logistics, commits 9713876 / 7bf1f1d / 14cb90f — note the
+pre-existing CVRP work was UNCOMMITTED and is now safe):
+- `envs/routing_budget.py` — budget env. Distances quantized to integer units so budget-spent is
+  an EXACT state variable (the instance is defined on those integers; the oracle is exact for it,
+  not approximate). Action mask reserves the return leg, so the vehicle can never strand itself.
+- `analysis/claim1/cvrp/budget_oracle.py` — exact max-servable DP. Spend strictly increases, so
+  the state graph is a DAG and one backward pass solves it; Bellman-residual self-check included.
+- `tests/test_routing_budget.py` — 18 tests. DP == BRUTE FORCE at six budget settings; the
+  all-customers optimum matches permutation search. 39/39 including the old CVRP tests.
+- `agents/cvrp/` build_env / evaluate / config / CLI wired. `opt_ratio` becomes served/max-servable
+  so all downstream rliable machinery is unchanged.
+
+**MEASURED BEFORE RUNNING (the pre-registration).** Exact-oracle stakes + a plain-DQN gate:
+```
+budget_mult   B(u)   states    optimal served   gini   dead%   DQN-uniform curve
+   0.55        19     4,707        5/10         0.222  12.2    -
+   0.75        26    47,582        8/10         0.214  11.4    0.750 -> 0.875, climbing
+   0.95        33   183,826        9/10         0.262  16.3    0.889 flat from ep 400
+   1.30        46   382,195       10/10         0.369  30.3    1.000 at ep 400  <- CEILING
+FrozenLake 8x8 det (where CCE wins)             0.559  50.9
+```
+**MY FIRST PREDICTION WAS WRONG AND THE ORACLE CORRECTED IT.** I expected a TIGHT budget to
+concentrate stakes. It does the opposite: when everything is on a knife edge ~88% of states have
+stakes, which is the same flatness as before. Loose budgets concentrate stakes (gini 0.22 -> 0.37)
+but destroy headroom. The two things CCE needs move in OPPOSITE directions on this dial, so the
+registered prediction is an INVERTED U — advantage peaks mid-dial. Falsifiable three ways (flat,
+monotone up, monotone down all contradict it).
+
+**LAUNCHED — 1,296 runs, 4 SLURM arrays, all healthy at time of writing:**
+- 273322 `budget_dial` 600 runs: 5 budgets x 2 capacities {10,6} x 5 arms x 12 seeds
+- 273382 `budget_dial_cap5` 240 runs: capacity 5 (tightest feasible; max demand 4)
+- 273406 `budget_dial_tuning` 96 runs: CCE knobs on the capacity-6 headroom cell —
+  cf_n_rollouts=60 (the notebook's score-quantization caveat), mu=0.5, score_interval=5
+- 273411 `budget_dial_ring12` 360 runs: SIZE axis, new 12-customer `ring12` instance
+  (507k states, 1.8 GB peak, 9 of 12 servable at 0.80x)
+Analysis: `analysis/claim2/cvrp_budget_sweep.py` (instance-aware; AUC, final, ep@thr, bootstrap
+P(beats PER), dial figure). Plan: `plans/cce-cvrp-budget-mode.md`.
+
+**EARLY PARTIAL READ (first cells only, NOT a result).** At budget 0.60x / capacity 10 every arm
+reaches final 1.0000 and P(beats PER) sits at 0.39-0.50 — no CCE advantage at the tight end, which
+is what the pre-registration expected. Capacity 6 does NOT ceiling (final 0.957), which is why the
+cap-5 and ring12 sweeps exist.
+
+**REJECTED / DEAD ENDS this session.** 13-customer instance: 4.4M states, 6.4 GB at 1.00x — too
+heavy to build inside every run. `pkill -f <script>.py` killed its own shell (the pattern matched
+the invoking command line) — use a narrower pattern or the job id.
+
+**WATCH-ITEM.** In budget mode `opt_ratio` is COARSE (served is an integer, so the curve steps by
+1/optimal). AUC over ~160 eval points is the mitigation. If arms still cannot be separated, that
+is a measurement limit to report, NOT a null to claim.
+
 ### 2026-08-13 — NEW ENV: CVRP (logistics). **CLAIM 1 LANDED (3 seeds).** Claim 2 ruled out here.
 Built a routing environment (`envs/cvrp.py`) as the 2nd good-oracle env C1 needed. Branch
 `research/cce-cvrp-logistics` (worktree). Chose to REIMPLEMENT in JAX rather than install
