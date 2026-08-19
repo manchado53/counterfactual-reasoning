@@ -73,6 +73,20 @@ def build_env(config: dict) -> CVRPEnv:
         demand[0] = 0
 
     capacity = config['capacity'] if 'capacity' in config else spec['capacity']
+
+    # BUDGET MODE (orienteering variant). Reward becomes "customers served" under a
+    # travel budget instead of negative distance. This is what gives the CCE score
+    # tie-able discrete outcomes and keeps the task from being solved in ~750 episodes.
+    if config.get('budget_mult') is not None or config.get('budget_units') is not None:
+        from counterfactual_rl.envs.routing_budget import BudgetRoutingEnv
+        return BudgetRoutingEnv(
+            node_xy=spec['xy'], demand=demand, capacity=capacity,
+            budget_mult=config.get('budget_mult', 1.0),
+            budget_units=config.get('budget_units'),
+            dist_scale=config.get('dist_scale', 10),
+            travel_noise=config.get('travel_noise', 0.0),
+        )
+
     return CVRPEnv(node_xy=spec['xy'], demand=demand, capacity=capacity,
                    travel_noise=config.get('travel_noise', 0.0))
 
@@ -117,10 +131,17 @@ class _MetricsLogger:
             f"# Customers: {env.n_customers}  Capacity: {env.capacity}"
             f"  Algorithm: {config.get('algorithm')}\n"
         )
-        self._file.write(
-            f"# States: {env.n_states}  Optimal length: {optimal_length:.6f}"
-            f"  Min loads: {env.min_loads()}\n"
-        )
+        if getattr(env, 'is_budget_mode', False):
+            self._file.write(
+                f"# States: {env.n_states}  Budget: {env.budget}u"
+                f" ({env.budget_mult:.2f}x all-customers optimum {env.optimal_all_units}u)"
+                f"  Optimal served: {int(optimal_length)}/{env.n_customers}\n"
+            )
+        else:
+            self._file.write(
+                f"# States: {env.n_states}  Optimal length: {optimal_length:.6f}"
+                f"  Min loads: {env.min_loads()}\n"
+            )
         self._file.write(
             f"# Episodes: {n_episodes}  Eval interval: {eval_interval}"
             f"  Eval episodes: {eval_episodes}\n#\n"
@@ -262,8 +283,16 @@ class CVRPDQN:
             self.buffer.enable_draw_log = True
 
         # Exact optimum for the instance — the denominator of the opt_ratio metric.
-        from counterfactual_rl.analysis.claim1.cvrp.oracle import optimal_tour
-        self._optimal_tour, self.optimal_length = optimal_tour(self.env, gamma=1.0)
+        self.is_budget_mode = getattr(self.env, 'is_budget_mode', False)
+        if self.is_budget_mode:
+            # Budget mode scores COUNT, not distance: opt_ratio = served / max servable.
+            from counterfactual_rl.analysis.claim1.cvrp.budget_oracle import optimal_served
+            self._optimal_tour = None
+            self.optimal_served = optimal_served(self.env)
+            self.optimal_length = float(self.optimal_served)
+        else:
+            from counterfactual_rl.analysis.claim1.cvrp.oracle import optimal_tour
+            self._optimal_tour, self.optimal_length = optimal_tour(self.env, gamma=1.0)
 
         self._build_jit_fns()
 
@@ -375,6 +404,23 @@ class CVRPDQN:
         opt_ratio = optimal_length / achieved_length in (0, 1]; 1.0 == provably optimal.
         An unfinished plan (hit the step cap) scores 0.0.
         """
+        if self.is_budget_mode:
+            # The greedy policy and the env are both deterministic, so one rollout is
+            # the whole story; the loop is kept for API symmetry.
+            ratios, lengths, returns = [], [], []
+            for _ in range(max(1, n_episodes)):
+                path, total = self.rollout_greedy()
+                served = int(round(total))          # reward is +1 per new customer
+                assert path[-1] == 0, "budget-mode rollout must end at the depot"
+                ratios.append(served / self.optimal_served if self.optimal_served else 0.0)
+                lengths.append(len(path) - 1)
+                returns.append(total)
+            return {
+                'opt_ratio':  float(np.mean(ratios)),   # = served / max servable
+                'avg_length': float(np.mean(lengths)),
+                'avg_return': float(np.mean(returns)),
+            }
+
         ratios, lengths, returns = [], [], []
         for _ in range(max(1, n_episodes)):
             path, total = self.rollout_greedy()
@@ -423,9 +469,15 @@ class CVRPDQN:
         if verbose:
             alg = self.config['algorithm'].upper()
             mode = f"CVRP cap={self.env.capacity}" if self.env.is_capacitated else "TSP"
+            if self.is_budget_mode:
+                mode = (f"BUDGET-ROUTING cap={self.env.capacity} "
+                        f"B={self.env.budget}u ({self.env.budget_mult:.2f}x)")
             print(f"Training {alg} on {mode} ({self.env.n_customers} customers)")
+            opt_str = (f"optimal served: {self.optimal_served}/{self.env.n_customers}"
+                       if self.is_budget_mode
+                       else f"optimal length: {self.optimal_length:.4f}")
             print(f"  States: {self.n_states}  |  features: {self.env.feature_dim}"
-                  f"  |  optimal length: {self.optimal_length:.4f}")
+                  f"  |  {opt_str}")
             print(f"  Episodes: {n_episodes}  |  ε: {self.epsilon_start}→{self.epsilon_end}"
                   f" over {self.epsilon_decay_episodes} eps")
             print(f"  JAX backend: {jax.default_backend()}  |  Devices: {jax.devices()}")

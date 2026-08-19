@@ -39,6 +39,9 @@ def parse_args():
     p.add_argument('--capacity', type=int, default=None,
                    help='load limit; -1 for TSP mode (no limit)')
     p.add_argument('--travel-noise', type=float, default=None, dest='travel_noise')
+    p.add_argument('--budget-mult', type=float, default=None, dest='budget_mult',
+                   help='switch to BUDGET MODE: B = mult x optimal all-customers tour')
+    p.add_argument('--dist-scale', type=int, default=None, dest='dist_scale')
     p.add_argument('--episodes', type=int, default=None, dest='n_episodes')
     p.add_argument('--mixing', default=None, choices=['additive', 'multiplicative'],
                    dest='priority_mixing')
@@ -60,6 +63,10 @@ def main():
         config['capacity'] = None if args.capacity < 0 else args.capacity
     if args.travel_noise is not None:
         config['travel_noise'] = args.travel_noise
+    if args.budget_mult is not None:
+        config['budget_mult'] = args.budget_mult
+    if args.dist_scale is not None:
+        config['dist_scale'] = args.dist_scale
     if args.n_episodes is not None:
         config['n_episodes'] = args.n_episodes
     if args.priority_mixing is not None:

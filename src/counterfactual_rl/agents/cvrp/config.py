@@ -23,6 +23,20 @@ DEFAULT_CONFIG = {
     # Zero-mean, so the exact oracle and the optimal plan are unchanged.
     'travel_noise': 0.0,
 
+    # ── BUDGET MODE (orienteering variant) — the fix for the Claim-2 null ────
+    # None -> classic CVRP (reward = -distance). Set budget_mult to switch the goal to
+    # "serve as many customers as you can on a closed tour within a travel budget B".
+    # Reward becomes an INTEGER COUNT, so action outcomes can TIE and CCE's
+    # total-variation score stops saturating; B near the all-customers optimum also
+    # keeps the task from being solved in ~750 episodes (the headroom problem).
+    # B = round(budget_mult * exact optimal all-customers tour), in integer units.
+    # THIS IS THE DIAL. Measured stakes-concentration RISES with budget_mult
+    # (gini 0.22 at 0.55 -> 0.37 at 1.30), so the registered prediction is that CCE's
+    # advantage is LARGEST at the loose end.
+    'budget_mult': None,
+    'budget_units': None,      # set B directly in integer units (overrides budget_mult)
+    'dist_scale': 10,          # integer distance units per unit euclidean distance
+
     # ── algorithm ────────────────────────────────────────────────────────────
     'algorithm': 'consequence-dqn',   # dqn-uniform | dqn (=PER) | consequence-dqn
     'gamma': 0.99,
