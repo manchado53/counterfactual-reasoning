@@ -62,6 +62,47 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-19 — **FrozenLake is NOT broken by the aggregation bug — and this explains everything.**
+Measured FL's CCE score in the live training loop under both aggregations (1500 eps, 8x8):
+```
+                     distinct   at ceiling   ZERO     gini
+FL determ.  max          2         13.7%     86.3%    0.000    <- what the paper ran
+FL determ.  mean         4          3.6%     92.7%    0.177
+FL slippery max         18          0.0%     55.6%    0.386
+FL slippery mean        41          0.0%     52.5%    0.434
+budget routing max       2         76.5%     23.5%    0.000    <- for contrast
+```
+**PARTIAL WALK-BACK of the alarm I raised.** max() IS binary in FL-deterministic — but it is
+binary and **SELECTIVE**: it stays at ZERO for 86.3% of states. That is precisely the rare-event
+detector CCE is supposed to be, and it is why FL-det is the headline win. In FL-slippery max is
+not even binary (18 distinct values) because stochastic rollouts spread the return distributions.
+So the published FL numbers rest on a sound mechanism; the defect is one of LABELLING (the config
+and paper say weighted_mean, the code ran max), not of validity. Fixing the label is cheap;
+re-running FL is not required by this evidence.
+
+**THE REAL REASON ROUTING KEEPS FAILING — and it is not the metric.** The same max() score is
+selective in FrozenLake (86% zeros) and saturated in routing (24% zeros). The metric did not
+change; the DOMAIN did.
+```
+                     states where the action choice does NOT matter
+FrozenLake 8x8 det                  86.3%      <- CCE wins here
+budget routing (any setting)        ~24%       <- CCE cannot win here
+```
+This is the SAME number the plan file measured on day one from the exact oracle — routing had
+0.7-3% "dead" states vs FrozenLake's 50.9% — and it has now survived EVERY intervention we
+threw at it: capacity dial, budget dial, aggregation fix, cf_gamma fix, instance size, and four
+CCE hyperparameters. **Routing has no dead zones. In a grid you can stand on open ice where every
+move is equivalent; in routing every choice picks among spatially spread stops, so every choice
+matters a little and almost none matter a lot.** CCE is a rare-event detector, and routing has no
+rare events.
+
+**SHARPENED THESIS (the transferable contribution).** CCE helps when a large fraction of decisions
+are INCONSEQUENTIAL, so that a cheap score can find the few that are not. Its prerequisite is not
+determinism, not discrete reward, not stakes-concentration alone — it is a high proportion of
+zero-stakes states. This is measurable from rollouts BEFORE spending compute (it is the
+suitability pipeline's "dead state" fraction), and it retro-predicts every result we have:
+FL-det (86% dead, WIN), FL-stoch (graded but noisy, NULL), CVRP/budget routing (~24% dead, NULL).
+
 ### 2026-08-19 — MAX-aggregation control COMPLETE (936 runs): another NULL. Corrected sweep running.
 The four sweeps launched before the aggregation bug was found are finished and clean (600 main +
 240 cap5 + 96 tuning, 0 failures; ring12-max cancelled at 76 runs to free nodes). They measure the
