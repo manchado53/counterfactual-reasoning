@@ -39,20 +39,34 @@ FRAMES_PER_LEG = 8
 HOLD_FRAMES = 10          # pause on the finished route before looping
 
 
-def _shrink(path):
-    """Palette-quantize the GIF in place — keeps it small enough to preview inline."""
+def _shrink(path, duration=None):
+    """
+    Palette-quantize the GIF in place — keeps it small enough to preview inline.
+
+    BUG THIS FIXES: the frame duration used to be read as `im.info['duration']` AFTER the
+    seek loop had run off the end, so it picked up the LAST frame's duration — typically a
+    long end-of-animation hold — and applied it to EVERY frame. That played the whole
+    animation at the hold speed (measured: 830ms/frame on cvrp_optimal_plan.gif, 1570ms on
+    the budget GIFs — roughly 12-19x too slow, which reads as "frozen").
+
+    Per-frame durations are now collected while iterating and passed through as a list, so
+    an intentional hold stays a hold and the motion stays at motion speed. Pass `duration`
+    to override every frame explicitly.
+    """
     from PIL import Image
     im = Image.open(path)
-    frames = []
+    frames, durs = [], []
     try:
         while True:
+            durs.append(im.info.get('duration', 70))
             frames.append(im.convert('RGB').convert(
                 'P', palette=Image.ADAPTIVE, colors=64))
             im.seek(im.tell() + 1)
     except EOFError:
         pass
     frames[0].save(path, save_all=True, append_images=frames[1:],
-                   loop=0, duration=im.info.get('duration', 70), optimize=True)
+                   loop=0, duration=(duration if duration is not None else durs),
+                   optimize=True)
 
 
 def plan_from_policy(env, ckpt_path, config):

@@ -29,8 +29,9 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from counterfactual_rl.envs.routing_budget import DEPOT
 from counterfactual_rl.analysis.claim1.cvrp.budget_oracle import optimal_plan, optimal_served
 
-FRAMES_PER_LEG = 7
-HOLD_FRAMES = 18
+FRAMES_PER_LEG = 5
+HOLD_FRAMES = 14
+FPS = 14          # 71 ms/frame -> one leg takes ~0.36 s
 
 ARM_LABEL = {
     'uniform': 'DQN-Uniform', 'per': 'DQN+PER', 'cceonly': 'DQN+CCE-only',
@@ -118,8 +119,25 @@ def render(env, panels, out_path, suptitle, ncols=None):
         artists.append(dict(trail=trail, truck=truck, done=done, gauge=gauge,
                             cap=cap, frames=frames, tour=tour))
 
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    key = [
+        Line2D([], [], marker='s', color='none', markerfacecolor='#222222',
+               markersize=10, label='depot (start / reload / finish)'),
+        Line2D([], [], marker='o', color='none', markeredgecolor='#bbbbbb',
+               markerfacecolor='none', markersize=11, label='customer not yet served'),
+        Line2D([], [], marker='o', color='none', markerfacecolor='#2ca02c',
+               markersize=11, label='customer served'),
+        Line2D([], [], marker='o', color='none', markerfacecolor='#d62728',
+               markersize=10, label='the vehicle'),
+        Line2D([], [], color='#1f77b4', lw=2, label='route driven so far'),
+        Patch(facecolor='#4c9f70', edgecolor='#666666', label='fuel used / budget B'),
+    ]
+    fig.legend(handles=key, loc='lower center', ncol=3, frameon=False, fontsize=9.5,
+               bbox_to_anchor=(0.5, 0.0))
+
     fig.suptitle(suptitle, fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.11 if nrows == 1 else 0.06, 1, 0.95])
     if nrows > 1:
         fig.subplots_adjust(hspace=0.30)
 
@@ -136,17 +154,20 @@ def render(env, panels, out_path, suptitle, ncols=None):
             used = min(1.0, fr['spent'] / B)
             a['gauge'].set_width(0.96 * used)
             a['gauge'].set_color('#4c9f70' if used < 0.8 else '#e08a1e' if used < 0.97 else '#c0392b')
-            a['cap'].set_text(f"served {len(fr['served'])}   fuel {fr['spent']:.0f}/{B}")
+            a['cap'].set_text(
+                f"served {len(fr['served'])}/{env.n_customers}"
+                f"     fuel {fr['spent']:.0f}/{B} ({100 * used:.0f}%)")
             out += [a['trail'], a['truck'], a['done'], a['gauge'], a['cap']]
         return out
 
     anim = FuncAnimation(fig, update, frames=n_frames, blit=False, interval=80)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    anim.save(str(out_path), writer=PillowWriter(fps=12))
+    anim.save(str(out_path), writer=PillowWriter(fps=FPS))
     plt.close(fig)
 
     from counterfactual_rl.analysis.claim1.cvrp.make_gif import _shrink
-    _shrink(str(out_path))
+    # explicit duration: never let the end-hold frame set the speed of the whole loop
+    _shrink(str(out_path), duration=int(round(1000 / FPS)))
     print(f"wrote {out_path}  ({out_path.stat().st_size / 1e6:.1f} MB)")
 
 
