@@ -37,6 +37,8 @@ ARM_LABEL = {
 }
 RUN_RE = re.compile(r'^bd_(\w+?)_b(\d+)_c(\d+)_s(\d+)$')
 RUN_RE_I = re.compile(r'^bdi_([a-z0-9]+)_(\w+?)_b(\d+)_c(\d+)_s(\d+)$')
+# mean-aggregation rerun (the silent max fallback made the score binary)
+RUN_RE_M = re.compile(r'^bdm_(\w+?)_b(\d+)_c(\d+)_s(\d+)$')
 THRESHOLDS = (0.75, 0.90, 1.00)
 
 
@@ -69,6 +71,10 @@ def parse_name(name):
     m = RUN_RE.match(name)
     if m:
         return ('default', m.group(1), int(m.group(2)) / 100.0, int(m.group(3)), int(m.group(4)))
+    m = RUN_RE_M.match(name)
+    if m:
+        return ('meanagg', m.group(1), int(m.group(2)) / 100.0,
+                int(m.group(3)), int(m.group(4)))
     m = RUN_RE_I.match(name)
     if m:
         return (m.group(1), m.group(2), int(m.group(3)) / 100.0,
@@ -79,7 +85,8 @@ def parse_name(name):
 def collect(runs_dir: Path):
     """{(instance, budget_mult, capacity): {arm: [ {seed, eps, vals}, ... ]}}"""
     data = defaultdict(lambda: defaultdict(list))
-    for d in sorted(list(runs_dir.glob('bd_*')) + list(runs_dir.glob('bdi_*'))):
+    for d in sorted(list(runs_dir.glob('bd_*')) + list(runs_dir.glob('bdi_*'))
+                    + list(runs_dir.glob('bdm_*'))):
         parsed = parse_name(d.name)
         f = d / 'metrics.log'
         if not parsed or not f.exists():
