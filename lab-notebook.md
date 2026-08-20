@@ -135,10 +135,31 @@ drives the truck somewhere it cannot return from. Outcomes are genuinely bimodal
 end at exactly 0, which never happened before), but the task overshot the useful window: it went
 from "everyone solves it" straight to "nobody does".
 
-**IN PROGRESS.** 18 calibration runs (budget 1.10 / 1.25 / 0.95, 6 seeds, 6000 episodes) testing
-the two candidate causes — budget too tight, or 2000 episodes too few. **No CCE arm has been run
-in this configuration**, deliberately: the evaluation budget must be calibrated on the baseline
-alone before any CCE arm is looked at.
+**CALIBRATION (42 baseline runs, 6000 episodes).** Solve rate = seeds whose final greedy policy
+matches the exact oracle:
+```
+budget   solved        zeros   converged?
+0.95x    1/6   17%     1/6     no - still climbing (+0.019 over the last third)
+1.10x    0/6    0%     1/6     yes
+1.14x    2/8   25%     2/8     yes
+1.17x    1/8   12%     0/8     no - still rising (+0.012)
+1.21x    1/8   12%     1/8     yes
+1.25x    6/6  100%     0/6     yes - solved by episode 1500
+```
+**ROUTING DIFFICULTY IS A STEP FUNCTION, NOT A DIAL.** Solve rate runs 12% -> 25% -> 100% across
+FOUR budget units (B=42 -> 44). Nothing sits in the 30-60% band that makes a comparison
+informative. This is the same fact the stakes distribution reported, in a second currency: the
+budget sweep there was equally monotone with no balanced setting.
+
+Note the non-monotonicity (1.10x scores WORSE than 0.95x): "solved" means matching the oracle
+exactly, and the oracle target MOVES with the budget - 9 customers at 0.95x, all 10 at 1.10x.
+Serving 10 is harder than serving 9 even with more slack.
+
+**IN PROGRESS — SLURM 273792, 30 runs, 25,000 episodes** (4x longer) at 0.95x / 1.14x / 1.17x,
+the three budgets that had NOT converged. Tests whether the sub-30% solve rates are a
+training-length artefact rather than a property of the environment. **Still no CCE arm in this
+configuration**, deliberately: the budget is calibrated on the baseline alone, so the environment
+cannot be tuned to favour our own method.
 
 ### 2026-08-19 — **CORRECTION + SHARPER PREDICTOR: it is BIMODALITY, not the dead-state fraction.**
 My earlier entry today framed the thesis as "CCE needs a high fraction of ZERO-stakes states
