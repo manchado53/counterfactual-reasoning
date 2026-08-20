@@ -93,6 +93,12 @@ def build_env(config: dict) -> CVRPEnv:
             budget_units=config.get('budget_units'),
             dist_scale=config.get('dist_scale', 10),
             travel_noise=config.get('travel_noise', 0.0),
+            allow_stranding=config.get('allow_stranding', False),
+            reward_shape=config.get('reward_shape', 'stepwise'),
+            strand_penalty=config.get('strand_penalty', -10.0),
+            time_windows=config.get('time_windows', False),
+            n_windowed=config.get('n_windowed', 3),
+            window_width=config.get('window_width', 6),
         )
 
     return CVRPEnv(node_xy=spec['xy'], demand=demand, capacity=capacity,
@@ -418,8 +424,17 @@ class CVRPDQN:
             ratios, lengths, returns = [], [], []
             for _ in range(max(1, n_episodes)):
                 path, total = self.rollout_greedy()
-                served = int(round(total))          # reward is +1 per new customer
-                assert path[-1] == 0, "budget-mode rollout must end at the depot"
+                # A run that ends away from the depot is STRANDED: it scored nothing,
+                # whatever it collected on the way. Only reachable with allow_stranding,
+                # so the original assert would have been valid before Option A -- but it
+                # would fire on exactly the failure case the env now exists to produce.
+                stranded = path[-1] != 0
+                if stranded:
+                    served = 0
+                elif self.env.reward_shape == 'terminal':
+                    served = int(round(total))      # terminal payout IS the served count
+                else:
+                    served = sum(1 for p in path[1:] if p != 0)
                 ratios.append(served / self.optimal_served if self.optimal_served else 0.0)
                 lengths.append(len(path) - 1)
                 returns.append(total)

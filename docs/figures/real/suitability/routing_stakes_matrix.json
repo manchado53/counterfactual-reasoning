@@ -1,0 +1,129 @@
+{
+  "budget_mult": 0.8,
+  "capacity": 10,
+  "window_width": 6,
+  "rows": [
+    {
+      "label": "baseline (today)",
+      "states": 78292,
+      "decision": 30763,
+      "failures": 0,
+      "optimal": 8.0,
+      "barely": 11.504079576114163,
+      "middle": 75.11621103273413,
+      "critical": 13.379709391151708,
+      "windowed": []
+    },
+    {
+      "label": "windows x3",
+      "states": 38565,
+      "decision": 14047,
+      "failures": 0,
+      "optimal": 8.0,
+      "barely": 17.804513419235423,
+      "middle": 82.0744642984267,
+      "critical": 0.12102228233786573,
+      "windowed": [
+        1,
+        4,
+        7
+      ]
+    },
+    {
+      "label": "windows all",
+      "states": 6892,
+      "decision": 2234,
+      "failures": 0,
+      "optimal": 8.0,
+      "barely": 14.726947179946285,
+      "middle": 84.78066248880931,
+      "critical": 0.4923903312444047,
+      "windowed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "label": "strand, terminal",
+      "states": 144186,
+      "decision": 59265,
+      "failures": 55932,
+      "optimal": 8.0,
+      "barely": 14.136505526027165,
+      "middle": 9.604319581540539,
+      "critical": 76.25917489243228,
+      "windowed": []
+    },
+    {
+      "label": "strand, stepwise",
+      "states": 144186,
+      "decision": 59265,
+      "failures": 55932,
+      "optimal": 8.0,
+      "barely": 11.87547456340167,
+      "middle": 9.644815658483084,
+      "critical": 78.47970977811525,
+      "windowed": []
+    },
+    {
+      "label": "windows x3 + strand term",
+      "states": 70127,
+      "decision": 27066,
+      "failures": 28591,
+      "optimal": 8.0,
+      "barely": 18.83174462425183,
+      "middle": 15.451119485701618,
+      "critical": 65.71713589004655,
+      "windowed": [
+        1,
+        4,
+        7
+      ]
+    },
+    {
+      "label": "windows x3 + strand step",
+      "states": 70127,
+      "decision": 27066,
+      "failures": 28591,
+      "optimal": 8.0,
+      "barely": 15.864922781349295,
+      "middle": 11.941180817261507,
+      "critical": 72.1938964013892,
+      "windowed": [
+        1,
+        4,
+        7
+      ]
+    },
+    {
+      "label": "windows all + strand term",
+      "states": 9102,
+      "decision": 3562,
+      "failures": 2096,
+      "optimal": 8.0,
+      "barely": 12.773722627737227,
+      "middle": 35.93486805165637,
+      "critical": 51.2914093206064,
+      "windowed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    }
+  ]
+}

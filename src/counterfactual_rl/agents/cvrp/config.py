@@ -35,6 +35,20 @@ DEFAULT_CONFIG = {
     # advantage is LARGEST at the loose end.
     'budget_mult': None,
     'budget_units': None,      # set B directly in integer units (overrides budget_mult)
+
+    # ── OPTION A: give routing cliffs ───────────────────────────────────────
+    # Measured with the exact oracle BEFORE training (Gate 1): stranding collapses the
+    # useless middle band of the stakes distribution from 75.1% to 9.6%. Time windows
+    # alone made it WORSE (75.1% -> 82.1%) by over-determining the route, so they are
+    # off by default despite being the literature's headline difficulty lever.
+    'allow_stranding': False,  # True -> the vehicle can drive somewhere it cannot return
+                               # from, and the run then FAILS. First reachable zero.
+    'reward_shape': 'stepwise',    # 'stepwise' (+1/customer, penalty on stranding)
+                                   # 'terminal' (served count only on a successful return)
+    'strand_penalty': -10.0,       # stepwise only
+    'time_windows': False,
+    'n_windowed': 3,
+    'window_width': 6,
     'dist_scale': 10,          # integer distance units per unit euclidean distance
 
     # ── algorithm ────────────────────────────────────────────────────────────
