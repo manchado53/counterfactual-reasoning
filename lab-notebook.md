@@ -88,6 +88,51 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-20 — **GATE 2 PASSED. PRE-REGISTRATION, written BEFORE the sweep runs.**
+Training length was the bottleneck, not the budget — Adrian's call was right. At 6,000 episodes
+B=0.95x showed 17% of seeds solved; at 25,000 it is 70%. The earlier "0% solved, Gate 2 failed"
+verdict was an artefact of stopping training early.
+
+**Baseline solve-rate curves (DQN-uniform only, 10 seeds, 25,000 episodes):**
+```
+budget      2k    3k    5k    6k    8k    9k   11k   12k+     E*(50%)
+B=0.95x     0%   30%   40%   50%   70%   80%  100%  100%      ~5,500
+B=1.14x    30%   80%  100%  100%  100%  100%  100%  100%      ~3,000
+B=1.17x    60%  100%  100%  100%  100%  100%  100%  100%      ~2,000
+```
+
+**THE CONFIGURATION, FIXED NOW AND NOT TO BE CHANGED AFTER SEEING CCE:**
+```
+env          budget routing, 10 customers, capacity 10, dist_scale 10
+budget_mult  0.95      (B = 33 units)
+stranding    ON, reward_shape = 'terminal'   (serve k, or score 0 if stranded)
+time windows OFF       (Gate 1: they make the stakes distribution WORSE)
+E*           5,500 episodes
+metric       per-seed SOLVE RATE (final greedy policy matches the exact oracle)
+arms         uniform / PER / CCE-only / CCE+TD add / CCE+TD mul
+seeds        40
+```
+E* was chosen from the DQN-uniform curve ALONE. No CCE arm has been trained in this
+configuration at any point, so the environment cannot have been tuned to suit our own method.
+
+**REGISTERED PREDICTION — and it is not the optimistic one.**
+Gate 1 measured this configuration's stakes as 13.7% barely / 13.6% MIDDLE / 72.7% critical.
+The middle band did collapse (75.1% -> 13.6%, which is what we wanted), but the distribution is
+skewed the OPPOSITE way from FrozenLake, which is 50.9 / 0.0 / 49.1. Nearly three-quarters of
+decisions here are critical.
+
+So I predict **CCE does NOT beat PER by a FrozenLake-sized margin (~30pp) here**, because a
+ranking still cannot isolate a small important set when 72.7% of states are important. I expect
+a smaller effect at best, and possibly another null.
+
+Falsifiable three ways: a >=30pp CCE win refutes it outright; a ~10-20pp win means the
+bimodality story needs the "minority of critical states" clause added explicitly; a null supports
+it. Recording this BEFORE the numbers exist so it cannot be reshaped afterwards.
+
+**Power, stated honestly:** 40 seeds detects roughly a 30pp difference in a proportion. If the
+true effect is 10pp this design will not see it, and that must be reported as a limit rather
+than as evidence of absence.
+
 ### 2026-08-20 — OPTION A built. **GATE 1 PASSED (stranding, not windows). GATE 2 FAILED at 0% solved.**
 Added `time_windows` and `allow_stranding` to `envs/routing_budget.py`, both defaulting OFF so
 every committed budget-mode result reproduces (asserted in tests). `spent` is reinterpreted as
