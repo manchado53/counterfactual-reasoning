@@ -88,6 +88,58 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-20 — OPTION A built. **GATE 1 PASSED (stranding, not windows). GATE 2 FAILED at 0% solved.**
+Added `time_windows` and `allow_stranding` to `envs/routing_budget.py`, both defaulting OFF so
+every committed budget-mode result reproduces (asserted in tests). `spent` is reinterpreted as
+TIME, matching the standard VRPTW formulation. The exact oracle needed NO change — every leg
+still advances the clock, so the DAG backward pass over spend still solves it. 29 tests: the DP
+matches brute force with windows on, with stranding on, and with both.
+
+**GATE 1 (exact oracle, no training).** Share of decision states by how much the choice matters:
+```
+                             barely   MIDDLE    crit
+FrozenLake det (CCE wins)     50.9%     0.0%   49.1%
+baseline (today)              11.5%    75.1%   13.4%
+windows x3                    17.8%    82.1%    0.1%   <- WORSE
+windows all                   14.7%    84.8%    0.5%   <- WORSE
+strand, terminal              14.1%     9.6%   76.3%   <- collapses the middle band
+windows x3 + strand term      18.8%    15.5%   65.7%
+```
+**TIME WINDOWS MAKE IT WORSE ALONE — my prediction was wrong.** I argued for them from SVRPBench,
+where they are the headline difficulty lever (+536-648% cost, learners to 85-88% feasibility). On
+this instance they OVER-DETERMINE the route: one viable ordering survives, so nothing is a real
+choice and critical states fall to ~0.1%. Kept as a flag, defaulted off. **Stranding is the whole
+lever**: 75.1% -> 9.6% middle band, purely by making catastrophe reachable.
+
+CAVEAT, recorded not glossed: the new shape is skewed the OPPOSITE way from FrozenLake — 76.3%
+critical vs 49.1%. A budget sweep shows the trade is monotone with no balanced setting available:
+```
+mult  barely MIDDLE  crit   fail-states
+0.80   14.1%   9.6% 76.3%   38.8%
+0.95   13.7%  13.6% 72.7%   22.6%
+1.10   14.8%  24.8% 60.4%   12.1%
+1.25   20.2%  39.8% 40.1%    5.8%
+1.60   75.5%  13.7% 10.8%    0.6%
+```
+
+**GATE 2 (DQN-uniform only, 4 seeds, 2000 eps) — FAILED. Target 30-60% of seeds solved; got 0%.**
+```
+config                    final mean  solved  ended-at-zero  best seen
+strand+stepwise B=0.95x       0.444    0/4        2/4          0.889
+strand+terminal B=0.80x       0.531    0/4        1/4          0.844
+strand+terminal B=0.95x       0.583    0/4        1/4          0.889
+```
+Nothing ever reaches the optimum. A seed-0 curve reads `0.00 0.00 0.00 0.78 0.00 0.00 0.00 0.00
+0.89` — the greedy policy oscillates between decent and TOTAL LOSS, because one bad Q-estimate
+drives the truck somewhere it cannot return from. Outcomes are genuinely bimodal now (seeds do
+end at exactly 0, which never happened before), but the task overshot the useful window: it went
+from "everyone solves it" straight to "nobody does".
+
+**IN PROGRESS.** 18 calibration runs (budget 1.10 / 1.25 / 0.95, 6 seeds, 6000 episodes) testing
+the two candidate causes — budget too tight, or 2000 episodes too few. **No CCE arm has been run
+in this configuration**, deliberately: the evaluation budget must be calibrated on the baseline
+alone before any CCE arm is looked at.
+
 ### 2026-08-19 — **CORRECTION + SHARPER PREDICTOR: it is BIMODALITY, not the dead-state fraction.**
 My earlier entry today framed the thesis as "CCE needs a high fraction of ZERO-stakes states
 (FL 86% vs routing 24%)". Those numbers came from the CCE SCORE's zero fraction, not from the
