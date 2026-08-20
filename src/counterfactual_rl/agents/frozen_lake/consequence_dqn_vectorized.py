@@ -6,6 +6,7 @@ Only learn() is replaced with the chunk-based vectorized loop from dqn_vectorize
 extended to store jax_state per transition for counterfactual rollouts.
 """
 
+import json
 import os
 from typing import Optional
 
@@ -173,6 +174,7 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
                 self.metrics_logger.log_eval(
                     total_episodes, self.q_update_count, self.epsilon, metrics
                 )
+                self._log_priority_diagnostics(total_episodes, metrics)
                 if metrics['win_rate'] > best_success:
                     best_success = metrics['win_rate']
                     self.save(best_path)
@@ -192,3 +194,27 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
         if verbose:
             print(f"\nTraining complete. Run saved to {self.metrics_logger.dir}")
         return self
+
+
+def _log_priority_diagnostics(self, episode: int, metrics: dict) -> None:
+    """Append realized replay-concentration stats to ess.jsonl.
+
+    Separate file because metrics.log is a fixed-width table parsed by the
+    claim-2 pipelines. Never raises: diagnostics must not kill a training run.
+    """
+    try:
+        diag = self.buffer.priority_diagnostics()
+        if not diag:
+            return
+        diag['episode'] = int(episode)
+        diag['win_rate'] = float(metrics.get('win_rate', float('nan')))
+        diag['mu_c'] = float(self.config.get('mu_c', 1.0))
+        diag['mu_delta'] = float(self.config.get('mu_delta', 1.0))
+        diag['priority_mixing'] = self.config.get('priority_mixing')
+        with open(os.path.join(self.metrics_logger.dir, 'ess.jsonl'), 'a') as fh:
+            fh.write(json.dumps(diag) + "\n")
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        print(f"[ess] diagnostics failed at ep {episode}: {exc}")
+
+
+FrozenLakeConsequenceDQNVectorized._log_priority_diagnostics = _log_priority_diagnostics

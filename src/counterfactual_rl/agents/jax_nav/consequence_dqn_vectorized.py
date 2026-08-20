@@ -11,6 +11,7 @@ emit the pre-step ``State`` pytree, and ``_add_chunk_to_buffer`` stores it as th
 per-transition ``jax_state`` for counterfactual rollouts.
 """
 
+import json
 import os
 from typing import Optional
 
@@ -214,6 +215,7 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
                 with timer('eval', episode=total_episodes):
                     metrics = self.evaluate(eval_episodes)
                 self.metrics_logger.log_eval(total_episodes, self.q_update_count, self.epsilon, metrics)
+                self._log_priority_diagnostics(total_episodes, metrics)
                 if metrics['win_rate'] > best_success:
                     best_success = metrics['win_rate']
                     self.save(best_path)
@@ -237,3 +239,30 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
         if verbose:
             print(f"\nTraining complete. Run saved to {self.metrics_logger.dir}")
         return self
+
+
+def _log_priority_diagnostics(self, episode: int, metrics: dict) -> None:
+    """Append one line of realized replay-concentration stats to ess.jsonl.
+
+    Separate file on purpose: metrics.log is a fixed-width table parsed by
+    parse_logs and every figure module, so adding columns there would break
+    the existing pipelines. Never raises -- a diagnostics failure must not
+    kill a training run.
+    """
+    try:
+        diag = self.buffer.priority_diagnostics()
+        if not diag:
+            return
+        diag['episode'] = int(episode)
+        diag['win_rate'] = float(metrics.get('win_rate', float('nan')))
+        diag['mu_c'] = float(self.config.get('mu_c', 1.0))
+        diag['mu_delta'] = float(self.config.get('mu_delta', 1.0))
+        diag['priority_mixing'] = self.config.get('priority_mixing')
+        path = os.path.join(self.metrics_logger.dir, 'ess.jsonl')
+        with open(path, 'a') as fh:
+            fh.write(json.dumps(diag) + "\n")
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        print(f"[ess] diagnostics failed at ep {episode}: {exc}")
+
+
+JaxNavConsequenceDQNVectorized._log_priority_diagnostics = _log_priority_diagnostics

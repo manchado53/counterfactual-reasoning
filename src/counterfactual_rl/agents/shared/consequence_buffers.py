@@ -34,6 +34,9 @@ class ConsequenceReplayBuffer:
         priority_mixing: str = 'additive',
         mu_c: float = 1.0,
         mu_delta: float = 1.0,
+        cce_balance: Optional[float] = None,
+        target_ess_frac: Optional[float] = None,
+        ess_recalib_every: int = 50,
     ):
         if priority_mixing not in ('additive', 'multiplicative'):
             raise ValueError(
@@ -47,6 +50,25 @@ class ConsequenceReplayBuffer:
         self.priority_mixing = priority_mixing
         self.mu_c = mu_c
         self.mu_delta = mu_delta
+        # ESS-matched mode: hold the sampler's effective sample size at
+        # target_ess_frac and let cce_balance decide how much of that
+        # concentration comes from the CCE score vs the TD error. Without this
+        # the two ends of a balance sweep run at different concentrations --
+        # measured 0.87 (pure TD) vs 0.47 (pure CCE) at a common exponent --
+        # so a win could be sharpness rather than signal quality.
+        self.cce_balance = cce_balance
+        self.target_ess_frac = target_ess_frac
+        self.ess_recalib_every = max(1, int(ess_recalib_every))
+        self._ess_k = 1.0
+        self._ess_calls = 0
+        self._ess_k_saturated = False
+        if target_ess_frac is not None:
+            if cce_balance is None:
+                raise ValueError("target_ess_frac requires cce_balance")
+            if not 0.0 <= cce_balance <= 1.0:
+                raise ValueError(f"cce_balance must be in [0,1], got {cce_balance}")
+            if not 0.0 < target_ess_frac <= 1.0:
+                raise ValueError(f"target_ess_frac must be in (0,1], got {target_ess_frac}")
 
         # Circular buffer: pre-allocated to capacity, no shifting on eviction
         self.buffer: List[Any] = [None] * capacity
@@ -130,7 +152,13 @@ class ConsequenceReplayBuffer:
         p_td_raw = (td + self.eps) ** self.beta
         p_td = p_td_raw / p_td_raw.sum()
 
-        if self.priority_mixing == 'multiplicative':
+        if self.target_ess_frac is not None:
+            # Eq 5 with the exponent scale solved to hit a target ESS.
+            mu_c, mu_delta = self._solve_ess_exponents(p_c, p_td)
+            combined = self._mix_log(np.log(np.maximum(p_c, 1e-300)),
+                                     np.log(np.maximum(p_td, 1e-300)),
+                                     mu_c, mu_delta)
+        elif self.priority_mixing == 'multiplicative':
             # Eq 5: p(j) = p^C(j)^mu_C * p^delta(j)^mu_delta / Z
             combined = (p_c ** self.mu_c) * (p_td ** self.mu_delta)
         else:
@@ -146,6 +174,108 @@ class ConsequenceReplayBuffer:
 
         self._cached_probs = combined
         return combined
+
+    @staticmethod
+    def _mix_log(log_p_c, log_p_td, mu_c, mu_delta):
+        """Normalised p^C^mu_c * p^delta^mu_delta, computed in log space.
+
+        Done in logs because the direct product underflows hard: p ~ 1/N, so
+        at N=1e5 and a combined exponent above ~60 every element rounds to 0,
+        the sum is 0, and the caller silently falls back to uniform replay --
+        a dead sampler that still logs the exponent it was asked for. The
+        log-sum-exp form is exact at any exponent.
+        """
+        z = mu_c * log_p_c + mu_delta * log_p_td
+        z -= z.max()
+        c = np.exp(z)
+        return c / c.sum()
+
+    @classmethod
+    def _ess_frac_at(cls, log_p_c, log_p_td, w, k):
+        """ess/n of the mixed distribution at exponent scale k."""
+        q = cls._mix_log(log_p_c, log_p_td, w * k, (1.0 - w) * k)
+        return float(1.0 / np.sum(q ** 2) / len(q))
+
+    def _solve_ess_exponents(self, p_c, p_td):
+        """Bisect the exponent scale k so ess_frac hits target_ess_frac.
+
+        ess_frac is monotonically decreasing in k (k=0 is uniform, ess_frac=1),
+        so bisection is safe. Re-solved every ess_recalib_every calls rather
+        than every call: the score histogram drifts slowly, and the solve costs
+        ~40 vector passes over the buffer.
+
+        If the target is unreachable even at K_MAX -- which happens when the
+        signal is degenerate, e.g. every CCE score still 0 before the first
+        scoring pass -- k saturates and _ess_k_saturated is set so the run can
+        report that the requested concentration was never achieved.
+        """
+        K_MAX = 500.0
+        self._ess_calls += 1
+        if self._ess_calls % self.ess_recalib_every == 1:
+            w = float(self.cce_balance)
+            target = float(self.target_ess_frac)
+            log_p_c = np.log(np.maximum(p_c, 1e-300))
+            log_p_td = np.log(np.maximum(p_td, 1e-300))
+            if self._ess_frac_at(log_p_c, log_p_td, w, K_MAX) > target:
+                # even maximum sharpening cannot reach the target: the driving
+                # signal is degenerate (e.g. every CCE score still 0 before the
+                # first scoring pass). Clamp and flag rather than pretend.
+                self._ess_k = K_MAX
+                self._ess_k_saturated = True
+            else:
+                self._ess_k_saturated = False
+                lo, hi = 0.0, K_MAX
+                for _ in range(50):
+                    mid = 0.5 * (lo + hi)
+                    if self._ess_frac_at(log_p_c, log_p_td, w, mid) > target:
+                        lo = mid
+                    else:
+                        hi = mid
+                self._ess_k = 0.5 * (lo + hi)
+        w = float(self.cce_balance)
+        return w * self._ess_k, (1.0 - w) * self._ess_k
+
+    def priority_diagnostics(self) -> dict:
+        """Realized concentration of the sampling distribution.
+
+        Read-only: uses the same cached priorities sample() draws from, so it
+        reports what training actually did rather than a recomputation.
+
+        ESS = 1 / sum(p^2) is the effective sample size of the priority
+        distribution; ess_frac = ESS / n is 1.0 for uniform replay and falls
+        toward 0 as replay concentrates on fewer transitions. The mu_c/mu_delta
+        exponents set this only indirectly -- the same exponent gives a very
+        different ess_frac depending on how sparse the score histogram is --
+        so the sweep reports measured ess_frac, not the nominal exponents.
+        """
+        p = self._compute_priorities()
+        n = len(p)
+        if n == 0:
+            return {}
+        ess = float(1.0 / np.sum(p ** 2))
+        order = np.sort(p)[::-1]
+        cum = np.cumsum(order)
+        valid = slice(None) if self._size == self.capacity else slice(self._size)
+        cs = self.consequence_scores[valid]
+        td = self.td_magnitudes[valid]
+        return {
+            'n': int(n),
+            'ess': ess,
+            'ess_frac': ess / n,
+            # transitions supplying half of all draws, as a fraction of the buffer
+            'top_half_frac': float((int(np.searchsorted(cum, 0.5)) + 1) / n),
+            'p_max': float(order[0]),
+            'uniform_fallback': bool(np.allclose(p, 1.0 / n)),
+            'score_mean': float(cs.mean()),
+            'score_std': float(cs.std()),
+            'score_zero_frac': float(np.mean(cs <= 0.0)),
+            'td_mean': float(td.mean()),
+            'td_std': float(td.std()),
+            'cce_balance': self.cce_balance,
+            'target_ess_frac': self.target_ess_frac,
+            'ess_k': float(self._ess_k) if self.target_ess_frac is not None else None,
+            'ess_k_saturated': bool(self._ess_k_saturated),
+        }
 
     def sample(self, batch_size: int) -> Tuple[List[Dict], np.ndarray, np.ndarray]:
         """

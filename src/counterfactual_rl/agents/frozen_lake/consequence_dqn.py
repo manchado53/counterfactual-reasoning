@@ -47,6 +47,9 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
             priority_mixing=self.config.get('priority_mixing', 'additive'),
             mu_c=self.config.get('mu_c', 1.0),
             mu_delta=self.config.get('mu_delta', 1.0),
+            cce_balance=self.config.get('cce_balance', None),
+            target_ess_frac=self.config.get('target_ess_frac', None),
+            ess_recalib_every=self.config.get('ess_recalib_every', 50),
         )
 
         self.score_interval = self.config.get('score_interval', 100)
