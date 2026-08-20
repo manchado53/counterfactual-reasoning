@@ -48,11 +48,19 @@ figures and videos are committed and rebuild from a clean checkout without the r
 scenarios and a C1 redo, and JaxNav did not become one of them.
 
 ## NEXT
+0. **JaxNav REOPENED — rerun at `fill=0.3`, not 0.1.** Every JaxNav sweep ran on maps averaging
+   0.91 interior obstacles, 36% of them completely empty (2026-08-19 LOG). The whole line may be
+   a null because the map was near-empty, not because CCE fails. One number changes it. Driver
+   `slurm/sweep_balance_ess.py` is ready; re-check the sanity gate (plain DQN must still solve it)
+   before trusting any CCE comparison, and expect absolute win rates NOT comparable to fill=0.1.
+   Also still untested at matched ESS: `consequence_aggregation='max'` — the flavour with
+   P(>PER)=0.812 on the 500k data. This sweep used `weighted_mean`, which is 0.495 (a coin flip).
 1. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
 2. Redo C1 on deterministic FL.
 3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
 4. Recheck ICLR 2027 deadline.
-5. [side track — CLOSED, negative] JaxNav robotics-transfer, branch
+5. [side track — REOPENED 2026-08-19, see item 0; the results below stand but were ALL
+   measured at fill=0.1, i.e. on near-empty maps] JaxNav robotics-transfer, branch
    worktree-research+cce-robotics-transfer. Nothing outstanding to run; see the two 2026-08-15
    LOG entries for the result and the 2026-08-14 one for the claim it retracts.
    Summary of the whole line of work, so nobody reopens it by accident:
@@ -101,6 +109,16 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
 
 ## GOTCHAS (facts that bit us)
 - runs live in agents/<env>/runs, NOT shared/runs.
+- **JaxNav `fill` is NOT obstacle percentage.** `fill=0.1` on 8x8 gives 0.91 interior obstacles
+  (2.5%) and 36% totally empty maps — the env default is 0.3 (4.56, 11% empty). An 8x8 map has 28
+  border cells, so "28/64 occupied" is an EMPTY ROOM. Every sweep before 2026-08-19 used 0.1.
+- **Multiplicative `mu_c`/`mu_delta` are exponents, not weights** — no cap at 1.0, and they
+  multiply beta (`p_c^mu_c = (score+eps)^(beta*mu_c)`). mu_c=0 IS PER; mu_delta=0 is pure CCE.
+- **The buffer's priority underflow fallback is SILENT** (`total==0 -> uniform`). A run can log
+  the exponent it was asked for while actually sampling uniformly. Mixing is done in log space
+  now; `ess_k_saturated` in `ess.jsonl` flags the degenerate case.
+- **Concentration confounds every CCE-vs-PER comparison** unless matched: at a common exponent
+  pure-CCE is ~2x sharper than pure-TD (ess_frac 0.47 vs 0.87). Use `target_ess_frac`.
 - /home is a shared disk at 100% (294 GB free of 102 TB). Writes can fail and large
   uncommitted files are at risk. Keep anything important in git (that's what paper/repro/
   is for). [C1 deterministic runs vanished — cause unconfirmed.]
@@ -115,6 +133,86 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-19 — **JaxNav ran on near-EMPTY maps all along** + ESS-matched replay comparison
+Branch `experiment/jaxnav-ess-matched-mu`. Two findings; the first one re-contextualises every
+JaxNav result in this notebook.
+
+**1. THE `fill` GOTCHA (biggest thing here — check this before reading any JaxNav entry).**
+Every JaxNav sweep ever run (11 files in `slurm/`) overrides the env default `fill=0.3` down to
+`fill=0.1`, and this notebook describes that as "8x8, 10% obstacles". It is not 10%. Measured
+over 200 sampled maps at the exact sweep config:
+```
+ fill   mean INTERIOR obstacles (6x6=36 cells)   % maps completely EMPTY
+  0.1              1.00  (= 2.8%, not 10%)             33.3%    <- every sweep
+  0.3              4.56                                10.0%    <- env default
+  0.5              8.52                                 5.5%
+ (11x11, fill 0.3: 11.50 / 3.9%.  11x11, fill 0.5: 19.55 / 2.5%)
+ CONVERGED figures: 5 seeds x 2000 maps each. Earlier entries in this session
+ quoted 0.91/36% and 1.08/31% from n=200 and n=300 probes -- same quantity,
+ small-sample noise. Use the numbers above.
+```
+An 8x8 map has 28 border-wall cells; a "28/64 occupied" map is a bare empty room. The three maps
+rendered for the rollout videos had 0, 1 and 0 interior obstacles.
+CONSEQUENCE: the 2026-08-06 claim *"CCE wins with obstacles, loses without"* compared
+`fill=0.0` (0 obstacles, always) against `fill=0.1` (0 obstacles, **36% of the time**). Treatment
+and control overlap on a third of episodes — that contrast is much weaker than it reads.
+WORSE: that pair also differed in MAP SIZE — easy was **6x6** fill=0.0, holes was **8x8** fill=0.1
+(`slurm/sweep_easy.py` vs `sweep_holes_long.py`). So obstacles and map size moved together and
+the obstacle contrast was ~1 obstacle. A clean redo needs fill=0.0 vs fill=0.3 at the SAME size.
+NOTE `fill` was IDENTICAL (0.1) in every JaxNav run ever — 96k, 150k, 500k and the 2026-08-19
+balance sweep — so it does NOT explain the 150k-good / 500k-bad reversal (that stays a budget
+effect). It is a CEILING on the available signal, applied equally to every result, good and bad.
+HYPOTHESIS (untested): JaxNav may not be a null for CCE, it may be a null because the map is
+near-empty. In an open bordered room almost nothing is irreversible, so per-action return
+distributions barely differ, TV ~ 0, and there is no signal to prioritise — the SAME estimator
+failure already diagnosed on DoorKey (2026-08-06) and CVRP. Fix is one number: `fill=0.3`.
+**Do not run another JaxNav experiment at fill=0.1.**
+
+**2. ESS-MATCHED BALANCE SWEEP (40 runs, 40/40 COMPLETED, jobs 273145-273184).**
+Motivation: every past CCE-vs-PER comparison changed TWO things — which signal ranks transitions,
+AND how concentrated the sampler is. Measured at a common exponent: pure-TD ess_frac 0.87 vs
+pure-CCE 0.47, i.e. CCE was ~2x sharper for free. A CCE win could always have been sharpness.
+Built `ConsequenceReplayBuffer._solve_ess_exponents`: bisects the exponent scale so ess_frac hits
+a target for ANY balance, recalibrated every 50 priority computations (~0 runtime cost: 3.18 vs
+3.20 ms/call at 100k). New config keys `cce_balance` / `target_ess_frac` / `ess_recalib_every`;
+realized ESS logged per eval to `ess.jsonl` so the matching is verifiable, not assumed.
+Verified exact: ess_frac 0.600 +/- 0.02 on all 5 arms, 0 saturated evals.
+```
+ balance   AUC     P(>PER)      final IQM     <- 8 seeds, 250k, fill=0.1, weighted_mean
+   0% PER  0.382     --           0.713
+  25%      0.486    0.982         0.796
+  50%      0.488    0.796         0.744
+  75%      0.482    0.965         0.615
+ 100%      0.470    0.933         0.767
+ TREND on AUC: Spearman rho +0.03, p 0.84  -> FLAT
+```
+Every CCE arm beats PER on AUC; the trend across balance is flat. So *any* CCE helps, *more* does
+not — a step, not a dose-response. **Final win rate showed nothing (rho -0.17, p 0.31) because PER
+catches up by ep 200k; C2 is a SPEED claim, so AUC/curve is the right readout, not the endpoint.**
+NOT WRITTEN UP, because: (a) fill=0.1 above, and (b) PER's CI is huge [0.218,0.509] while CCE's
+are tight — the gap is PER having bad seeds, which is exactly the "CCE's edge is stability" shape
+RETRACTED on 2026-08-15 when it died at 500k. We are at 250k, inside the window where that dead
+result was still alive.
+
+**Also recorded:**
+- **`P(CCE+max > PER) = 0.812` on the existing 500k data** — recovered from already-committed
+  `curves_25seed_500k.npz`, never extracted because only two-tailed permutation tests were run
+  (p=0.38). Both correct: 0.81 one-sided ~ p 0.19. This is the statistic Jeremy asked for on
+  08-13 (said 80-90% reportable). CCE+wmean is 0.495 — a coin flip. So `max` is the live flavour
+  and `wmean` (what this sweep used) is the flat one; `max` remains UNTESTED at matched ESS.
+- Multiplicative `mu_c`/`mu_delta` are EXPONENTS, not weights — 1.0 is a default, not a cap, and
+  `p_c^mu_c = (score+eps)^(beta*mu_c)`, so **mu_c multiplies beta**. mu_c=0 is exactly PER,
+  mu_delta=0 is pure CCE, both 0 is uniform. The whole (1,1) corner was never moved off.
+- Sharpening is NOT scale-free: at mu=(4,4) a dense score histogram gives ess_frac 0.50 but an
+  FL-like 96%-zero histogram gives 0.04 (half the draws from 1.5% of the buffer). Never reuse an
+  mu grid across envs — target an ESS instead.
+- Underflow in the mixed priority is real but only past combined exponent ~40-60 at a 100k buffer
+  (p ~ 1/N); the solver's bracket hit it, so `_mix_log` does the mixing in log space. The
+  buffer's `total == 0 -> uniform` fallback is SILENT — `ess_k_saturated` now flags it.
+- Colour: ColorBrewer Blues 5-class failed the normal-vision separation floor (adjacent dE 9.1 vs
+  15 required) as overlapping lines. Figures use a validated 5-hue set (worst adjacent dE 18.8).
+
 
 ### 2026-08-15 (later still) — JaxNav figures now use the paper's IQM; some reported IQMs shift
 `jaxnav_holes_figures.py` defined its own `iqm()` that trimmed ONE value from each end (23 of 25
