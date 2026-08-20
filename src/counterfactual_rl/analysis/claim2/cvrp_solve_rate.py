@@ -142,8 +142,9 @@ def _plot(grid, curves, spread, e_star, data, args):
     ax.axvline(e_star, color='#122236', ls=':', lw=1.4)
     ax.text(e_star + 60, 30, f'E*={e_star}', fontsize=8.5, color='#122236')
     ax.set_xlabel('training budget (episodes)')
-    ax.set_ylabel('% of seeds reaching the exact optimum')
-    ax.set_title('(a) The metric saturates long before we look', fontsize=11, loc='left')
+    ax.set_ylabel('% of routing seeds reaching the exact optimum')
+    ax.set_title('(a) The routing metric saturates long before we look',
+                 fontsize=11, loc='left')
     ax.set_ylim(0, 104); ax.set_xlim(0, 4050)
     ax.grid(alpha=.25); ax.legend(fontsize=8, loc='center right')
 
@@ -175,9 +176,16 @@ def _plot(grid, curves, spread, e_star, data, args):
     ax.set_title(f'(c) Where arms actually separate (E={e_star})', fontsize=11, loc='left')
     ax.grid(alpha=.25, axis='y'); ax.set_ylim(0, 100)
 
-    fig.suptitle('Routing was measured after the race was already over — '
-                 'the solve-rate metric FrozenLake used, recovered from the same runs',
-                 fontsize=12.5, y=1.005)
+    # Be explicit about WHOSE data this is: the metric is borrowed from the FrozenLake
+    # analysis, but every number here is budget routing. An earlier title said
+    # "the metric FrozenLake used", which read as if the data were FrozenLake's.
+    n_runs = sum(len(v) for cell in data.values() for v in cell.values())
+    fig.suptitle('BUDGET ROUTING (CVRP) — measured after the race was already over',
+                 fontsize=13, y=1.045)
+    fig.text(0.5, 0.995,
+             f'{n_runs} routing runs, {len(data)} cells, 12 seeds per arm · '
+             f'no FrozenLake data in this figure — only its per-seed solve-rate metric',
+             ha='center', fontsize=9.5, color='#48586B')
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     p = out / 'fig_c2_cvrp_solve_rate.png'
     fig.savefig(p, dpi=150, bbox_inches='tight')
