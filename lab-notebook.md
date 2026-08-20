@@ -88,6 +88,36 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-20 — 50k-episode rerun launched. **DEAD END / TOOLING BUG: sed-derived sbatch files.**
+
+**NEW TOOLING GOTCHA — cost 24 runs of pre-registered data.** Every sbatch in this project has
+been produced by `sed`-ing an earlier one. That works until the source file ALREADY matches the
+pattern being replaced: `sed` then substitutes nothing, exits 0, and prints no warning. Building
+the 50k job from `optionA_sweep.sbatch` silently produced a copy that still pointed at the
+5,500-episode manifest with the old array size, and re-running it TRUNCATED 24 completed `oa_per`
+runs (`metrics.log` is opened with mode 'w').
+
+Caught by verifying the submitted file rather than the command's exit status. Repaired via SLURM
+273918 and confirmed byte-identical results (1/40, 2/40, 0/40, 3/40, 3/40 -- the pipeline is
+deterministic per seed, which is itself a useful check). **RULE: generate sbatch files from
+scratch, or diff the result against intent before submitting. Never trust a sed that "worked".**
+
+**LAUNCHED — SLURM 273919, 200 runs at 50,000 episodes** (9x the registered budget), same env and
+arms as the E*=5500 sweep so the two are directly comparable. **EXPLORATORY, not the registered
+test** -- E* was fixed at 5,500 and changing it changes the question.
+
+**PREDICTION, recorded before results (from the 25k calibration at this budget):** at 25,000
+episodes the baseline already reached 70% of seeds ending optimal, against 4% at 5,500. So at
+50,000 I expect the baseline near 90-100%, the metric to SATURATE, and arm differences to
+compress toward zero -- the same ceiling that made the original sweep uninformative, just further
+out. If that holds it closes the last standing objection, that CCE merely needs more training.
+
+**Summary figure built:** `docs/figures/real/claim2/fig_routing_summary.png` -- the exact-oracle
+stakes distribution, the step-function difficulty curve, and CCE-vs-PER across every
+configuration tried. Saturated cells are drawn as open markers because every seed of every arm
+ties at exactly 1.0 there, so the bootstrap returns 0.5 with no spread; that is the ceiling
+effect, not a precise estimate, and the figure now says so.
+
 ### 2026-08-20 — **OPTION A SWEEP DONE (200 runs). Registered prediction HELD. Plus my own error.**
 
 **PRIMARY, the pre-registered metric** (final greedy policy matches the exact oracle), 40 seeds:
