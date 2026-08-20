@@ -88,6 +88,59 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-20 — **OPTION A SWEEP DONE (200 runs). Registered prediction HELD. Plus my own error.**
+
+**PRIMARY, the pre-registered metric** (final greedy policy matches the exact oracle), 40 seeds:
+```
+arm             solved      95% CI        vs PER    Fisher p
+DQN-Uniform     1/40   2%  [ 0.4,12.9]   -2.5pp     1.000
+DQN+PER         2/40   5%  [ 1.4,16.5]      —          —
+DQN+CCE-only    0/40   0%  [ 0.0, 8.8]   -5.0pp     0.494
+CCE+TD (add)    3/40   8%  [ 2.6,19.9]   +2.5pp     1.000
+CCE+TD (mul)    3/40   8%  [ 2.6,19.9]   +2.5pp     1.000
+```
+Best CCE arm +2.5pp, nowhere near the registered 30pp. **PREDICTION HELD.**
+
+**MY ERROR — a calibration/measurement mismatch.** E* = 5,500 was chosen where 50% of baseline
+seeds had EVER touched the optimum (best-so-far). The sweep then scored the FINAL policy. Those
+are different quantities, and I did not notice until the sweep returned 5% where calibration
+promised 50%. Same family as the JaxNav trap already in the notebook: never compare runs on a
+quantity other than the one the design was calibrated on.
+
+**SECONDARY, the metric E* was actually calibrated against** (ever reached the optimum):
+```
+DQN-Uniform  24/40  60%   +2.5pp  p=1.000
+DQN+PER      23/40  58%      —
+DQN+CCE-only 24/40  60%   +2.5pp  p=1.000
+CCE+TD add   27/40  68%  +10.0pp  p=0.489    <- best, still not significant
+CCE+TD mul   24/40  60%   +2.5pp  p=1.000
+```
+Baseline lands at 58%, so the E* calibration DID work on its own terms. CCE+TD(add) leads by
+10pp, p=0.49 — inside the noise at 40 seeds, and this is a secondary metric chosen after the
+fact, so it is exploratory and must be labelled as such rather than promoted to the result.
+
+**THE ACTUAL FINDING — the environment never converges.**
+```
+fraction of consecutive eval steps at which the score CHANGES
+  DQN-Uniform 65.0%   PER 65.8%   CCE-only 65.6%   CCE+add 64.9%   CCE+mul 66.7%
+  mean FINAL score 0.73-0.80  vs  mean BEST score 0.95-0.96
+```
+Two-thirds of evaluations move, identically across all five arms. Making catastrophe reachable
+made the greedy policy permanently unstable: one Q-error sends the vehicle somewhere it cannot
+return from and the run scores zero, so the policy oscillates between near-optimal and total loss
+forever. That is why every seed touches the optimum (95-96% best) while almost none END there
+(73-80% final).
+
+**VERDICT ON OPTION A.** It worked as designed and did not rescue Claim 2:
+- Gate 1 target met — middle band 75.1% -> 13.6%.
+- Gate 2 target met — baseline solve rate 58% on the calibrated metric.
+- CCE still does not beat PER at any margin the design can resolve.
+
+This is now the THIRD independent way routing has said the same thing: the smooth stakes ramp,
+the step-function difficulty curve, and now a policy that cannot be stabilised once failure is
+possible. **Recommend closing routing for Claim 2 and moving Claim 2 to an external suite
+(gymnax/MinAtar, bsuite), per the literature review.** Routing stays a Claim-1 environment.
+
 ### 2026-08-20 — **GATE 2 PASSED. PRE-REGISTRATION, written BEFORE the sweep runs.**
 Training length was the bottleneck, not the budget — Adrian's call was right. At 6,000 episodes
 B=0.95x showed 17% of seeds solved; at 25,000 it is 70%. The earlier "0% solved, Gate 2 failed"
