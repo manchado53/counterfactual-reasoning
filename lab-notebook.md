@@ -40,9 +40,12 @@ Two things landed 2026-08-18/19 on branch research/cce-cvrp-logistics:
    86.3% of states — so this is a paper-wording fix, not a re-run. Code behaviour left UNCHANGED
    so paper/repro/ still reproduces; the fallback now emits a RuntimeWarning.
 
-**The strongest thing we learned is transferable:** CCE's prerequisite is a high fraction of
-ZERO-STAKES states, measurable from rollouts before spending compute. It retro-predicts every
-result we have (FL-det 86% → WIN, FL-stoch → NULL, routing 24% → NULL) and it is falsifiable.
+**The strongest thing we learned is transferable:** CCE's prerequisite is a BIMODAL stakes
+distribution — decisions that are either free or critical, with little in between. Measured as
+middle-band mass of the normalised exact stakes: FL-det 0.0% (WIN), FL-stoch 62.3% (null),
+routing 68-75% (null). NOTE: an earlier version of this line said "high fraction of zero-stakes
+states"; that was the CCE score's zero fraction, not the oracle's, and it is superseded — see the
+2026-08-19 CORRECTION entry. Still fitted post hoc on 4 points; needs a prospective call.
 
 ## NEXT
 1. **DECIDE: paper wording for aggregation.** It ran `max`, the paper says weighted mean. Relabel
@@ -84,6 +87,38 @@ result we have (FL-det 86% → WIN, FL-stoch → NULL, routing 24% → NULL) and
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-19 — **CORRECTION + SHARPER PREDICTOR: it is BIMODALITY, not the dead-state fraction.**
+My earlier entry today framed the thesis as "CCE needs a high fraction of ZERO-stakes states
+(FL 86% vs routing 24%)". Those numbers came from the CCE SCORE's zero fraction, not from the
+exact oracle, and the oracle does not say that. Measured properly — exact Q* spread per decision
+state, normalised by the per-env max:
+```
+                       barely     MIDDLE    critical        C2 result
+                        <5%        5-50%      >50%
+FrozenLake det         50.9%        0.0%     49.1%          WIN
+FrozenLake slippery    24.5%       62.3%     13.2%          null
+Budget routing 0.70x   10.9%       75.2%     13.9%          null
+Budget routing 1.00x   18.3%       68.1%     13.6%          null
+```
+**FL-deterministic — the ONLY env CCE wins on — has EXACTLY ZERO states in the middle band.**
+It is perfectly bimodal: every decision is either free or critical, nothing partly matters.
+Both nulls have a fat middle (62%, 75%). Routing is NOT short of critical states (13.9%, same
+order as FL-slippery); it is short of SEPARATION.
+
+**Mechanism.** CCE ranks states and replays the top ones. That isolates something only if there
+is a clump to isolate. With a smooth spread, "top 10%" is an arbitrary cut through a ramp — the
+11th percentile is barely different from the 9th — so the priority ordering carries little
+information beyond noise. With a bimodal spread, top-k lands exactly on the critical cluster.
+
+**REVISED PREDICTOR (supersedes the dead-state-fraction version above):** middle-band mass of the
+normalised oracle stakes. Low middle -> CCE can win. Fat middle -> it cannot. Separates all four
+of our data points cleanly, which the dead-state fraction did not.
+
+**CAVEAT — this is 4 data points and it was fitted AFTER the fact.** It retro-predicts; it has not
+predicted anything yet. The honest next step is a PROSPECTIVE test: measure middle-band mass on a
+candidate env BEFORE running C2, write the prediction down, then run. Connect Four is the obvious
+candidate. Do not put this in the paper as a law until it has called one in advance.
 
 ### 2026-08-19 — 12-customer sweep agrees: null. All six arrays complete, ~2,000 runs, 0 failures.
 `ring12mean` (360 runs, 12 customers, mean aggregation) finished 360/360. Best CCE cell
