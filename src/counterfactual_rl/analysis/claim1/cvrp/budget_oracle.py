@@ -28,6 +28,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
+from counterfactual_rl.envs.routing_budget import DEPOT
+
 NEG_INF = -np.inf
 
 
@@ -117,21 +119,34 @@ def optimal_plan(env) -> Tuple[list, int]:
     return path, served
 
 
-def brute_force_served(env) -> int:
+def brute_force_served(env) -> float:
     """
-    Reference implementation: depth-first search over every feasible closed tour.
+    Reference implementation: depth-first search over every feasible run.
 
-    Exponential — for small instances only. Exists to prove the DP right.
+    Returns the best achievable RETURN, which is what V*(start) means — so this stays a valid
+    check under every reward shape, not just the original +1-per-customer one.
+
+    Two details that matter for correctness:
+      * the score is recorded only at TERMINAL states, never mid-path. The DP has no option to
+        stop early, so a comparison that credits a prefix would not be comparing like with like
+        (it matters as soon as a reward can be negative, e.g. the stranding penalty).
+      * a stranded run terminates with whatever it has banked, which under 'terminal' shaping
+        is zero — that is the cliff, and the brute force has to see it the same way.
+
+    Exponential; small instances only.
     """
-    best = 0
-    start = (0, 0, env._initial_cap(), 0)
+    best = -float('inf')
+    start = (DEPOT, 0, env._initial_cap(), 0)
 
-    def rec(s, served):
+    def rec(s, total):
         nonlocal best
-        best = max(best, served)
-        for a in env._legal_actions(s):
+        legal = env._legal_actions(s)
+        if not legal:                       # terminal: success at the depot, or stranded
+            best = max(best, total)
+            return
+        for a in legal:
             ns, r, _ = env._next(s, a)
-            rec(ns, served + int(r))
+            rec(ns, total + float(r))
 
-    rec(start, 0)
+    rec(start, 0.0)
     return best

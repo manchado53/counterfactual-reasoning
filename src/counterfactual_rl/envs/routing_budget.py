@@ -120,7 +120,7 @@ def quantize(node_xy: np.ndarray, dist_scale: int) -> np.ndarray:
 
 
 def optimal_closed_tour_units(D: np.ndarray, demand: np.ndarray,
-                              capacity: Optional[int]) -> int:
+                              capacity: Optional[int], return_tour: bool = False):
     """
     Exact minimum length (in integer units) of a closed tour serving EVERY customer,
     by backward induction over (current, served_mask, remaining_capacity).
@@ -173,7 +173,38 @@ def optimal_closed_tour_units(D: np.ndarray, demand: np.ndarray,
     out = best[start]
     if out == INF:
         raise ValueError("instance is infeasible: no closed tour serves every customer")
-    return int(out)
+    if not return_tour:
+        return int(out)
+
+    # Walk the DP forward, always taking a move that realises the optimum. Arrival times
+    # are the running cost, which is what time windows get centred on.
+    s, tour, arrivals = start, [DEPOT], {}
+    t = 0
+    while not (s[0] == DEPOT and s[1] == full):
+        cur, mask, cap = s
+        best_move, best_cost = None, INF
+        for j in range(1, n):
+            if (mask >> (j - 1)) & 1:
+                continue
+            if capacity is not None and demand[j] > cap:
+                continue
+            nxt = (j, mask | (1 << (j - 1)),
+                   cap - int(demand[j]) if capacity is not None else cap)
+            c = D[cur, j] + best.get(nxt, INF)
+            if c < best_cost:
+                best_move, best_cost = (j, nxt), c
+        if cur != DEPOT:
+            nxt = (DEPOT, mask, cap0)
+            c = D[cur, DEPOT] + best.get(nxt, INF)
+            if c < best_cost:
+                best_move, best_cost = (DEPOT, nxt), c
+        j, nxt = best_move
+        t += int(D[cur, j])
+        tour.append(j)
+        if j != DEPOT:
+            arrivals[j] = t
+        s = nxt
+    return int(out), tour, arrivals
 
 
 class BudgetRoutingEnv:
@@ -192,6 +223,12 @@ class BudgetRoutingEnv:
         budget_units: Optional[int] = None,
         travel_noise: float = 0.0,
         build_P: bool = False,
+        time_windows: bool = False,
+        n_windowed: int = 3,
+        window_width: int = 6,
+        allow_stranding: bool = False,
+        reward_shape: str = 'stepwise',
+        strand_penalty: float = -10.0,
     ):
         """
         budget_mult: B as a multiple of the exact all-customers optimum. This is THE DIAL.
@@ -243,6 +280,45 @@ class BudgetRoutingEnv:
         self.metric_name = "served_ratio"
         self._illegal_penalty = -1.0
 
+        # ── OPTION A: the two changes that give routing cliffs ───────────────
+        # Both default OFF, so every committed budget-mode result reproduces byte for byte.
+        #
+        # `spent` is reinterpreted as TIME rather than fuel: driving advances the clock, B is
+        # the end of the shift, and a window is a delivery appointment. Same state variable,
+        # and it matches the standard VRPTW formulation instead of inventing one.
+        if reward_shape not in ('stepwise', 'terminal'):
+            raise ValueError(f"reward_shape must be 'stepwise' or 'terminal', got {reward_shape!r}")
+        self.allow_stranding = bool(allow_stranding)
+        self.reward_shape = reward_shape
+        self.strand_penalty = float(strand_penalty)
+        self.time_windows = bool(time_windows)
+        self.window_width = int(window_width)
+
+        # Wide-open windows by default; a subset gets tightened below.
+        BIG = 10 ** 6
+        self.window_open = np.zeros(self.n_nodes, dtype=np.int64)
+        self.window_close = np.full(self.n_nodes, BIG, dtype=np.int64)
+        self.windowed_customers: List[int] = []
+
+        if self.time_windows:
+            # Windows are centred on when the exact all-customers optimum reaches each stop,
+            # rescaled into this budget, so at least one sensible route stays feasible and the
+            # oracle keeps meaning something. Only a SUBSET is windowed: that makes the stakes
+            # bimodal by construction (a few pivotal stops, the rest free) rather than
+            # constraining everything equally, which would just rebuild the smooth middle band.
+            _, tour, arrivals = optimal_closed_tour_units(
+                self.D, self.demand, self.capacity, return_tour=True)
+            order = [j for j in tour if j != DEPOT]
+            k = max(1, int(n_windowed))
+            step = max(1, len(order) // k)
+            self.windowed_customers = sorted(order[::step][:k])
+            scale = self.budget / max(1, self.optimal_all_units)
+            half = max(1, self.window_width // 2)
+            for c in self.windowed_customers:
+                centre = int(round(arrivals[c] * scale))
+                self.window_open[c] = max(0, centre - half)
+                self.window_close[c] = min(self.budget, centre + half)
+
         self._build(build_P=build_P)
 
     # ------------------------------------------------------------------
@@ -255,8 +331,22 @@ class BudgetRoutingEnv:
     def _initial_cap(self) -> int:
         return int(self.capacity) if self.is_capacitated else 0
 
+    def _service_time(self, cur: int, j: int, spent: int) -> int:
+        """Clock after driving cur -> j, waiting for the window to open if we arrive early."""
+        arrival = spent + int(self.D[cur, j])
+        return max(arrival, int(self.window_open[j])) if self.time_windows else arrival
+
     def _legal_actions(self, s: Tuple[int, int, int, int]) -> List[int]:
-        """Legal = affordable (with the trip home reserved), unserved, and it fits."""
+        """
+        Legal = unserved, fits the load, the window has not closed, and it is affordable.
+
+        "Affordable" depends on `allow_stranding`:
+          False (default) - the trip home is RESERVED, so the vehicle can never strand itself
+                            and the worst outcome is serving fewer customers.
+          True            - only the leg itself must fit before B. The vehicle CAN drive
+                            somewhere it cannot return from, and then the run fails outright.
+                            That is what makes a decision catastrophic.
+        """
         cur, mask, cap, spent = s
         legal: List[int] = []
         for j in range(1, self.n_nodes):
@@ -264,31 +354,65 @@ class BudgetRoutingEnv:
                 continue
             if self.is_capacitated and self.demand[j] > cap:
                 continue
-            # Reserve the return leg: never let the vehicle strand itself.
-            if spent + self.D[cur, j] + self.D[j, DEPOT] > self.budget:
+            t = self._service_time(cur, j, spent)
+            if self.time_windows and t > self.window_close[j]:
+                continue                       # window missed - gone for the rest of the run
+            if self.allow_stranding:
+                if t > self.budget:
+                    continue
+            elif t + self.D[j, DEPOT] > self.budget:
                 continue
             legal.append(j)
         if cur != DEPOT:
-            legal.append(DEPOT)          # affordable by construction of the rule above
+            if not self.allow_stranding or spent + self.D[cur, DEPOT] <= self.budget:
+                legal.append(DEPOT)
         return sorted(legal)
 
-    def _is_terminal(self, s) -> bool:
-        """Home, with nothing affordable left to do."""
+    def _is_failure(self, s) -> bool:
+        """Stranded: out of moves while still away from the depot, or home past the deadline."""
         cur, mask, cap, spent = s
-        if cur != DEPOT:
+        if not self.allow_stranding:
             return False
+        return cur != DEPOT and not self._legal_actions(s)
+
+    def _is_terminal(self, s) -> bool:
+        """
+        Out of moves. With stranding off that can only happen at the depot, so this keeps the
+        original behaviour exactly; with stranding on it also covers the failure case of being
+        stuck at a customer.
+        """
         return not self._legal_actions(s)
 
     def _next(self, s, a: int):
-        """Deterministic transition for a LEGAL action -> (next_state, reward, done)."""
+        """
+        Deterministic transition for a LEGAL action -> (next_state, reward, done).
+
+        Reward shape:
+          'stepwise' - +1 on first arrival at a customer (original behaviour), plus
+                       `strand_penalty` if the run ends stranded.
+          'terminal' - nothing along the way; the whole run pays out the served count on a
+                       SUCCESSFUL return, and zero otherwise. Sparse and all-or-nothing, which
+                       is the shape that makes per-seed outcomes bimodal.
+        """
         cur, mask, cap, spent = s
-        spent2 = spent + int(self.D[cur, a])
+        spent2 = self._service_time(cur, a, spent)
+
         if a == DEPOT:
             ns = (DEPOT, mask, self._initial_cap(), spent2)
-            return ns, 0.0, self._is_terminal(ns)
+            done = self._is_terminal(ns)
+            if done and self.reward_shape == 'terminal':
+                return ns, float(bin(mask).count("1")), True
+            return ns, 0.0, done
+
         new_mask = mask | (1 << (a - 1))
         new_cap = cap - int(self.demand[a]) if self.is_capacitated else cap
-        return (a, new_mask, new_cap, spent2), 1.0, False
+        ns = (a, new_mask, new_cap, spent2)
+        step_r = 1.0 if self.reward_shape == 'stepwise' else 0.0
+        if self._is_failure(ns):
+            # Drove somewhere with no way back: the run is over and it failed.
+            penalty = self.strand_penalty if self.reward_shape == 'stepwise' else 0.0
+            return ns, step_r + penalty, True
+        return ns, step_r, False
 
     # ------------------------------------------------------------------
     # enumeration
@@ -327,6 +451,7 @@ class BudgetRoutingEnv:
         st_cap = np.zeros(n, dtype=np.int32)
         st_spent = np.zeros(n, dtype=np.int32)
         st_served = np.zeros(n, dtype=np.int32)
+        st_failed = np.zeros(n, dtype=bool)     # terminal AND stranded -> the run scored nothing
 
         P: Dict = {} if build_P else None
         non_terminal: List[int] = []
@@ -335,6 +460,7 @@ class BudgetRoutingEnv:
             cur, mask, cap, spent = s
             st_cur[si], st_mask[si], st_cap[si], st_spent[si] = cur, mask, cap, spent
             st_served[si] = bin(mask).count("1")
+            st_failed[si] = self._is_failure(s)
             terminal = self._is_terminal(s)
             if not terminal:
                 non_terminal.append(si)
@@ -376,6 +502,8 @@ class BudgetRoutingEnv:
         self.state_cap = st_cap
         self.state_spent = st_spent
         self.state_served = st_served
+        self.state_failed = st_failed
+        self.n_failure_states = int(st_failed.sum())
         # numpy mirrors of the transition tables (the exact oracle runs on these)
         self.next_states_np = next_s[:, :, 0]
         self.rewards_np = rew[:, :, 0]
@@ -399,7 +527,17 @@ class BudgetRoutingEnv:
         load = ((cap[:, None] / float(self.capacity)) if self.is_capacitated
                 else np.ones((n, 1))).astype(np.float32)
         fuel = (1.0 - spent[:, None] / float(self.budget)).astype(np.float32)
-        feats = np.concatenate([onehot, bits, load, fuel], axis=1)
+        parts = [onehot, bits, load, fuel]
+
+        if self.time_windows:
+            # One bit per customer: has this stop's window already closed? Derivable from
+            # `spent` and the fixed deadlines, but making it explicit spares the network from
+            # rediscovering a per-customer threshold out of a single scalar clock.
+            close = self.window_close[1:][None, :]
+            missed = (spent[:, None] > close).astype(np.float32)
+            parts.append(missed)
+
+        feats = np.concatenate(parts, axis=1)
         self.state_features = jnp.asarray(feats)
         self.feature_dim = int(feats.shape[1])
 

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from counterfactual_rl.envs.routing_budget import (
+    DEPOT,
     BudgetRoutingEnv, INSTANCES, optimal_closed_tour_units, quantize)
 from counterfactual_rl.analysis.claim1.cvrp.budget_oracle import (
     brute_force_served, compute_oracle, optimal_plan, optimal_served, stakes)
@@ -148,3 +149,82 @@ def test_all_customer_optimum_matches_brute_force_permutations():
 
     brute = min(best_with_splits(p) for p in permutations(range(1, n_cust + 1)))
     assert optimal_closed_tour_units(D, np.asarray(dem), cap) == brute
+
+
+# ── Option A: time windows + strandable shift ────────────────────────────────
+#
+# The point of these is the same as the originals: the exact DP has to agree with an
+# exhaustive search, now under reward shapes where a run can score NOTHING.
+
+def opt_env(mult=0.9, scale=10, **kw):
+    return BudgetRoutingEnv(node_xy=SMALL["xy"], demand=SMALL["demand"],
+                            capacity=SMALL["capacity"], budget_mult=mult,
+                            dist_scale=scale, **kw)
+
+
+@pytest.mark.parametrize("mult", [0.7, 0.9, 1.1])
+def test_oracle_matches_brute_force_with_time_windows(mult):
+    env = opt_env(mult, time_windows=True, n_windowed=2, window_width=6)
+    V, _ = compute_oracle(env)
+    assert V[env.start_states[0]] == pytest.approx(brute_force_served(env))
+
+
+@pytest.mark.parametrize("mult", [0.7, 0.9, 1.1])
+def test_oracle_matches_brute_force_when_stranding_is_possible(mult):
+    env = opt_env(mult, allow_stranding=True, reward_shape="terminal")
+    V, _ = compute_oracle(env)
+    assert V[env.start_states[0]] == pytest.approx(brute_force_served(env))
+
+
+def test_oracle_matches_brute_force_with_both_changes():
+    env = opt_env(0.9, time_windows=True, n_windowed=2,
+                  allow_stranding=True, reward_shape="terminal")
+    V, _ = compute_oracle(env)
+    assert V[env.start_states[0]] == pytest.approx(brute_force_served(env))
+
+
+def test_stranding_actually_creates_failure_states():
+    """Without this the change is cosmetic — there must be a way to score zero."""
+    safe = opt_env(0.9)
+    risky = opt_env(0.9, allow_stranding=True, reward_shape="terminal")
+    assert safe.n_failure_states == 0, "the default env must stay catastrophe-free"
+    assert risky.n_failure_states > 0, "stranding enabled but no run can actually fail"
+
+
+def test_a_missed_window_is_permanent():
+    """Arriving after b_i must remove that customer for the rest of the episode."""
+    env = opt_env(0.9, time_windows=True, n_windowed=2, window_width=4)
+    assert env.windowed_customers, "no customer was given a window"
+    for s, si in env._index.items():
+        cur, mask, cap, spent = s
+        for j in env.windowed_customers:
+            served = (mask >> (j - 1)) & 1
+            if not served and spent > env.window_close[j]:
+                assert not env.action_masks_np[si][j], (
+                    f"customer {j} still reachable at t={spent} past deadline "
+                    f"{env.window_close[j]}")
+
+
+def test_terminal_reward_pays_out_only_on_a_successful_return():
+    env = opt_env(0.9, allow_stranding=True, reward_shape="terminal")
+    for s, si in env._index.items():
+        if env._is_terminal(s):
+            continue
+        for a in env._legal_actions(s):
+            ns, r, done = env._next(s, a)
+            if r != 0.0:
+                # the only nonzero reward is the payout on arriving home for good
+                assert a == DEPOT and done and not env._is_failure(ns)
+                assert r == float(bin(s[1]).count("1"))
+
+
+def test_defaults_are_untouched_by_the_new_flags():
+    """Every committed budget-mode result must still reproduce byte for byte."""
+    base = opt_env(0.9)
+    assert base.time_windows is False and base.allow_stranding is False
+    assert base.reward_shape == "stepwise"
+    assert base.n_failure_states == 0
+    # feature width must not change, or previously trained networks stop loading
+    assert base.feature_dim == base.n_nodes + base.n_customers + 2
+    windowed = opt_env(0.9, time_windows=True, n_windowed=2)
+    assert windowed.feature_dim == base.feature_dim + base.n_customers
