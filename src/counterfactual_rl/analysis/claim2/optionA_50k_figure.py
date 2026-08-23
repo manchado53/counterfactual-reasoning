@@ -61,48 +61,54 @@ def main(argv=None):
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    fig = plt.figure(figsize=(16, 4.9))
-    gs = fig.add_gridspec(1, 3, width_ratios=[1.15, 1.1, 1.0], wspace=0.27)
+    fig = plt.figure(figsize=(15.5, 4.9))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.25, 1.15, 0.85], wspace=0.42)
 
-    # (a) mean curves
+    # (a) the two metrics on ONE panel — they disagree, and that is the point
     ax = fig.add_subplot(gs[0, 0])
-    for a in ARMS:
-        runs = data.get(a, [])
-        if not runs:
-            continue
-        n = min(len(v) for _, _, v in runs)
-        eps = runs[0][1][:n]
-        M = np.vstack([v[:n] for _, _, v in runs])
-        mean = M.mean(axis=0); sem = M.std(axis=0) / np.sqrt(M.shape[0])
-        ax.plot(eps, mean, color=COLOR[a], lw=1.6, label=f'{LABEL[a]} (n={len(runs)})')
-        ax.fill_between(eps, mean - 1.96 * sem, mean + 1.96 * sem,
-                        color=COLOR[a], alpha=0.12, lw=0)
-    ax.axvline(5500, color='#122236', ls=':', lw=1.5)
-    ax.text(6500, 0.35, 'registered\nE*=5500', fontsize=8.5, color='#122236')
-    ax.set_xlabel('episode'); ax.set_ylabel('opt_ratio')
-    ax.set_title('(a) 50,000 episodes, mean of 40 seeds', fontsize=11, loc='left')
-    ax.grid(alpha=.25); ax.legend(fontsize=8, loc='lower right'); ax.set_ylim(0, 1.05)
+    ax2 = ax.twinx()
+    runs = data['per']
+    n = min(len(v) for _, _, v in runs)
+    eps = runs[0][1][:n]
+    M = np.vstack([v[:n] for _, _, v in runs])
+    mean = M.mean(axis=0)
+    rate = 100 * (M >= 0.9999).mean(axis=0)
+    l1, = ax.plot(eps, mean, color='#B4600F', lw=2.0)
+    l2, = ax2.plot(eps, rate, color='#1B5FA8', lw=2.0)
+    i15 = np.searchsorted(eps, 15000)
+    ax.plot([eps[i15], eps[i15]], [0, mean[i15]], color='#122236', ls=':', lw=1.3)
+    ax.annotate(f'at 15k episodes:\nmean score {mean[i15]:.2f}\nbut only '
+                f'{rate[i15]:.0f}% of seeds\nare actually optimal',
+                xy=(eps[i15], mean[i15]), xytext=(17000, 0.30), fontsize=9,
+                arrowprops=dict(arrowstyle='->', lw=1.1, color='#122236'))
+    ax.set_xlabel('episode')
+    ax.set_ylabel('mean opt_ratio  (partial credit)', color='#B4600F')
+    ax2.set_ylabel('% of seeds EXACTLY optimal', color='#1B5FA8')
+    ax.tick_params(axis='y', colors='#B4600F'); ax2.tick_params(axis='y', colors='#1B5FA8')
+    ax.set_ylim(0, 1.05); ax2.set_ylim(0, 105)
+    ax.set_title('(a) Two metrics, same runs (PER)', fontsize=11, loc='left')
+    ax.grid(alpha=.25)
+    ax.legend([l1, l2], ['mean score', '% seeds optimal'], fontsize=8.5, loc='lower right')
 
-    # (b) solve rate vs training budget
+    # (b) solve rate per arm
     ax = fig.add_subplot(gs[0, 1])
     grid = np.arange(1000, 50001, 1000)
     for a in ARMS:
-        runs = data.get(a, [])
-        if not runs:
+        rs = data.get(a, [])
+        if not rs:
             continue
         rates = []
         for g in grid:
-            hits = sum(1 for _, e, v in runs
+            hits = sum(1 for _, e, v in rs
                        if (i := np.searchsorted(e, g)) < len(v) and v[i] >= 0.9999)
-            rates.append(100 * hits / len(runs))
+            rates.append(100 * hits / len(rs))
         ax.plot(grid, rates, color=COLOR[a], lw=1.7, label=LABEL[a])
-    ax.axvspan(0, 8000, color='#2C6E49', alpha=0.10)
-    ax.text(600, 12, 'where arms\ncould differ', fontsize=8.5, color='#2C6E49')
     ax.axvline(5500, color='#122236', ls=':', lw=1.5)
+    ax.text(6200, 8, 'registered\nE*=5500', fontsize=8.5, color='#122236')
     ax.set_xlabel('training budget (episodes)')
-    ax.set_ylabel('% of seeds whose policy is optimal')
-    ax.set_title('(b) Saturation arrives by ~15k and never leaves', fontsize=11, loc='left')
-    ax.grid(alpha=.25); ax.set_ylim(-3, 103)
+    ax.set_ylabel('% of seeds exactly optimal')
+    ax.set_title('(b) All five arms, same metric', fontsize=11, loc='left')
+    ax.grid(alpha=.25); ax.set_ylim(-3, 103); ax.legend(fontsize=8, loc='upper left')
 
     # (c) does the oscillation survive?
     ax = fig.add_subplot(gs[0, 2])
@@ -118,13 +124,13 @@ def main(argv=None):
     for x, val in zip([0, 1], [100 * np.mean(early), 100 * np.mean(late)]):
         ax.text(x, val + 1.5, f'{val:.0f}%', ha='center', fontsize=11, weight='bold')
     ax.set_xticks([0, 1])
-    ax.set_xticklabels(['first 5,000\nepisodes', 'last 5,000\nepisodes'], fontsize=9.5)
-    ax.set_ylabel('% of eval steps where the score CHANGES')
-    ax.set_title('(c) The policy does settle, eventually', fontsize=11, loc='left')
+    ax.set_xticklabels(['first\n5,000 eps', 'last\n5,000 eps'], fontsize=9)
+    ax.set_ylabel('% of eval steps where the score moves')
+    ax.set_title('(c) It does settle', fontsize=11, loc='left')
     ax.grid(alpha=.25, axis='y'); ax.set_ylim(0, 100)
 
-    fig.suptitle('Strandable routing at 50,000 episodes — every arm reaches the ceiling; '
-                 'random replay is the best of them', fontsize=12.5, y=1.02)
+    fig.suptitle('Strandable routing at 50,000 episodes — a high mean score is not the same '
+                 'as anyone solving it', fontsize=12.5, y=1.02)
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     p = out / 'fig_c2_optionA_50k.png'
     fig.savefig(p, dpi=150, bbox_inches='tight')
