@@ -30,6 +30,7 @@ ARMS = ['uniform', 'per', 'cceonly', 'cceadd', 'ccemul']
 LABEL = {'uniform': 'DQN-Uniform', 'per': 'DQN+PER', 'cceonly': 'DQN+CCE-only',
          'cceadd': 'CCE+TD (add)', 'ccemul': 'CCE+TD (mul)'}
 RUN_RE = re.compile(r'^oa_(\w+?)_s(\d+)$')
+RUN_RE_LONG = re.compile(r'^oaL_(\w+?)_s(\d+)$')   # the 50k exploratory rerun
 REGISTERED_MARGIN = 30.0        # pp; the FrozenLake-sized effect the prediction is about
 
 
@@ -77,13 +78,17 @@ def fisher_p(k1, n1, k2, n2):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--runs-dir', required=True)
+    ap.add_argument('--long', action='store_true',
+                    help='analyse the 50k exploratory rerun (oaL_) instead of the '
+                         'pre-registered E*=5500 sweep (oa_)')
     ap.add_argument('--threshold', type=float, default=0.9999,
                     help='opt_ratio counting as solved (default: exactly optimal)')
     args = ap.parse_args(argv)
 
     scores = defaultdict(list)
-    for d in sorted(Path(args.runs_dir).glob('oa_*')):
-        m = RUN_RE.match(d.name)
+    rx = RUN_RE_LONG if args.long else RUN_RE
+    for d in sorted(Path(args.runs_dir).glob('oaL_*' if args.long else 'oa_*')):
+        m = rx.match(d.name)
         f = d / 'metrics.log'
         if not m or not f.exists():
             continue
@@ -97,7 +102,9 @@ def main(argv=None):
     pk = sum(1 for v in scores['per'] if v >= args.threshold)
     pn = len(scores['per'])
 
-    print("\nOPTION A — strandable budget routing, pre-registered at E*=5500\n")
+    tag = ("OPTION A (50k EXPLORATORY rerun — NOT the pre-registered test)"
+           if args.long else "OPTION A — strandable budget routing, pre-registered at E*=5500")
+    print(f"\n{tag}\n")
     print(f"{'arm':<15} {'n':>4} {'solved':>12} {'95% CI':>16} {'vs PER':>9} {'p':>8}")
     print("-" * 72)
     rows = {}

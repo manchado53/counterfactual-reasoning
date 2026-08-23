@@ -88,6 +88,33 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-20 — **50k RERUN DONE (200 runs). Prediction confirmed: the metric saturates.**
+Exploratory, not the registered test — E* was fixed at 5,500 and changing it changes the question.
+```
+arm             solved        95% CI        vs PER    p
+DQN-Uniform    40/40  100%  [91.2,100.0]   +5.0pp   0.494   <- random replay is BEST
+DQN+PER        38/40   95%  [83.5, 98.6]      —       —
+DQN+CCE-only   38/40   95%  [83.5, 98.6]   +0.0pp   1.000
+CCE+TD (add)   38/40   95%  [83.5, 98.6]   +0.0pp   1.000
+CCE+TD (mul)   36/40   90%  [76.9, 96.0]   -5.0pp   0.675
+```
+Predicted before running (from the 25k calibration): "baseline near 90-100%, the metric saturates,
+arm differences compress toward zero." All three held. **DQN-Uniform tops the table at 100%** —
+random replay beating every prioritised method is the same noise signature that discredited the
+original CVRP null, and it recurs here.
+
+**This closes the last standing objection.** "CCE just needs more training" is now tested at 9x the
+registered budget and refuted: at 50,000 episodes every arm is at the ceiling and the ordering is
+noise. Combined with E*=5,500 (+2.5pp, p=1.000), CCE does not beat PER in strandable routing at
+either a discriminating or a saturated training budget.
+
+**ROUTING CLAIM 2 IS CLOSED.** Four independent measurements now agree: the smooth stakes ramp,
+the step-function difficulty curve, policies that never stabilise once failure is reachable, and
+saturation under long training. Routing remains a CLAIM-1 environment (rho 0.52 -> 0.67, exact
+oracle), where it genuinely succeeded. Claim 2 should move to an external suite (gymnax/MinAtar,
+bsuite) per the literature review — which also fixes the "every environment is one we built"
+exposure.
+
 ### 2026-08-20 — 50k-episode rerun launched. **DEAD END / TOOLING BUG: sed-derived sbatch files.**
 
 **NEW TOOLING GOTCHA — cost 24 runs of pre-registered data.** Every sbatch in this project has

@@ -74,6 +74,7 @@ def main(argv=None):
         ('12-customer\nmean agg', 'bdi_ring12mean_*_b080_c10_s*',
          re.compile(r'^bdi_ring12mean_(\w+?)_b\d+_c\d+_s\d+$')),
         ('STRANDABLE\n(Option A)', 'oa_*', re.compile(r'^oa_(\w+?)_s\d+$')),
+        ('STRANDABLE\n50k episodes', 'oaL_*', re.compile(r'^oaL_(\w+?)_s\d+$')),
     ]
     results = []
     for label, glob, rx in CONFIGS:
