@@ -264,6 +264,10 @@ def main(argv=None):
     ap.add_argument('--no-oracle', action='store_true')
     ap.add_argument('--static', action='store_true',
                     help='write a still PNG comparing whole routes instead of an animation')
+    ap.add_argument('--runs', nargs='+', default=None, metavar='RUNDIR',
+                    help='explicit run directory names to replay side by side, instead of '
+                         'building names from --arms/--budget/--seed. Use this to show several '
+                         'seeds of the SAME arm that ended differently.')
     ap.add_argument('--progression', nargs='+', default=None, metavar='RUN',
                     help='run dir names to show as a training progression (one row each)')
     ap.add_argument('--stages', type=int, default=4)
@@ -287,6 +291,30 @@ def main(argv=None):
 
     runs = Path(args.runs_dir)
     panels, env = [], None
+
+    if args.runs:
+        # Explicit run dirs: one panel each, labelled by how the run actually ended.
+        built = []
+        for name in args.runs:
+            d = runs / name
+            if not (d / 'last.pkl').exists():
+                print(f"  skip {name}: no checkpoint")
+                continue
+            tour, _, env = load_policy_tour(d)
+            served = len([p for p in tour if p != DEPOT])
+            stranded = tour[-1] != DEPOT
+            if stranded:
+                lab = f"{name.split('_')[-1]}: STRANDED\nscored 0"
+            else:
+                lab = f"{name.split('_')[-1]}: served {served}\nscored {served}/{optimal_served(env)}"
+            built.append((lab, tour, tour_frames(env, tour)))
+        if env is None:
+            raise SystemExit('none of the named runs had a checkpoint')
+        sup = (f"Same method, same map, {len(built)} different seeds — "
+               f"routing does not end in just two ways")
+        (render_static if args.static else render)(env, built, args.out, sup)
+        return
+
     for arm in args.arms:
         name = f"{args.prefix}_{arm}_b{int(round(args.budget * 100)):03d}_c{args.capacity}_s{args.seed}"
         d = runs / name
