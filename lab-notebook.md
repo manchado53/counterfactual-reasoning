@@ -32,76 +32,38 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-08-15)
+## STATUS (2026-08-22)
 Paper data = verified + frozen in paper/repro/ (master 861c0e3). NOT done experimenting — no
 claim hits its target scenario count yet, and the paper's COVERAGE table is unchanged since
 2026-06-02.
 
-JaxNav (side branch) is now CLOSED as a negative result. Four budgets were run — 96k, 150k and
-500k at 25 seeds/arm, the last with a uniform-replay control — and the promising 150k finding
-("CCE prevents late collapse") did not survive the longer run. At 500k nothing separates the
-arms significantly, every method degrades after ~ep 250k, and uniform replay collapses worst,
-which rules out the mechanism story. Do not cite the 150k stability claim. All JaxNav data,
-figures and videos are committed and rebuild from a clean checkout without the run tree.
+JaxNav is REOPENED but is NOT yet a C2 scenario. The 6-cell factorial (180 runs, 179 complete,
+2026-08-22 LOG) shows CCE ahead of PER in 5/6 cells, but "best CCE" there is a max over 4 arms at
+n=5 with no cell individually significant, and much of the margin is PER collapsing under clutter
+rather than CCE winning — uniform beats PER in 3/6 cells. Do not quote the factorial as a result.
 
-36 days to the ICLR abstract deadline as of 2026-08-13. The paper still needs 2 more clean C2
-scenarios and a C1 redo, and JaxNav did not become one of them.
+The two things worth carrying forward: (a) the shipped beta=0.25 under-amplifies the CCE score to
+the point of uniform sampling, which confounds every JaxNav null; (b) at matched concentration,
+mixing in CCE halves the slow-seed rate vs pure TD (p=0.037, n=8) — a reliability effect, with no
+ceiling difference, and a similar claim was retracted on 2026-08-15.
+
+27 days to the ICLR abstract deadline (Sep 18). The paper still needs 2 more clean C2 scenarios
+and a C1 redo.
 
 ## NEXT
-0. **JaxNav REOPENED — rerun at `fill=0.3`, not 0.1.** Every JaxNav sweep ran on maps averaging
-   0.91 interior obstacles, 36% of them completely empty (2026-08-19 LOG). The whole line may be
-   a null because the map was near-empty, not because CCE fails. One number changes it. Driver
-   `slurm/sweep_balance_ess.py` is ready; re-check the sanity gate (plain DQN must still solve it)
-   before trusting any CCE comparison, and expect absolute win rates NOT comparable to fill=0.1.
-   Also still untested at matched ESS: `consequence_aggregation='max'` — the flavour with
-   P(>PER)=0.812 on the 500k data. This sweep used `weighted_mean`, which is 0.495 (a coin flip).
-1. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
-2. Redo C1 on deterministic FL.
-3. Fix 3 paper.tex numbers (FL-det → 25 seeds; FL-stoch → 0.67–0.75; SMAX PER → 0.71).
-4. Recheck ICLR 2027 deadline.
-5. [side track — REOPENED 2026-08-19, see item 0; the results below stand but were ALL
-   measured at fill=0.1, i.e. on near-empty maps] JaxNav robotics-transfer, branch
-   worktree-research+cce-robotics-transfer. Nothing outstanding to run; see the two 2026-08-15
-   LOG entries for the result and the 2026-08-14 one for the claim it retracts.
-   Summary of the whole line of work, so nobody reopens it by accident:
-```
-     budget   arms                          outcome
-      96k     per/cce-max/cce-wmean         murky, nothing significant
-     150k     same 3                        CCE+wmean 0/25 collapses vs PER 7/25  <- RETRACTED
-     500k     + uniform control             uniform collapses MOST (14/25); CCE delays
-                                            collapse, does not prevent it; nothing significant
-```
-   Everything needed to rebuild is committed: `docs/figures/real/claim2/jaxnav/data/`
-   (manifests + per-seed curve npz for all four sweeps, 169+100 runs), 8 figures, 3 rollout
-   videos, drivers in `slurm/`. Verified: a checkout of tracked files ONLY rebuilds every
-   figure — `**/runs` and `**/experiments/` are gitignored, so this mirror is the only copy
-   that survives a disk cleanup.
-
-   IF IT IS EVER REOPENED, these are the traps already paid for:
-   - Never read a sweep before every seed lands. Good agents finish the budget FIRST
-     (short episodes), so an early read samples the winners — cost a 10pp overestimate once.
-   - Never compare two runs at matched EPISODE COUNT if their epsilon schedules differ.
-   - The tail-convergence check must be fitted per seed with a CI, not once to the pooled IQM
-     curve; the pooled fit flips sign with the window.
-   - "Same seed" does NOT reproduce a run here. Identical seeds/schedule reproduced only
-     22/25, 18/25 and 13/25 seeds; the rest diverge from the first eval, most likely GPU float
-     nondeterminism (CCE, which does the most GPU work, diverges most). Set deterministic XLA
-     flags before any seed-level claim.
-   - IQM: FIXED 2026-08-15. `jaxnav_holes_figures` now imports `compute_metrics.iqm`, which is
-     rliable's aggregate_iqm, so there is one definition repo-wide. It previously trimmed one
-     value per end and called that IQM. See the top LOG entry for which reported numbers moved
-     (no conclusion did). `rliable` is now installed in the `counterfactual` env.
-   - Post-hoc findings need fresh seeds. The 150k result was found by looking, confirmed
-     nothing, and the 500k run reused the same seeds 0-24 by choice (continuation over
-     independence), so it deepened the story without ever independently testing it.
-
-## PRE-FLIGHT CHECKLIST (run for every env — these broke us before)
-- [ ] rewards[agent_player], not rewards[0]
-- [ ] target/eval/save = crossing logic (a//f > prev//f), not `% f == 0`
-- [ ] LeakyReLU on sparse/boolean inputs (ReLU → dead net)
-- [ ] cf_horizon = full episode length
-- [ ] consequence_metric = total_variation (not wasserstein)
-- [ ] sanity: plain DQN must beat the opponent BEFORE testing CCE
+0. **Sweep `beta`, not `mu` — it is the cheapest open knob and nobody has touched it.** The
+   shipped beta=0.25 leaves the pure-CCE arm sampling at ESS 0.999 (i.e. uniform), while the
+   same score at exponent ~1.4 reaches 0.600 (2026-08-22 LOG). Every "CCE did nothing" result on
+   JaxNav is confounded with this. Cheap: uniform/PER arms are 1.7 GPU-h.
+1. **Extend the ESS-matched balance sweep from 8 seeds to ~25.** It is the only experiment with
+   concentration held equal, and it shows CCE halving the slow-seed rate vs pure TD
+   (4/8 -> 4/32, Fisher p=0.037). At n=8 that is suggestive, not publishable, and this project
+   has retracted a reliability claim before. Also run it at fill=0.3, and with
+   `consequence_aggregation='max'` (untested at matched ESS).
+2. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
+3. Redo C1 on deterministic FL. Port `FrozenLakeDQN.from_checkpoint()` to master first — it is a
+   wrong-MDP landmine.
+4. Fix 3 paper.tex numbers (FL-det -> 25 seeds; FL-stoch -> 0.67-0.75; SMAX PER -> 0.71).
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -119,6 +81,20 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
   now; `ess_k_saturated` in `ess.jsonl` flags the degenerate case.
 - **Concentration confounds every CCE-vs-PER comparison** unless matched: at a common exponent
   pure-CCE is ~2x sharper than pure-TD (ess_frac 0.47 vs 0.87). Use `target_ess_frac`.
+- **`beta` scales the CCE score too, and 0.25 is too small for it.** At the shipped beta the
+  pure-CCE arm samples at ESS 0.999 (uniform); the same score at effective exponent 1.43 reaches
+  ESS 0.600. A "CCE does nothing" result may be a beta result. Check `ess.jsonl` before concluding.
+- **SLURM array tasks write to `JobIDRaw`, not `<array>_<task>`.** `273775_10` lands in run dir
+  `273786`. Manifests record the array name, analysis looks for the raw one, and silently finds
+  NOTHING. Run `slurm/resolve_manifest.py` after every array sweep. Tasks cancelled before they
+  start leave NO sacct record at all, so absence is the only way to detect them.
+- **JaxNav has a ~2-3% free-win floor**: `goal_radius=0.8` means some episodes spawn the agent
+  already inside the goal. A "win rate" of 3% is zero learning, not weak learning.
+- **`max_steps=200` is fixed across map sizes**, so 11x11 is a different problem, not a harder
+  one — less time to cross a bigger world. Compare MARGINS within a cell, never rates across cells.
+- **PER is a weak baseline on JaxNav** and gets weaker with clutter (75 -> 31 -> 18 as fill goes
+  0.1 -> 0.3 -> 0.5 on 8x8), while uniform degrades gently (73 -> 60 -> 49). Always report the
+  uniform control; "beats PER" alone overstates the result.
 - /home is a shared disk at 100% (294 GB free of 102 TB). Writes can fail and large
   uncommitted files are at risk. Keep anything important in git (that's what paper/repro/
   is for). [C1 deterministic runs vanished — cause unconfirmed.]
@@ -133,6 +109,75 @@ scenarios and a C1 redo, and JaxNav did not become one of them.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-22 — JaxNav 6-cell factorial (180 runs) + the CCE score is UNDER-AMPLIFIED, not inert
+
+**The factorial.** `{8x8, 11x11}` x `{fill 0.1, 0.3, 0.5}` crossed, 6 arms, 5 seeds = 180 runs,
+250k episodes, submitted as ONE SLURM array (`273775`, +`274064` for two requeues) throttled to
+20 concurrent. 179/180 completed, 0 failures. Driver `slurm/sweep_factorial.py`, manifest
+`docs/figures/real/claim2/jaxnav/data/manifest_factorial.json`. This is the fix for the
+2026-08-06 confound where size and fill moved together.
+
+New scoring baseline, NOT comparable to any earlier JaxNav run: `cf_n_rollouts` 20 -> 40,
+`cf_horizon` 20 -> 60, `n_score_sample` 128 -> 64, `score_interval` 500 -> 250. Coverage is
+unchanged at 1.6% (the last two cancel exactly: 131 scored per 8,192 added either way).
+
+Median final win rate, last-20-eval mean per seed:
+```
+  cell          uniform    PER   bestCCE    vs PER   vs UNIFORM
+  8x8_f01          73.4   75.0      75.1      +0.1         +1.7
+  8x8_f03          60.2   30.6      57.1     +26.5         -3.1
+  8x8_f05          49.2   17.5      50.6     +33.1         +1.4
+  11x11_f01        42.8   23.2      50.7     +27.6         +7.9
+  11x11_f03         5.4   31.0      25.4      -5.6        +20.0
+  11x11_f05         5.4    6.5      25.4     +18.9        +20.0
+```
+**Read this cautiously.** "bestCCE" is a max over 4 CCE arms at n=5 — selection bias inflates it,
+and no cell is individually significant. The solid finding is about the BASELINE, not about CCE:
+**PER collapses as clutter rises** (75 -> 31 -> 18 on 8x8) while uniform degrades gently
+(73 -> 60 -> 49). Uniform beats PER in 3/6 cells. So "CCE beats PER" here is partly PER being a
+weak baseline on this environment, and CCE vs UNIFORM is the honest bar.
+
+**The real finding — the shipped beta under-amplifies the CCE score.** Earlier this session I
+said the CCE score was "close to inert" because factorial `cce_only` sits at ESS 0.999 (uniform).
+That was wrong, and the ESS-matched balance sweep (jobs 273145-273184) is the disproof:
+```
+                              effective exponent on CCE    resulting ESS
+  factorial cce_only                    0.25                  0.999   uniform
+  balance sweep, balance=1.0            1.43                  0.600   concentrated
+```
+Same env, same score, same code. At the shipped `beta=0.25` the CCE score cannot differentiate
+the buffer; at ~1.4 it concentrates fine (only 9 saturation flags in ~8,000 evals). The signal
+is real and mis-scaled, not absent. `beta` is the knob nobody swept.
+
+**The mu sweep is the better story** because it is the ONLY experiment where concentration was
+held equal (ESS pinned at 0.60 for every arm, verified per eval), so a difference is
+attributable to the SIGNAL rather than to sampler sharpness. Per-seed AUC, 8 seeds:
+```
+  balance   AUC per seed (sorted)        med AUC   med final
+    0.00    52 51 50 50 | 29 24 20 18       39.5       73.8
+    0.25    52 52 50 50 48 48 43 40         49.0       77.7
+    0.50    56 55 53 51 46 45 | 19 18       48.5       72.2
+    0.75    51 50 50 49 48 47 40 38         48.5       66.0
+    1.00    51 50 50 47 45 44 | 33 31       46.0       74.5
+
+  slow seeds (AUC < 35):  pure TD 4/8   pooled CCE 4/32   Fisher p = 0.0365
+  Mann-Whitney on raw AUC (pooled CCE > TD):              p = 0.19
+```
+Claim it supports, narrowly: **at matched replay concentration, mixing in CCE halves the rate of
+slow-learning seeds vs pure TD priority.** Final win rates are 66-78 for every arm — no ceiling
+difference, so this is a RELIABILITY result. Not monotone in balance (0.25 and 0.75 have zero
+slow seeds; 0.5 and 1.0 have two), n=8, and fill=0.1. A similar reliability claim was retracted
+on 2026-08-15, so do not promote this past what the numbers carry without more seeds.
+
+DEAD END (mine, measured and dropped): I proposed `cf_horizon=60` on the theory that a longer
+rollout would find the goal more often. Measured goal-reach rate: 8% at H=20, 12% at H=60, flat
+through H=160. It buys almost nothing and costs 3x. The 2x from rollouts 20->40 is the part that
+was worth paying for (SE on an action difference was ~0.10 at 20 rollouts, the same size as the
+effect being ranked).
+
+Slowdown accounting, since it surprised us: CCE runs took 13.5h vs PER 1.7h vs 4.8h for the
+prior CCE sweep. The 6x over prior CCE is exactly rollouts (2x) x horizon (3x).
 
 ### 2026-08-19 — **JaxNav ran on near-EMPTY maps all along** + ESS-matched replay comparison
 Branch `experiment/jaxnav-ess-matched-mu`. Two findings; the first one re-contextualises every
