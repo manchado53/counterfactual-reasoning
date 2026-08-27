@@ -8,7 +8,8 @@ ICLR 2027 (iclr.cc). Deadline ~late Sep 2026 (est.; recheck). ~16 weeks from 202
 
 ## THE BAR
   C2 (speeds learning):   have FL-det ✓  → need 2 MORE clean scenarios
-  C1 (finds the moments): need deterministic-FL redo + 1 MORE (needs a good-oracle env)
+  C1 (finds the moments): have FL-slippery ✓ + routing/CVRP ✓ (2 exact-oracle envs)
+                          still want the deterministic-FL redo
 
 ## COVERAGE
 ```
@@ -19,18 +20,27 @@ FL-stoch    noise kills score         NULL 0.67–0.75              (10 seeds)
 SMAX-3m     no oracle                 MARGINAL 0.722 vs 0.710     (10 seeds)
 SMAX-8m     —                         UNFINISHED (never ran clean)
 C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
+Routing     WIN ✓ ρ 0.58→0.77→0.74   null (C2 continues on its own branch)
+(CVRP)      (10 seeds, 08-23)
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-08-04, evening)
+## STATUS (2026-08-27)
 Graded-slip dense sweep DONE for the low-slip window (560 runs, 0 failures). Verdict:
 CCE-mul beats PER at slip=0 ONLY — a knife edge, not the graded decay Theorem 3 predicts.
 Honest claim now: CCE's replay benefit is SPECIFIC TO DETERMINISTIC environments.
 
 Data so far = verified + frozen in paper/repro/ (master 861c0e3).
 NOT done experimenting — no claim hits its target scenario count yet.
-Graded-slip work lives on `experiment/graded-slip-frozenlake` (worktree
-`.claude/worktrees/graded-slip-frozenlake`), NOT yet merged to master.
+Graded-slip work is MERGED to master (PR #2, cdd60ff).
+
+**CLAIM 1 now has a second exact-oracle environment.** Routing (CVRP, 10 customers,
+`travel_noise=0.15`) at 10 seeds: ρ(CCE, exact oracle) 0.576 → 0.765 → 0.741 across
+untrained/mid/trained, precision@10% 0.367 / 0.478 / 0.454 against a 0.100 chance rate.
+Mid-training ρ is 0.765 in routing and 0.765 in FrozenLake, arrived at independently.
+FrozenLake's published Claim 1 was re-audited from the exact `paper/repro/` checkpoints and
+reproduces to three decimals. Claim 2 on routing is a clean null and continues on
+`research/cvrp-claim1-and-c2-audit`.
 
 ## NEXT
 0. **Decide the paper's framing given the knife edge.** The graded-slip result narrows C2 to
@@ -82,6 +92,169 @@ Graded-slip work lives on `experiment/graded-slip-frozenlake` (worktree
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-08-27 — **Claim 1 (routing) merged to master.**
+Cut `research/cvrp-claim1` from master (cdd60ff) and brought over ONLY the Claim-1 routing
+work. The source branch `research/cvrp-claim1-and-c2-audit` stays open: it holds the Claim-2
+investigation (budget/orienteering env, ~3,100 runs, all null) and is where C2 continues.
+
+WHY A SEPARATE BRANCH: the source branch was based on ea2c760 and never contained master's
+9 graded-slip commits, so merging it whole would have read as a revert. Only `lab-notebook.md`
+was touched by both sides; every other file separated cleanly.
+
+NOT MERGED (deliberately): `envs/routing_budget.py`, `claim1/cvrp/budget_oracle.py`,
+`analysis/claim2/cvrp_*`, `analysis/suitability/`, `agents/cvrp/budget_experiments.py`,
+`experiments/2026-08/`. The budget-mode branches inside `agents/cvrp/{config,dqn,train}.py`
+were stripped, so this branch's routing agent is plain CVRP only.
+
+`analysis/metrics.py` behaviour is UNCHANGED — it still falls through to `max()` when
+`action_probs` is absent, exactly as `paper/repro/` needs. What ships is the RuntimeWarning
+plus an explicit `aggregation` parameter on the Claim-1 scorers, so an analysis can ask for
+`mean` without changing what training does. See the 2026-08-19 entry below.
+
+### 2026-08-23 — **FROZENLAKE CLAIM 1 AUDITED. The paper's numbers reproduce EXACTLY and are
+robust to the aggregation bug. No paper change needed.**
+
+Re-ran the paper's Claim 1 from `paper/repro/cache/checkpoints/seed_{0,1,2}` — the exact
+checkpoints it was published from — under both aggregation rules, at the paper's own settings
+(n_rollouts=100, horizon=500, gamma=1.0).
+```
+stage        paper.tex        max (rerun)        mean (corrected)
+untrained    0.319 +/- 0.114  0.319 +/- 0.114    0.326 +/- 0.105
+mid          0.765 +/- 0.096  0.764 +/- 0.096    0.791 +/- 0.088
+trained      0.889 +/- 0.031  0.888 +/- 0.031    0.895 +/- 0.032
+```
+**REPRODUCES TO THREE DECIMALS.** The repro bundle does what it claims.
+
+**AND THE BUG DOES NOT MATTER HERE.** mean shifts rho by +0.007 / +0.027 / +0.007 — all far
+inside the seed spread. precision@k improves modestly (top-5% lift 3.3x -> 6.7x).
+Contrast with routing, where the same fix moved rho by +0.07 and p@10 by +0.21.
+
+WHY THE DIFFERENCE: FrozenLake has only 4 actions, so max and mean over at most 3 alternatives
+rank states similarly; and slippery transitions already make each TV graded rather than 0/1.
+Routing has 11 actions and (in budget mode) deterministic rollouts, where max collapses hardest.
+
+**VERDICT: the published FrozenLake Claim 1 stands. Do not re-run it for the paper.** Optionally
+switch to `mean` for consistency with routing, which nudges every number up slightly, but the
+claim is unchanged either way.
+
+**ON THE STOCHASTICITY WORRY — slippery HELPS Claim 1, it does not threaten it.** Measured score
+distributions: FL-slippery gives 18 distinct CCE values (gini 0.386); FL-deterministic gives 2
+values with 86% zeros. Total variation needs spread in the per-action return distributions, and
+stochastic transitions supply it. A deterministic-FL Claim 1 would be measured on a near-binary
+score — the same degeneracy that sank routing's Claim 2.
+
+**THE REAL EXPOSURE IS UNCHANGED AND IS NOT ABOUT NOISE:** Claim 1 is measured on SLIPPERY FL
+while the Claim-2 headline win is on DETERMINISTIC FL. Different environments. Routing now
+mitigates this — a second exact-oracle env, 10 seeds, 1000 states, showing the same rise
+(0.576 -> 0.765) with `travel_noise` playing the role slip plays in FrozenLake.
+
+Pipeline changes: `--aggregation` and `--ckpt-root` added to the FL Claim-1 analysis; the scorer
+takes `aggregation` instead of hardcoding it.
+
+### 2026-08-23 — **CLAIM 1 (routing) LOCKED DOWN at 10 seeds. Fixing the aggregation IMPROVED it.**
+Retrained seeds 3-9 (SLURM 274243) for 10 total, exposed `aggregation` as a parameter through
+`score_states` / `run_analysis`, and re-ran the whole Claim-1 pipeline under both rules.
+
+**HEADLINE (10 seeds, 1000 scored states, mean aggregation):**
+```
+stage        rho(CCE, exact oracle)     precision@10%    (random = 0.10)
+untrained       0.576 +/- 0.024              0.367
+mid             0.765 +/- 0.012              0.478
+trained         0.741 +/- 0.020              0.454
+```
+rho RISES with training, which is the claim. precision@10% of 0.478 means **nearly half of CCE's
+top-10% picks are genuinely in the oracle's top 10%** — 4.8x chance.
+
+**THE AGGREGATION BUG WAS HURTING CLAIM 1, NOT JUST MISLABELLING IT.**
+```
+stage        max (what shipped)    mean (corrected)    delta
+untrained         0.536                0.576          +0.040
+mid               0.693                0.765          +0.072
+trained           0.667                0.741          +0.074
+p@10 mid          0.273                0.478          +0.205
+```
+The direction was predicted before looking: max fires whenever ANY alternative differs (coarse),
+mean returns the FRACTION that differ (graded). Same reasoning that showed 2 vs 29 distinct score
+values in the Claim-2 probe. This is a repair with a predicted sign, not a post-hoc metric hunt.
+
+**ROBUSTNESS.** The claim holds under BOTH rules — rho still rises 0.54 -> 0.69 under the old max
+path. The paper figure shows both side by side (panel d) rather than quietly adopting the better
+number.
+
+**THE DIP AT `trained` IS REAL** (0.765 -> 0.741) and survives both aggregations, at 10 seeds.
+FrozenLake was monotone (0.32 -> 0.77 -> 0.89); routing peaks at mid. Hypothesis for the paper,
+stated as one: a fully-trained deterministic policy visits a narrower slice of states, so the
+scored sample is less diverse. NOT verified — do not assert it.
+
+**FLAGGED FOR THE PAPER.** FrozenLake's Claim-1 number (rho=0.889) came through the same max path.
+Worth re-running with mean before submission; it may improve the headline environment too.
+
+Artefacts: `docs/figures/real/claim1/cvrp/fig_c1_paper_cvrp.png` (4-panel paper figure),
+`cvrp_final_mean/` and `cvrp_final_weighted_mean/` (both result sets), raw (oracle, cce) pairs
+now saved by the pipeline so figures can be re-plotted without re-scoring.
+
+### 2026-08-19 — **BUG: `weighted_mean` has been running as `max`.** CCE's score was BINARY.
+Probing the LIVE training loop (not offline — the notebook already records one offline probe
+lying about this) showed the CCE score in budget mode was still binary: **2 distinct values,
+~76% of scored states at the ceiling**, gini 0.000. Budget mode was built to fix precisely that,
+so the premise looked dead. It was not the environment.
+
+**ROOT CAUSE.** `analysis/metrics.py::compute_consequence_metric` honours `'weighted_mean'` only
+when `action_probs` is passed. Without it, control falls through to `return max(...)`.
+```
+passes action_probs:  chess YES   connect_four YES
+does NOT pass:        frozen_lake NO   cvrp NO      <- config says weighted_mean, runs max
+```
+With deterministic rollouts every pairwise total variation is 0 or 1, so **max() is binary by
+construction** — it fires whenever ANY alternative differs. mean() instead gives the FRACTION of
+alternatives that differ. Measured in-loop on budget routing:
+```
+aggregation   distinct values   at ceiling   gini
+max                  2             76.5%     0.000     <- what every FL and CVRP run has used
+mean                29             10.3%     0.262     <- graded and selective
+```
+
+**IMPLICATION FOR THE PAPER — needs a human decision.** FrozenLake is the paper's headline env
+and its published numbers were produced by this max fallback. The results are not invalid (max is
+a legitimate aggregation) but the paper DESCRIBES weighted_mean, which is not what ran. Either
+relabel the method as max-aggregation, or re-run FL with true averaging and see if the win holds.
+**Behaviour deliberately LEFT UNCHANGED** in code so `paper/repro/` still reproduces; the fallback
+now raises a RuntimeWarning explaining itself. Do not "fix" it silently.
+
+*[Transplanted from `research/cvrp-claim1-and-c2-audit`. The Claim-2 portion of this
+entry is omitted here — it stays on that branch, where Claim-2 work continues.]*
+
+### 2026-08-13 — NEW ENV: CVRP (logistics). **CLAIM 1 LANDED (3 seeds).** Claim 2 ruled out here.
+Built a routing environment (`envs/cvrp.py`) as the 2nd good-oracle env C1 needed. Branch
+`research/cce-cvrp-logistics` (worktree). Chose to REIMPLEMENT in JAX rather than install
+Jumanji: jumanji+ortools are not installed, jax is 0.9.1, and installing risked breaking the
+shared `counterfactual` env other live experiments use — same call the team made for FrozenLake
+and DoorKey, and we need our own transition table for the oracle anyway.
+
+**THE RESULT — Claim 1, 10 customers, capacity 10, 3 seeds, 1000 of 31345 decision states:**
+```
+              rho(CCE, exact oracle)      precision@10%
+untrained       0.522 +/- 0.002              0.220
+mid             0.668 +/- 0.012              0.263
+trained         0.648 +/- 0.013              0.237     random chance = 0.100
+```
+All p < 1e-70. Seeds agree tightly. rho RISES untrained->mid (0.52->0.67), then DIPS slightly at
+fully-trained in ALL 3 seeds (mid > trained every time). Differs from FrozenLake's monotone
+0.319->0.765->0.889 — routing starts much higher (dense reward means even an untrained policy
+senses the geometry) and peaks earlier. Figures: `docs/figures/real/claim1/cvrp/`.
+CAVEAT: CCE scores are quantized in steps of 1/n_rollouts (=0.04 at 25 rollouts) — visible as
+bands in the scatter; more rollouts would sharpen rho. ~14% of states still saturate at 1.0.
+
+**ENV FACTS.** 10 stops + depot, demands sum 24 vs capacity 10 -> 3 loads, 13 decisions/episode,
+37,918 states (5,122 without the load limit), obs = 22 features (one-hot node + served bits +
+load fraction) NOT one-hot state (routing has too many states to memorize), 11 masked actions.
+Oracle = exact backward induction, VALIDATED against brute force on both TSP (all permutations)
+and CVRP (permutations x optimal load-split). Sanity gate: plain DQN-uniform reaches **1.0000 of
+optimal** (random policy 0.62).
+
+*[Transplanted from `research/cvrp-claim1-and-c2-audit`. The Claim-2 portion of this
+entry is omitted here — it stays on that branch, where Claim-2 work continues.]*
 
 ### 2026-08-04 (later) — DENSE SWEEP ANSWERS IT: **KNIFE EDGE, not a decay.** Thm 3 slope NOT supported
 The submitter was killed at 592/1280 (the parent process exited; manifest never written — recovered
