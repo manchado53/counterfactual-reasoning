@@ -47,11 +47,23 @@ job 274243. Key config (full block is in each run's `metrics.log` header):
 Sanity gate: plain DQN-uniform reaches **1.0000 of optimal** (random policy 0.62).
 Exact optimal tour length 3.454742.
 
-> **RISK.** As of 2026-08-27 these runs exist ONLY in the worktree
-> `.claude/worktrees/cce-cvrp-logistics/src/counterfactual_rl/agents/cvrp/runs/`
-> — 9.8 GB, gitignored, not frozen into `paper/repro/`. Delete that worktree and
-> routing Claim 1 cannot be re-scored. FrozenLake does not have this problem: its
-> Claim-1 checkpoints are committed under `paper/repro/cache/checkpoints/`.
+> **NOT FROZEN — but reproducible.** As of 2026-08-27 these runs exist only in the
+> worktree `.claude/worktrees/cce-cvrp-logistics/src/counterfactual_rl/agents/cvrp/runs/`
+> (9.8 GB, gitignored, not in `paper/repro/`). Losing them costs a rerun, not the
+> result: training is **deterministic from the seed** — the same seed twice gives
+> bit-identical weights (measured max abs diff 0.000e+00; a different seed differs by
+> ~1.05, so the check is not vacuous) — and the config above is committed. From
+> `timing.jsonl` the ten seeds took **8.1–9.0 min each**: ~84 min serial, ~9 min as a
+> SLURM array.
+>
+> Caveat: that determinism check was run CPU-to-CPU. The original runs were on GPU, and
+> float ops are not guaranteed bit-identical across different hardware. Same seed on the
+> same device class should land exactly; a different GPU may shift the last digits.
+>
+> What is genuinely missing is convenience, not possibility. FrozenLake ships 2 MB of
+> frozen Claim-1 checkpoints under `paper/repro/cache/checkpoints/`, so a reviewer runs
+> `replot.py` and is done. Routing would make them retrain first. Freezing 3 stages x 10
+> seeds is ~15 MB and would close the gap.
 
 ### Stage selection
 
