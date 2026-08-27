@@ -115,6 +115,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seeds', nargs='+', type=int, default=[0, 1, 2])
     parser.add_argument('--metric', default='total_variation')
+    parser.add_argument('--aggregation', default='weighted_mean',
+                        choices=['weighted_mean', 'mean', 'max'])
+    parser.add_argument('--ckpt-root', default=None,
+                        help='override the checkpoint directory')
     parser.add_argument('--n-rollouts', type=int, default=100)
     parser.add_argument('--horizon', type=int, default=500)
     parser.add_argument('--gamma', type=float, default=1.0)
@@ -132,10 +136,11 @@ def main():
     for seed in args.seeds:
         cce[seed] = {}
         for stage in STAGES:
-            ckpt = CKPT_ROOT / f'seed_{seed}' / f'{stage}.pkl'
+            root = Path(args.ckpt_root) if args.ckpt_root else CKPT_ROOT
+            ckpt = root / f'seed_{seed}' / f'{stage}.pkl'
             print(f'  Scoring seed={seed} stage={stage} ...')
             cce[seed][stage] = score_all_states(
-                ckpt, non_terminal,
+                ckpt, non_terminal, aggregation=args.aggregation,
                 n_rollouts=args.n_rollouts,
                 horizon=args.horizon,
                 gamma=args.gamma,

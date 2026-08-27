@@ -278,6 +278,21 @@ METRIC_FUNCTIONS = {
 }
 
 
+_WARNED_WEIGHTED_MEAN = False
+
+
+def _warn_weighted_mean_fallback():
+    """Warn once per process that 'weighted_mean' is really behaving as 'max'."""
+    global _WARNED_WEIGHTED_MEAN
+    if not _WARNED_WEIGHTED_MEAN:
+        _WARNED_WEIGHTED_MEAN = True
+        warnings.warn(
+            "consequence_aggregation='weighted_mean' was requested without action_probs; "
+            "falling back to 'max' (historical behaviour). With deterministic rollouts this "
+            "makes the consequence score BINARY. Set aggregation='mean' or pass action_probs.",
+            RuntimeWarning, stacklevel=3)
+
+
 def compute_consequence_metric(
     action: tuple,
     return_distributions: dict,
@@ -299,6 +314,18 @@ def compute_consequence_metric(
 
     if not divergences:
         return 0.0
+    elif aggregation == 'weighted_mean' and action_probs is None:
+        # LOUD FALLBACK. 'weighted_mean' needs action_probs; without them this function
+        # has always returned max(), so a config saying 'weighted_mean' has really been
+        # running 'max'. That matters: with deterministic rollouts each pairwise total
+        # variation is 0 or 1, so max() makes the score BINARY (it fires whenever ANY
+        # alternative differs), while mean() gives the FRACTION of alternatives that
+        # differ — graded and far more selective. Measured on budget-routing:
+        # max -> 2 distinct values, 76% at ceiling; mean -> 29 values, 10% at ceiling.
+        # Behaviour is left as-is so published FrozenLake numbers still reproduce;
+        # pass action_probs, or set aggregation='mean' explicitly, to get averaging.
+        _warn_weighted_mean_fallback()
+        return max(divergences.values())
     elif aggregation == 'max':
         return max(divergences.values())
     elif aggregation == 'mean':

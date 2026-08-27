@@ -48,7 +48,7 @@ def _build_rollout_fn(env, network, horizon, gamma):
 
 
 def score_all_states(ckpt_path, non_terminal, n_rollouts=20, horizon=10,
-                     gamma=0.99, metric='total_variation', seed=42):
+                     gamma=0.99, metric='total_variation', seed=42, aggregation='weighted_mean'):
     """
     Load checkpoint and CCE-score every non-terminal state.
 
@@ -89,7 +89,10 @@ def score_all_states(ckpt_path, non_terminal, n_rollouts=20, horizon=10,
             action=(greedy_a,),
             return_distributions={(a,): returns[i, a] for a in range(4)},
             metric=metric,
-            aggregation='weighted_mean',
+            # 'weighted_mean' without action_probs silently becomes max() -- see the
+            # RuntimeWarning in analysis/metrics.py. Exposed so the paper's Claim-1
+            # number can be checked against the corrected rule.
+            aggregation=aggregation,
         )
 
     return scores
