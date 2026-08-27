@@ -158,6 +158,11 @@ def main(argv=None):
                          'returns -> TV collapses to 0/1 and C(s) is constant). Zero-mean, '
                          'so the exact oracle and optimal plan are unaffected.')
     ap.add_argument('--metric', default='total_variation')
+    ap.add_argument('--aggregation', default='weighted_mean',
+                    choices=['weighted_mean', 'mean', 'max'],
+                    help="how per-action divergences are combined. NOTE: "
+                         "'weighted_mean' silently behaves as 'max' here because "
+                         "no action_probs are supplied; pass 'mean' to compare.")
     ap.add_argument('--n-rollouts', type=int, default=20)
     ap.add_argument('--horizon', type=int, default=40)
     ap.add_argument('--gamma', type=float, default=0.99)
@@ -218,6 +223,7 @@ def main(argv=None):
                 None, sampled, config=cfg, agent=agent,
                 n_rollouts=args.n_rollouts, horizon=args.horizon, gamma=args.gamma,
                 metric=args.metric, seed=args.seed + si, chunk_size=args.chunk_size,
+                aggregation=args.aggregation,
             )
             if si == 0:
                 cce_by_stage[stage] = cce   # first seed drives the scatter figure
@@ -250,6 +256,15 @@ def main(argv=None):
     # ── Figures ──────────────────────────────────────────────────────────────
     colors = state_colors_by_position(env, sampled)
     labels = ['Untrained', 'Mid-training', 'Fully trained']
+    # Save the raw (oracle, cce) pairs so downstream figures can re-plot without
+    # re-scoring 1000 states x 3 stages, which is the expensive part.
+    for stage, cce in cce_by_stage.items():
+        common = [s_ for s_ in cce if s_ in oracle]
+        np.savez(out_dir / f'pairs_{stage}.npz',
+                 oracle=np.array([oracle[s_] for s_ in common], dtype=np.float64),
+                 cce=np.array([cce[s_] for s_ in common], dtype=np.float64))
+    print(f'raw pairs saved -> {out_dir}/pairs_<stage>.npz')
+
     scatter_path = out_dir / 'fig_c1_scatter_cvrp.png'
     plot_c1_scatter(oracle, cce_by_stage, colors, labels, scatter_path)
     print(f'scatter saved -> {scatter_path}')

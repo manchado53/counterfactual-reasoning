@@ -88,6 +88,48 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-23 — **CLAIM 1 (routing) LOCKED DOWN at 10 seeds. Fixing the aggregation IMPROVED it.**
+Retrained seeds 3-9 (SLURM 274243) for 10 total, exposed `aggregation` as a parameter through
+`score_states` / `run_analysis`, and re-ran the whole Claim-1 pipeline under both rules.
+
+**HEADLINE (10 seeds, 1000 scored states, mean aggregation):**
+```
+stage        rho(CCE, exact oracle)     precision@10%    (random = 0.10)
+untrained       0.576 +/- 0.024              0.367
+mid             0.765 +/- 0.012              0.478
+trained         0.741 +/- 0.020              0.454
+```
+rho RISES with training, which is the claim. precision@10% of 0.478 means **nearly half of CCE's
+top-10% picks are genuinely in the oracle's top 10%** — 4.8x chance.
+
+**THE AGGREGATION BUG WAS HURTING CLAIM 1, NOT JUST MISLABELLING IT.**
+```
+stage        max (what shipped)    mean (corrected)    delta
+untrained         0.536                0.576          +0.040
+mid               0.693                0.765          +0.072
+trained           0.667                0.741          +0.074
+p@10 mid          0.273                0.478          +0.205
+```
+The direction was predicted before looking: max fires whenever ANY alternative differs (coarse),
+mean returns the FRACTION that differ (graded). Same reasoning that showed 2 vs 29 distinct score
+values in the Claim-2 probe. This is a repair with a predicted sign, not a post-hoc metric hunt.
+
+**ROBUSTNESS.** The claim holds under BOTH rules — rho still rises 0.54 -> 0.69 under the old max
+path. The paper figure shows both side by side (panel d) rather than quietly adopting the better
+number.
+
+**THE DIP AT `trained` IS REAL** (0.765 -> 0.741) and survives both aggregations, at 10 seeds.
+FrozenLake was monotone (0.32 -> 0.77 -> 0.89); routing peaks at mid. Hypothesis for the paper,
+stated as one: a fully-trained deterministic policy visits a narrower slice of states, so the
+scored sample is less diverse. NOT verified — do not assert it.
+
+**FLAGGED FOR THE PAPER.** FrozenLake's Claim-1 number (rho=0.889) came through the same max path.
+Worth re-running with mean before submission; it may improve the headline environment too.
+
+Artefacts: `docs/figures/real/claim1/cvrp/fig_c1_paper_cvrp.png` (4-panel paper figure),
+`cvrp_final_mean/` and `cvrp_final_weighted_mean/` (both result sets), raw (oracle, cce) pairs
+now saved by the pipeline so figures can be re-plotted without re-scoring.
+
 ### 2026-08-20 — **50k RERUN DONE (200 runs). Prediction confirmed: the metric saturates.**
 Exploratory, not the registered test — E* was fixed at 5,500 and changing it changes the question.
 ```

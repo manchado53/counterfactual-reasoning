@@ -65,7 +65,7 @@ def _build_rollout_fn(env, network, horizon, gamma):
 
 def score_states(ckpt_path, states, config=None, n_rollouts=20, horizon=30,
                  gamma=0.99, metric='total_variation', seed=42, chunk_size=256,
-                 agent=None, verbose=False):
+                 agent=None, verbose=False, aggregation='weighted_mean'):
     """
     Load a checkpoint and CCE-score the given routing states.
 
@@ -125,7 +125,11 @@ def score_states(ckpt_path, states, config=None, n_rollouts=20, horizon=30,
                 action=(int(greedy[i]),),
                 return_distributions={(int(a),): returns[i, a] for a in legal},
                 metric=metric,
-                aggregation='weighted_mean',
+                # NOTE: 'weighted_mean' without action_probs falls through to max() --
+                # see the RuntimeWarning in analysis/metrics.py. Exposed here so the
+                # Claim-1 result can be shown to be robust to the choice rather than
+                # silently depending on it.
+                aggregation=aggregation,
             )
 
         if verbose:
