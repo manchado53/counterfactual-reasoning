@@ -1,0 +1,387 @@
+{
+  "instance": "default",
+  "capacity": 10,
+  "n_customers": 10,
+  "n_states": 37918,
+  "n_decision_states": 31345,
+  "n_scored": 1000,
+  "metric": "total_variation",
+  "n_rollouts": 25,
+  "horizon": 40,
+  "travel_noise": 0.15,
+  "n_seeds": 10,
+  "aggregate": {
+    "untrained": {
+      "n_seeds": 10,
+      "rho_mean": 0.5357776310845518,
+      "rho_std": 0.016541734104379167,
+      "p05_mean": 0.15000000000000002,
+      "p10_mean": 0.23399999999999999,
+      "p10_std": 0.026153393661244046,
+      "p20_mean": 0.35200000000000004,
+      "max_p": 7.96582298815431e-67
+    },
+    "mid": {
+      "n_seeds": 10,
+      "rho_mean": 0.6934682718240788,
+      "rho_std": 0.017467900833396544,
+      "p05_mean": 0.15400000000000003,
+      "p10_mean": 0.263,
+      "p10_std": 0.044732538492690085,
+      "p20_mean": 0.4029999999999999,
+      "max_p": 9.767454499394437e-130
+    },
+    "trained": {
+      "n_seeds": 10,
+      "rho_mean": 0.6674797150039167,
+      "rho_std": 0.01256474286849676,
+      "p05_mean": 0.166,
+      "p10_mean": 0.291,
+      "p10_std": 0.023430749027719962,
+      "p20_mean": 0.409,
+      "max_p": 1.4258369907653082e-120
+    }
+  },
+  "per_seed": [
+    {
+      "run": "c1full_s0",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5392024027784064,
+          "p": 1.6658058896396584e-76,
+          "p@5": 0.16,
+          "p@10": 0.26,
+          "p@20": 0.36
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.6670639603465057,
+          "p": 9.767454499394437e-130,
+          "p@5": 0.18,
+          "p@10": 0.29,
+          "p@20": 0.38
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6588871470514535,
+          "p": 1.540418670286582e-125,
+          "p@5": 0.2,
+          "p@10": 0.29,
+          "p@20": 0.41
+        }
+      }
+    },
+    {
+      "run": "c1full_s1",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5327346386297342,
+          "p": 2.1622970115961644e-74,
+          "p@5": 0.1,
+          "p@10": 0.21,
+          "p@20": 0.315
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.6787145716214952,
+          "p": 5.91763961592261e-136,
+          "p@5": 0.16,
+          "p@10": 0.3,
+          "p@20": 0.385
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6520573623415102,
+          "p": 3.9287039934791185e-122,
+          "p@5": 0.14,
+          "p@10": 0.3,
+          "p@20": 0.39
+        }
+      }
+    },
+    {
+      "run": "c1full_s2",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5279664452019989,
+          "p": 7.308039179541903e-73,
+          "p@5": 0.18,
+          "p@10": 0.25,
+          "p@20": 0.37
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.6724710974534747,
+          "p": 1.3790667795742978e-132,
+          "p@5": 0.14,
+          "p@10": 0.23,
+          "p@20": 0.36
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6488699287707554,
+          "p": 1.4258369907653082e-120,
+          "p@5": 0.16,
+          "p@10": 0.26,
+          "p@20": 0.395
+        }
+      }
+    },
+    {
+      "run": "c1full_s3",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5560144807110914,
+          "p": 3.221456971588944e-82,
+          "p@5": 0.08,
+          "p@10": 0.21,
+          "p@20": 0.39
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.685393452170947,
+          "p": 1.190962128766044e-139,
+          "p@5": 0.08,
+          "p@10": 0.2,
+          "p@20": 0.34
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6907487982411111,
+          "p": 1.0947688902199796e-142,
+          "p@5": 0.22,
+          "p@10": 0.27,
+          "p@20": 0.425
+        }
+      }
+    },
+    {
+      "run": "c1full_s4",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5412487165657544,
+          "p": 3.494517823120791e-77,
+          "p@5": 0.2,
+          "p@10": 0.24,
+          "p@20": 0.345
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.7126216561344055,
+          "p": 8.214973036406501e-156,
+          "p@5": 0.12,
+          "p@10": 0.29,
+          "p@20": 0.405
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6771331101188127,
+          "p": 4.295473945471906e-135,
+          "p@5": 0.12,
+          "p@10": 0.28,
+          "p@20": 0.4
+        }
+      }
+    },
+    {
+      "run": "c1full_s5",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5083585997946175,
+          "p": 7.96582298815431e-67,
+          "p@5": 0.14,
+          "p@10": 0.2,
+          "p@20": 0.355
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.6835088686725458,
+          "p": 1.3456362212120823e-138,
+          "p@5": 0.12,
+          "p@10": 0.18,
+          "p@20": 0.385
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6829117847266698,
+          "p": 2.8899545737303386e-138,
+          "p@5": 0.16,
+          "p@10": 0.28,
+          "p@20": 0.39
+        }
+      }
+    },
+    {
+      "run": "c1full_s6",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5639059542252852,
+          "p": 5.149168450103978e-85,
+          "p@5": 0.14,
+          "p@10": 0.28,
+          "p@20": 0.375
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.7011902263259561,
+          "p": 8.388288609902436e-149,
+          "p@5": 0.2,
+          "p@10": 0.28,
+          "p@20": 0.435
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.664656834953444,
+          "p": 1.7353853318582794e-128,
+          "p@5": 0.2,
+          "p@10": 0.27,
+          "p@20": 0.425
+        }
+      }
+    },
+    {
+      "run": "c1full_s7",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5451829171636666,
+          "p": 1.6835245106944236e-78,
+          "p@5": 0.14,
+          "p@10": 0.25,
+          "p@20": 0.315
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.7213537645799103,
+          "p": 2.1108229868272106e-161,
+          "p@5": 0.18,
+          "p@10": 0.25,
+          "p@20": 0.405
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6664102492790132,
+          "p": 2.1394454716942125e-129,
+          "p@5": 0.12,
+          "p@10": 0.3,
+          "p@20": 0.405
+        }
+      }
+    },
+    {
+      "run": "c1full_s8",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.5120870315332995,
+          "p": 6.072462061507469e-68,
+          "p@5": 0.14,
+          "p@10": 0.24,
+          "p@20": 0.325
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.7048123750182106,
+          "p": 5.4871507707387896e-151,
+          "p@5": 0.14,
+          "p@10": 0.33,
+          "p@20": 0.445
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.670869949342114,
+          "p": 9.769692105418234e-132,
+          "p@5": 0.2,
+          "p@10": 0.34,
+          "p@20": 0.37
+        }
+      }
+    },
+    {
+      "run": "c1full_s9",
+      "stages": {
+        "untrained": {
+          "n": 1000,
+          "rho": 0.531075124241664,
+          "p": 7.409653587546776e-74,
+          "p@5": 0.22,
+          "p@10": 0.2,
+          "p@20": 0.37
+        },
+        "mid": {
+          "n": 1000,
+          "rho": 0.7075527459173364,
+          "p": 1.1600888492092592e-152,
+          "p@5": 0.22,
+          "p@10": 0.28,
+          "p@20": 0.49
+        },
+        "trained": {
+          "n": 1000,
+          "rho": 0.6622519852142831,
+          "p": 2.993860376171376e-127,
+          "p@5": 0.14,
+          "p@10": 0.32,
+          "p@20": 0.48
+        }
+      }
+    }
+  ],
+  "aggregation": "weighted_mean",
+  "provenance": {
+    "_note": "Recovered 2026-08-27, not written by the original run. run_analysis.py did not record these fields at the time. gamma and sample_seed were VERIFIED by recomputing the oracle and re-drawing the sample: the resulting 1000 oracle values match pairs_untrained.npz exactly (sum 325.838389). The rest are read off the run logs and the checkpoint listing.",
+    "gamma": 0.99,
+    "sample_seed": 42,
+    "max_states": 1000,
+    "stage_checkpoints": {
+      "untrained": "ckpt_0001000.pkl",
+      "mid": "ckpt_0008000.pkl",
+      "trained": "ckpt_0014000.pkl"
+    },
+    "stage_rule": "sorted(ckpt_*.pkl) -> [0] untrained, [len//2] mid, [-1] trained; 14 per seed",
+    "run_dirs": [
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s0",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s1",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s2",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s3",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s4",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s5",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s6",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s7",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s8",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s9"
+    ],
+    "runs_location": "as of 2026-08-27 these live ONLY in the worktree .claude/worktrees/cce-cvrp-logistics/ (9.8 GB, gitignored). Not frozen into paper/repro/.",
+    "training": {
+      "command": "python -m counterfactual_rl.agents.cvrp.train --seed <0..9> --algorithm dqn-uniform --episodes 14000",
+      "algorithm": "dqn-uniform",
+      "instance": "default",
+      "capacity": 10,
+      "travel_noise": 0.15,
+      "gamma": 0.99,
+      "n_episodes": 14000,
+      "epsilon_start": 1.0,
+      "epsilon_end": 0.05,
+      "epsilon_decay_episodes": 7000,
+      "alpha": 0.001,
+      "batch_size": 32,
+      "buffer_capacity": 100000,
+      "target_update_freq": 200,
+      "n_steps_per_update": 4,
+      "hidden_dim": 64,
+      "n_layers": 2,
+      "n_checkpoints": 14,
+      "save_every": 500,
+      "first_run_dated": "2026-08-06",
+      "seeds_3_to_9_slurm": 274243
+    },
+    "rerun_command": "python -m counterfactual_rl.analysis.claim1.cvrp.run_analysis --run-dir <runs>/c1full_s{0..9} --aggregation weighted_mean --n-rollouts 25 --horizon 40 --travel-noise 0.15 --gamma 0.99 --max-states 1000 --seed 42 --out-dir docs/figures/real/claim1/cvrp_final_weighted_mean"
+  }
+}
