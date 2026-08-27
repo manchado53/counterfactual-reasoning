@@ -88,6 +88,46 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-08-23 — **FROZENLAKE CLAIM 1 AUDITED. The paper's numbers reproduce EXACTLY and are
+robust to the aggregation bug. No paper change needed.**
+
+Re-ran the paper's Claim 1 from `paper/repro/cache/checkpoints/seed_{0,1,2}` — the exact
+checkpoints it was published from — under both aggregation rules, at the paper's own settings
+(n_rollouts=100, horizon=500, gamma=1.0).
+```
+stage        paper.tex        max (rerun)        mean (corrected)
+untrained    0.319 +/- 0.114  0.319 +/- 0.114    0.326 +/- 0.105
+mid          0.765 +/- 0.096  0.764 +/- 0.096    0.791 +/- 0.088
+trained      0.889 +/- 0.031  0.888 +/- 0.031    0.895 +/- 0.032
+```
+**REPRODUCES TO THREE DECIMALS.** The repro bundle does what it claims.
+
+**AND THE BUG DOES NOT MATTER HERE.** mean shifts rho by +0.007 / +0.027 / +0.007 — all far
+inside the seed spread. precision@k improves modestly (top-5% lift 3.3x -> 6.7x).
+Contrast with routing, where the same fix moved rho by +0.07 and p@10 by +0.21.
+
+WHY THE DIFFERENCE: FrozenLake has only 4 actions, so max and mean over at most 3 alternatives
+rank states similarly; and slippery transitions already make each TV graded rather than 0/1.
+Routing has 11 actions and (in budget mode) deterministic rollouts, where max collapses hardest.
+
+**VERDICT: the published FrozenLake Claim 1 stands. Do not re-run it for the paper.** Optionally
+switch to `mean` for consistency with routing, which nudges every number up slightly, but the
+claim is unchanged either way.
+
+**ON THE STOCHASTICITY WORRY — slippery HELPS Claim 1, it does not threaten it.** Measured score
+distributions: FL-slippery gives 18 distinct CCE values (gini 0.386); FL-deterministic gives 2
+values with 86% zeros. Total variation needs spread in the per-action return distributions, and
+stochastic transitions supply it. A deterministic-FL Claim 1 would be measured on a near-binary
+score — the same degeneracy that sank routing's Claim 2.
+
+**THE REAL EXPOSURE IS UNCHANGED AND IS NOT ABOUT NOISE:** Claim 1 is measured on SLIPPERY FL
+while the Claim-2 headline win is on DETERMINISTIC FL. Different environments. Routing now
+mitigates this — a second exact-oracle env, 10 seeds, 1000 states, showing the same rise
+(0.576 -> 0.765) with `travel_noise` playing the role slip plays in FrozenLake.
+
+Pipeline changes: `--aggregation` and `--ckpt-root` added to the FL Claim-1 analysis; the scorer
+takes `aggregation` instead of hardcoding it.
+
 ### 2026-08-23 — **CLAIM 1 (routing) LOCKED DOWN at 10 seeds. Fixing the aggregation IMPROVED it.**
 Retrained seeds 3-9 (SLURM 274243) for 10 total, exposed `aggregation` as a parameter through
 `score_states` / `run_analysis`, and re-ran the whole Claim-1 pipeline under both rules.
