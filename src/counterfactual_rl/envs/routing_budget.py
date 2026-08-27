@@ -102,11 +102,69 @@ RING12_XY = np.array(
 )
 RING12_DEMAND = np.array([0] + [2, 3, 4, 2, 3, 4, 2, 3, 4, 2, 3, 4], dtype=np.int32)
 
+
+# Alternative GEOMETRIES, same 10 customers and demands as the default ring.
+# Used to test whether findings on the default map are properties of the DOMAIN
+# or just of one layout.
+CLUSTERED_XY = np.array(
+    [
+        [0.500, 0.500],
+        [0.180, 0.200],
+        [0.240, 0.300],
+        [0.140, 0.320],
+        [0.280, 0.180],
+        [0.200, 0.400],
+        [0.800, 0.780],
+        [0.860, 0.680],
+        [0.740, 0.860],
+        [0.900, 0.840],
+        [0.680, 0.720],
+    ],
+    dtype=np.float32,
+)
+
+HUB_OUTLIERS_XY = np.array(
+    [
+        [0.500, 0.500],
+        [0.630, 0.500],
+        [0.581, 0.602],
+        [0.471, 0.627],
+        [0.383, 0.556],
+        [0.383, 0.444],
+        [0.471, 0.373],
+        [0.581, 0.398],
+        [0.050, 0.050],
+        [0.950, 0.100],
+        [0.920, 0.950],
+    ],
+    dtype=np.float32,
+)
+
+TWO_LOBES_XY = np.array(
+    [
+        [0.500, 0.500],
+        [0.620, 0.500],
+        [0.532, 0.613],
+        [0.320, 0.660],
+        [0.108, 0.613],
+        [0.020, 0.500],
+        [0.380, 0.500],
+        [0.468, 0.387],
+        [0.680, 0.340],
+        [0.892, 0.387],
+        [0.980, 0.500],
+    ],
+    dtype=np.float32,
+)
+
 # Instances are shared with envs/cvrp.py so the two environments describe the SAME map.
 INSTANCES = {
     "default": {"xy": DEFAULT_XY, "demand": DEFAULT_DEMAND, "capacity": DEFAULT_CAPACITY},
     "small": {"xy": SMALL_XY, "demand": SMALL_DEMAND, "capacity": SMALL_CAPACITY},
     "ring12": {"xy": RING12_XY, "demand": RING12_DEMAND, "capacity": 10},
+    "clustered": {"xy": CLUSTERED_XY, "demand": np.array([0, 3, 2, 4, 2, 1, 3, 2, 3, 2, 2], dtype=np.int32), "capacity": 10},
+    "hub_outliers": {"xy": HUB_OUTLIERS_XY, "demand": np.array([0, 3, 2, 4, 2, 1, 3, 2, 3, 2, 2], dtype=np.int32), "capacity": 10},
+    "two_lobes": {"xy": TWO_LOBES_XY, "demand": np.array([0, 3, 2, 4, 2, 1, 3, 2, 3, 2, 2], dtype=np.int32), "capacity": 10},
 }
 
 
