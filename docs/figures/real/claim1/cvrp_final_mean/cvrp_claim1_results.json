@@ -333,5 +333,55 @@
         }
       }
     }
-  ]
+  ],
+  "aggregation": "mean",
+  "provenance": {
+    "_note": "Recovered 2026-08-27, not written by the original run. run_analysis.py did not record these fields at the time. gamma and sample_seed were VERIFIED by recomputing the oracle and re-drawing the sample: the resulting 1000 oracle values match pairs_untrained.npz exactly (sum 325.838389). The rest are read off the run logs and the checkpoint listing.",
+    "gamma": 0.99,
+    "sample_seed": 42,
+    "max_states": 1000,
+    "stage_checkpoints": {
+      "untrained": "ckpt_0001000.pkl",
+      "mid": "ckpt_0008000.pkl",
+      "trained": "ckpt_0014000.pkl"
+    },
+    "stage_rule": "sorted(ckpt_*.pkl) -> [0] untrained, [len//2] mid, [-1] trained; 14 per seed",
+    "run_dirs": [
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s0",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s1",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s2",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s3",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s4",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s5",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s6",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s7",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s8",
+      "src/counterfactual_rl/agents/cvrp/runs/c1full_s9"
+    ],
+    "runs_location": "as of 2026-08-27 these live ONLY in the worktree .claude/worktrees/cce-cvrp-logistics/ (9.8 GB, gitignored). Not frozen into paper/repro/.",
+    "training": {
+      "command": "python -m counterfactual_rl.agents.cvrp.train --seed <0..9> --algorithm dqn-uniform --episodes 14000",
+      "algorithm": "dqn-uniform",
+      "instance": "default",
+      "capacity": 10,
+      "travel_noise": 0.15,
+      "gamma": 0.99,
+      "n_episodes": 14000,
+      "epsilon_start": 1.0,
+      "epsilon_end": 0.05,
+      "epsilon_decay_episodes": 7000,
+      "alpha": 0.001,
+      "batch_size": 32,
+      "buffer_capacity": 100000,
+      "target_update_freq": 200,
+      "n_steps_per_update": 4,
+      "hidden_dim": 64,
+      "n_layers": 2,
+      "n_checkpoints": 14,
+      "save_every": 500,
+      "first_run_dated": "2026-08-06",
+      "seeds_3_to_9_slurm": 274243
+    },
+    "rerun_command": "python -m counterfactual_rl.analysis.claim1.cvrp.run_analysis --run-dir <runs>/c1full_s{0..9} --aggregation mean --n-rollouts 25 --horizon 40 --travel-noise 0.15 --gamma 0.99 --max-states 1000 --seed 42 --out-dir docs/figures/real/claim1/cvrp_final_mean"
+  }
 }

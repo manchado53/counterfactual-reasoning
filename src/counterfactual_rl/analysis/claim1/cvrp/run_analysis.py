@@ -236,7 +236,11 @@ def main(argv=None):
             seed_res[stage] = dict(n=len(common), rho=float(rho), p=float(p), **prec)
             print(f'  rho={rho:.3f} (p={p:.2e})  ' +
                   '  '.join(f'{k}={v:.3f}' for k, v in prec.items()))
-        per_seed.append(dict(run=run_dir.name, stages=seed_res))
+        per_seed.append(dict(
+            run=run_dir.name,
+            checkpoints={st: ckpts[st].name for st in STAGES},
+            stages=seed_res,
+        ))
 
     # aggregate across seeds
     results = {}
@@ -282,10 +286,19 @@ def main(argv=None):
         'n_decision_states': len(decision_states),
         'n_scored': len(sampled),
         'metric': args.metric,
+        # SCORING SETTINGS — these four used to be absent, which made a committed
+        # result set impossible to re-run from the JSON alone. `aggregation` in
+        # particular was only recoverable from the output directory's name.
+        'aggregation': args.aggregation,
+        'gamma': args.gamma,
+        'sample_seed': args.seed,
+        'max_states': args.max_states,
+        'chunk_size': args.chunk_size,
         'n_rollouts': args.n_rollouts,
         'horizon': args.horizon,
         'travel_noise': args.travel_noise,
         'n_seeds': len(per_seed),
+        'run_dirs': [str(d) for d in args.run_dir],
         'aggregate': results,
         'per_seed': per_seed,
     }
