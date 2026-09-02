@@ -63,6 +63,7 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self.cf_n_rollouts = self.config.get('cf_n_rollouts', 20)
         self.cf_gamma = self.config.get('cf_gamma', 0.99)
         self.cf_rollout_temperature = self.config.get('cf_rollout_temperature', 0.5)
+        self.cf_bootstrap = self.config.get('cf_bootstrap', False)
 
         self._all_actions = jnp.arange(self.n_actions, dtype=jnp.int32)
         self.q_update_count = 0
@@ -79,8 +80,9 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         horizon = self.cf_horizon
         gamma = self.cf_gamma
         temperature = self.cf_rollout_temperature
+        bootstrap = self.cf_bootstrap
 
-        def single_rollout(params, state, first_action, rng_key):
+        def single_rollout(params, target_params, state, first_action, rng_key):
             rng_key, step_key = jax.random.split(rng_key)
             next_obs, next_state, reward, done, _ = env.step(step_key, state, first_action)
             init_carry = (next_state, next_obs, rng_key, reward, jnp.float32(gamma), done)
@@ -102,11 +104,28 @@ class JaxNavConsequenceDQN(JaxNavDQN):
                 return (ns, n_obs, key, new_cum, new_disc, new_done), None
 
             final, _ = jax.lax.scan(scan_step, init_carry, xs=None, length=horizon - 1)
-            return final[3]  # cumulative discounted return
+            _, obs_H, _, cum, disc, done = final
+            if not bootstrap:
+                return cum  # cumulative discounted return, truncated at the horizon
 
-        over_rollouts = jax.vmap(single_rollout, in_axes=(None, None, None, 0))   # N keys
-        over_actions  = jax.vmap(over_rollouts,  in_axes=(None, None, 0, 0))      # A actions
-        over_states   = jax.vmap(over_actions,   in_axes=(None, 0, None, 0))      # B states (pytree)
+            # The scan ran `horizon` env steps in total (the first action plus
+            # horizon-1 more), and `disc` is frozen at gamma**horizon, so it is
+            # exactly the discount this bootstrap term belongs at. `done` is only
+            # true for a REAL terminal -- goal, collision or time_up -- and those
+            # are correctly worth 0, so the term is masked off for them.
+            q_H = network.apply(target_params, obs_H)
+            if temperature and temperature > 0:
+                # Value under the policy the rollout actually followed. A max()
+                # bootstrap would assume greedy continuation and systematically
+                # overestimate every truncated rollout.
+                v_H = jnp.sum(jax.nn.softmax(q_H / temperature) * q_H)
+            else:
+                v_H = jnp.max(q_H)
+            return cum + jnp.where(done, 0.0, disc * v_H)
+
+        over_rollouts = jax.vmap(single_rollout, in_axes=(None, None, None, None, 0))  # N keys
+        over_actions  = jax.vmap(over_rollouts,  in_axes=(None, None, None, 0, 0))     # A actions
+        over_states   = jax.vmap(over_actions,   in_axes=(None, None, 0, None, 0))     # B states
         self._compiled_rollout_fn = jax.jit(over_states)
 
     def _score_buffer_transitions(self):
@@ -144,7 +163,9 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._key, subkey = jax.random.split(self._key)
         keys_array = jax.random.split(subkey, B * A * N).reshape(B, A, N, 2)
 
-        returns = self._compiled_rollout_fn(self.params, states_batched, self._all_actions, keys_array)
+        returns = self._compiled_rollout_fn(
+            self.params, self.target_params, states_batched, self._all_actions, keys_array
+        )
         returns = jax.block_until_ready(returns)
         returns_np = np.array(returns)  # (B, A, N)
 

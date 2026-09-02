@@ -70,6 +70,16 @@ DEFAULT_CONFIG = {
     #   0.0 -> pure argmax (greedy ablation);  higher -> softer, more exploratory rollouts.
     'cf_rollout_temperature': 0.5,
 
+    # A rollout that merely RUNS OUT OF HORIZON is not a terminal, but the return
+    # is truncated as if it were -- under a sparse goal-only reward that is a hard
+    # zero, indistinguishable from crashing. With this on, such a rollout carries
+    # the value of where it stopped (an n-step return); genuine terminals (goal,
+    # collision, time_up) keep their correct 0. Bootstrap uses the TARGET network
+    # and the SAME continuation policy the rollout used, so it is not a greedy
+    # overestimate of a softmax rollout. Default off: every prior run reproduces.
+    # See issue #7; measured effect and the alternative (longer horizon) in #11.
+    'cf_bootstrap': False,
+
     # --- Vectorized training (lax.scan + vmap) ---
     'vectorized': True,           # JaxNav is deep RL -> the vectorized trainer is the workhorse
     'n_envs': 128,
