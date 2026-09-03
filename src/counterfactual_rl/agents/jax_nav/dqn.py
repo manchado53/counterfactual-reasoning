@@ -16,6 +16,8 @@ Variants via config['algorithm']:
   'dqn'         — DQN + PER
 """
 
+import json
+import math
 import os
 import pickle
 from datetime import datetime
@@ -71,6 +73,14 @@ class _MetricsLogger:
         self.dir = run_dir
         self.timer = TrainingTimer(run_dir)
 
+        # Second, structured eval log. Deliberately NOT extra columns in metrics.log:
+        # that file is a fixed-width table parsed by parse_logs and every figure
+        # module, so widening it breaks the existing pipelines. Written here in the
+        # logger rather than in the CCE trainer so uniform and PER get it too --
+        # crash rates are only meaningful compared ACROSS arms, and ess.jsonl exists
+        # for CCE runs only.
+        self._eval_json_path = os.path.join(run_dir, 'eval.jsonl')
+
         self._path = os.path.join(run_dir, 'metrics.log')
         self._file = open(self._path, 'w')
         self._file.write(f"# JaxNav DQN — {datetime.now()}\n")
@@ -94,6 +104,21 @@ class _MetricsLogger:
         self._avg_returns: list = []
 
     def log_eval(self, episode: int, updates: int, epsilon: float, metrics: dict):
+        # Every key the trainer produced, whatever it is -- so a new eval metric
+        # lands here automatically without touching the fixed-width table below.
+        try:
+            row = {'episode': int(episode), 'updates': int(updates),
+                   'epsilon': float(epsilon), **metrics}
+            # NaN is legal for json.dumps but not for strict JSON readers (jq, JS),
+            # and avg_length_goal IS NaN whenever an eval produced no goal at all --
+            # which is most of early training. Emit null so the file stays portable.
+            row = {k: (None if isinstance(v, float) and not math.isfinite(v) else v)
+                   for k, v in row.items()}
+            with open(self._eval_json_path, 'a') as fh:
+                fh.write(json.dumps(row) + "\n")
+        except Exception as exc:  # pragma: no cover - logging must never kill a run
+            print(f"[eval.jsonl] write failed at ep {episode}: {exc}")
+
         self._file.write(
             f"{episode:>8d} {updates:>10d} {epsilon:>8.3f} "
             f"{metrics['win_rate']:>14.1%} {metrics['avg_length']:>10.1f} "

@@ -37,6 +37,10 @@ DEFAULT_CONFIG = {
     'eval_episodes': 100,
     'save_every': 1000,
     'n_checkpoints': 100,
+    # Raw replay-buffer snapshots (priority arrays only, ~0.9 MB each at capacity
+    # 100k). Separate from n_checkpoints on purpose: at 100 these would be ~1 GB
+    # across a sweep, on a shared disk already near capacity. 0 disables.
+    'n_buffer_snapshots': 10,
     'seed': 0,
     'PER_parameters': {'eps': 0.01, 'beta': 0.25, 'maximum_priority': 1.0},
 

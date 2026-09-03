@@ -113,7 +113,12 @@ class JaxNavDQNVectorized(JaxNavDQN):
             init_obs = env.get_obs(init_state)
             init = (init_state, init_obs, jnp.bool_(False), jnp.float32(0.0), jnp.int32(0))
             (final_state, _, _, final_return, final_steps), _ = jax.lax.scan(_step, init, step_keys)
-            return final_return, final_steps, final_state.goal_reached[0]
+            # move_term == crashed. Safe to read off the FINAL state even though the
+            # scan keeps stepping past termination: JaxNav is built with
+            # evaporating=False, so goal_reached and move_term are STICKY -- step_env
+            # ORs them with their previous values (jaxnav_env.py:246-247). final_steps
+            # is already masked by already_done, so it is the true episode length.
+            return final_return, final_steps, final_state.goal_reached[0], final_state.move_term[0]
 
         self._eval_fn = jax.jit(jax.vmap(_eval_single_env, in_axes=(None, 0, 0)))
 
@@ -127,18 +132,37 @@ class JaxNavDQNVectorized(JaxNavDQN):
         step_keys = all_keys[n_episodes:].reshape(n_episodes, H, 2)
 
         init_states = jax.vmap(lambda k: self.env.reset(k)[1])(init_keys)
-        returns, lengths, goals = self._eval_fn(self.params, init_states, step_keys)
+        returns, lengths, goals, crashes = self._eval_fn(self.params, init_states, step_keys)
         jax.block_until_ready(returns)
 
         returns_np = np.array(returns)
-        lengths_np = np.array(lengths)
+        lengths_np = np.array(lengths).astype(float)
         goals_np = np.array(goals)
+        # Mutually exclusive buckets, so the three rates sum to exactly 1.0 (a smoke
+        # test asserts this). An episode can in principle set both flags on the same
+        # step, so goal wins the tie and crash is the remainder.
+        crash_np = np.array(crashes) & ~goals_np
+        timeout_np = ~goals_np & ~crash_np
+
+        def _mean_or_nan(mask):
+            return float(lengths_np[mask].mean()) if mask.any() else float('nan')
+
         return {
             # win_rate == goal-reach rate (from the robot's goal_reached flag), so it is
             # independent of reward shaping; identical to mean(return>0) under sparse reward.
             'win_rate':   float(np.mean(goals_np)),
-            'avg_length': float(np.mean(lengths_np.astype(float))),
+            'avg_length': float(np.mean(lengths_np)),
             'avg_return': float(np.mean(returns_np)),
+            # How episodes actually END. Replaces the crash BOUND we have been quoting
+            # with the number itself, and gives every arm -- uniform and PER included --
+            # a crash rate comparable with the CCE arms.
+            'crash_rate':   float(np.mean(crash_np)),
+            'timeout_rate': float(np.mean(timeout_np)),
+            # Length CONDITIONAL on outcome (Jeremy 08/27). The pooled avg_length above
+            # averages crashes and successes together, so it moves for two opposite
+            # reasons at once and cannot be read as "the policy got more efficient".
+            'avg_length_goal':  _mean_or_nan(goals_np),
+            'avg_length_crash': _mean_or_nan(crash_np),
         }
 
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'JaxNavDQNVectorized':

@@ -133,6 +133,9 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
 
         n_ckpts = self.config.get('n_checkpoints', 100)
         ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
+        n_snaps = self.config.get('n_buffer_snapshots', 10)
+        snap_interval = max(1, n_episodes // n_snaps) if n_snaps > 0 else 0
+        prev_snap_ep = 0
         ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
         if ckpt_interval > 0:
             os.makedirs(ckpt_dir, exist_ok=True)
@@ -211,6 +214,19 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
                 self.save(os.path.join(ckpt_dir, f'ckpt_{total_episodes:07d}.pkl'))
                 prev_ckpt_ep = total_episodes
 
+            # Raw buffer snapshot, on its OWN cadence -- deliberately not the model
+            # checkpoint interval, which defaults to 100 and would write ~1 GB across
+            # a sweep onto a shared disk already near capacity.
+            if snap_interval > 0 and total_episodes // snap_interval > prev_snap_ep // snap_interval:
+                try:
+                    self.buffer.snapshot_buffer(
+                        os.path.join(self.metrics_logger.dir, 'buffer',
+                                     f'buf_{total_episodes:07d}.npz'),
+                        q_update_count=self.q_update_count)
+                except Exception as exc:  # pragma: no cover - diagnostics only
+                    print(f"[snapshot] failed at ep {total_episodes}: {exc}")
+                prev_snap_ep = total_episodes
+
             if eval_interval and total_episodes // eval_interval > prev_eval_ep // eval_interval:
                 with timer('eval', episode=total_episodes):
                     metrics = self.evaluate(eval_episodes)
@@ -250,10 +266,24 @@ def _log_priority_diagnostics(self, episode: int, metrics: dict) -> None:
     kill a training run.
     """
     try:
-        diag = self.buffer.priority_diagnostics()
+        diag = self.buffer.priority_diagnostics(now=self.q_update_count)
         if not diag:
             return
         diag['episode'] = int(episode)
+        diag['q_update_count'] = int(self.q_update_count)
+        # How the counterfactual rollouts ended, from the most recent scoring pass.
+        diag.update(self._last_rollout_reasons)
+        diag['rollout_n'] = self._last_rollout_n
+        # Double-sampling overlap with a TD-only batch, averaged over this eval
+        # window. Drained here so each line covers a disjoint stretch of training.
+        if self._double_sample_overlaps:
+            diag['td_overlap_mean'] = float(np.mean(self._double_sample_overlaps))
+            diag['td_overlap_n'] = len(self._double_sample_overlaps)
+            self._double_sample_overlaps = []
+        # What the overlap would be if replay were uniform -- the reference the
+        # number is meaningless without.
+        if len(self.buffer):
+            diag['td_overlap_uniform'] = float(self.batch_size / len(self.buffer))
         diag['win_rate'] = float(metrics.get('win_rate', float('nan')))
         diag['mu_c'] = float(self.config.get('mu_c', 1.0))
         diag['mu_delta'] = float(self.config.get('mu_delta', 1.0))

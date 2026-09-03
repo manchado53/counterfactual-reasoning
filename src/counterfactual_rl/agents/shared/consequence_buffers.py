@@ -1,8 +1,20 @@
 """Consequence-weighted Prioritized Experience Replay buffer (Algorithm 2, Equations 2-5)."""
 
+import os
+
 import jax
 import numpy as np
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# scored_at sentinels -- see the array's definition in __init__ for why these differ.
+NEVER_SCORED = -1     # entry carries the inherited running mean, never measured
+SCORED_UNTIMED = -2   # measured, but the trainer passed no q_update_count
+
+# Score-histogram grid. Constant, so ess.jsonl carries the three scalars rather
+# than repeating 101 edges on every line.
+_HIST_LO, _HIST_HI, _HIST_NBINS = 1e-5, 1.0, 100
+_HIST_EDGES = np.logspace(np.log10(_HIST_LO), np.log10(_HIST_HI), _HIST_NBINS + 1)
 
 
 class ConsequenceReplayBuffer:
@@ -76,6 +88,17 @@ class ConsequenceReplayBuffer:
         self.jax_obs: List[Any] = [None] * capacity
         self.consequence_scores: np.ndarray = np.zeros(capacity, dtype=np.float64)
         self.td_magnitudes: np.ndarray = np.zeros(capacity, dtype=np.float64)
+        # Which entries hold a MEASURED consequence score, and when it was measured.
+        # Two distinct sentinels, and the difference matters:
+        #   NEVER_SCORED (-1)  the entry still carries the running mean it inherited
+        #                      in add() (Algorithm 1 line 7) -- NOT a measurement
+        #   SCORED_UNTIMED (-2) measured, but the caller passed no q_update_count
+        #                      (the FrozenLake / SMAX / Connect-Four trainers)
+        # Collapsing these two would report every FrozenLake entry as unscored and
+        # silently zero its coverage. Nothing tracked this before, so replay
+        # COVERAGE -- the share of the buffer CCE can actually rank -- had only ever
+        # been derived from config arithmetic, never measured.
+        self.scored_at: np.ndarray = np.full(capacity, NEVER_SCORED, dtype=np.int64)
 
         self._write_pos: int = 0   # next slot to write
         self._size: int = 0        # number of valid entries
@@ -111,6 +134,7 @@ class ConsequenceReplayBuffer:
         self.jax_obs[pos] = jax_obs
         self.consequence_scores[pos] = init_consequence
         self.td_magnitudes[pos] = init_td
+        self.scored_at[pos] = NEVER_SCORED   # inherited mean, not a measurement
 
         self._write_pos = (pos + 1) % self.capacity
         self._size = min(self._size + 1, self.capacity)
@@ -235,7 +259,7 @@ class ConsequenceReplayBuffer:
         w = float(self.cce_balance)
         return w * self._ess_k, (1.0 - w) * self._ess_k
 
-    def priority_diagnostics(self) -> dict:
+    def priority_diagnostics(self, now: Optional[int] = None) -> dict:
         """Realized concentration of the sampling distribution.
 
         Read-only: uses the same cached priorities sample() draws from, so it
@@ -247,6 +271,9 @@ class ConsequenceReplayBuffer:
         exponents set this only indirectly -- the same exponent gives a very
         different ess_frac depending on how sparse the score histogram is --
         so the sweep reports measured ess_frac, not the nominal exponents.
+
+        ``now`` is the trainer's current q_update_count. Passing it enables the
+        staleness percentiles; without it they come back None.
         """
         p = self._compute_priorities()
         n = len(p)
@@ -258,6 +285,38 @@ class ConsequenceReplayBuffer:
         valid = slice(None) if self._size == self.capacity else slice(self._size)
         cs = self.consequence_scores[valid]
         td = self.td_magnitudes[valid]
+
+        # COVERAGE: the share of the buffer holding a MEASURED score rather than the
+        # mean it inherited on insertion. This is the number the whole JaxNav null
+        # hinges on and it has never been measured before -- only derived from
+        # n_score_sample / (score_interval * n_steps_per_update).
+        sa = self.scored_at[valid]
+        scored_mask = sa != NEVER_SCORED
+        scored_n = int(scored_mask.sum())
+
+        # STALENESS, in Q-updates, over entries with a timestamped score. Entries
+        # stamped SCORED_UNTIMED count as covered but cannot contribute an age.
+        stale_p50 = stale_p90 = None
+        if now is not None:
+            timed = sa[sa >= 0]
+            if timed.size:
+                ages = int(now) - timed
+                stale_p50 = float(np.percentile(ages, 50))
+                stale_p90 = float(np.percentile(ages, 90))
+
+        # SCORE HISTOGRAM, logged every eval so one run yields the paper heatmap, a
+        # slide ridgeline and a talk animation with no re-run (issue #8).
+        # Log-spaced on purpose: score_mean travels ~0.0014 -> ~0.075 across a run,
+        # so linear bins put everything in bin 0 early and bin 7 late. A log axis
+        # cannot represent 0, and "exactly zero" is a real category, so the zero /
+        # below-range / above-range masses are carried as separate counters. The
+        # four counts plus the histogram sum to n exactly.
+        n_zero = int((cs <= 0.0).sum())
+        n_below = int(((cs > 0.0) & (cs < _HIST_LO)).sum())
+        n_above = int((cs > _HIST_HI).sum())
+        in_range = cs[(cs >= _HIST_LO) & (cs <= _HIST_HI)]
+        hist, _ = np.histogram(in_range, bins=_HIST_EDGES)
+
         return {
             'n': int(n),
             'ess': ess,
@@ -268,7 +327,21 @@ class ConsequenceReplayBuffer:
             'uniform_fallback': bool(np.allclose(p, 1.0 / n)),
             'score_mean': float(cs.mean()),
             'score_std': float(cs.std()),
+            # MISLEADING, kept only for continuity with older ess.jsonl files:
+            # new entries inherit the running mean and are never exactly 0, so this
+            # reads ~0 whether or not the score is informative. Use scored_frac.
             'score_zero_frac': float(np.mean(cs <= 0.0)),
+            'scored_frac': float(scored_n / n),
+            'scored_n': scored_n,
+            'staleness_p50': stale_p50,
+            'staleness_p90': stale_p90,
+            'score_hist': hist.tolist(),
+            'score_hist_lo': _HIST_LO,
+            'score_hist_hi': _HIST_HI,
+            'score_hist_nbins': _HIST_NBINS,
+            'score_n_zero': n_zero,
+            'score_n_below': n_below,
+            'score_n_above': n_above,
             'td_mean': float(td.mean()),
             'td_std': float(td.std()),
             'cce_balance': self.cce_balance,
@@ -299,6 +372,54 @@ class ConsequenceReplayBuffer:
 
         return transitions, indices, weights
 
+    def sample_td_only_indices(self, batch_size: int) -> np.ndarray:
+        """Indices a PER-only sampler would have drawn. READ-ONLY: trains nothing.
+
+        Jeremy 07/10's double-sampling ask, never built until now. Draw a shadow
+        batch from TD priority alone and compare it with the batch training really
+        used: the overlap answers "is CCE picking different transitions at all?"
+        DIRECTLY, instead of inferring it from concentration statistics like
+        ess_frac, which measure sharpness rather than which entries were chosen.
+
+        Deliberately does not touch ``_cached_probs`` -- diagnostics must not be
+        able to perturb the sampler they are measuring.
+        """
+        if self._size == 0:
+            return np.empty(0, dtype=np.int64)
+        valid = slice(None) if self._size == self.capacity else slice(self._size)
+        td = np.nan_to_num(self.td_magnitudes[valid].copy(),
+                           nan=0.0, posinf=0.0, neginf=0.0)
+        p = (td + self.eps) ** self.beta
+        total = p.sum()
+        # Same underflow fallback as _compute_priorities: collapse -> uniform.
+        p = np.ones_like(p) / len(p) if total == 0.0 else p / total
+        return np.random.choice(self._size, size=min(batch_size, self._size), p=p)
+
+    def snapshot_buffer(self, path: str, q_update_count: Optional[int] = None) -> None:
+        """Dump the priority state to a compressed npz. ~1 MB at capacity 100k.
+
+        The buffer has NEVER been checkpointed, so every post-hoc question about
+        what it contained ("what did the stored score distribution look like at
+        50k?") has needed its own fresh GPU job. This is the insurance against
+        that. Transitions themselves are not saved -- only the three priority
+        arrays, which is what every open question is actually about.
+
+        float32/int32 on purpose: half the bytes, and the scores carry nowhere
+        near 7 significant digits of real information.
+        """
+        valid = slice(None) if self._size == self.capacity else slice(self._size)
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        np.savez_compressed(
+            path,
+            consequence_scores=self.consequence_scores[valid].astype(np.float32),
+            td_magnitudes=self.td_magnitudes[valid].astype(np.float32),
+            scored_at=self.scored_at[valid].astype(np.int32),
+            write_pos=np.int64(self._write_pos),
+            size=np.int64(self._size),
+            capacity=np.int64(self.capacity),
+            q_update_count=np.int64(-1 if q_update_count is None else q_update_count),
+        )
+
     def sample_uniform(self, batch_size: int) -> Tuple[List[Dict], np.ndarray]:
         """Uniform sampling for consequence scoring pass (line 11)."""
         if self._size < batch_size:
@@ -308,10 +429,20 @@ class ConsequenceReplayBuffer:
         transitions = [self.buffer[idx] for idx in indices]
         return transitions, indices
 
-    def update_consequence_scores(self, indices: np.ndarray, scores: np.ndarray):
-        """Update m^C_j for scored transitions (line 12)."""
+    def update_consequence_scores(self, indices: np.ndarray, scores: np.ndarray,
+                                  q_update_count: Optional[int] = None):
+        """Update m^C_j for scored transitions (line 12).
+
+        ``q_update_count`` stamps ``scored_at`` so diagnostics can report how much
+        of the buffer holds a measured score and how stale those scores are. It is
+        optional so the FrozenLake / SMAX / Connect-Four callers keep working
+        unchanged; when omitted the entry is stamped SCORED_UNTIMED, which counts
+        toward coverage but is excluded from staleness.
+        """
+        stamp = SCORED_UNTIMED if q_update_count is None else int(q_update_count)
         for idx, score in zip(indices, scores):
             self.consequence_scores[idx] = float(score)
+            self.scored_at[idx] = stamp
         self._cached_probs = None
 
     def update_priorities(self, indices: np.ndarray, td_errors: np.ndarray):

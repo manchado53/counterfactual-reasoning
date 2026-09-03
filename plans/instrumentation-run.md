@@ -29,8 +29,14 @@ is what Algorithm 1 line 7 of the paper specifies). Capacity cancels:
 ```
 
 **This is DERIVED, not measured.** Nothing in the buffer tracks which entries hold a real
-score. Confirming or killing it is the single most important output of this run. Do not
+score. Confirming or killing it is the single most important output of this work. Do not
 present 1.6% as a measurement until `scored_frac` exists.
+
+**But be precise about WHICH run settles it.** `scored_frac` is fixed by three config
+values, so it is identical in every arm and every seed. The 10-minute SMOKE run measures
+it. The overnight run does NOT add proof of the 1.6% — it buys the trajectory (does
+coverage drift between the buffer-fill phase and steady state?), the figures, and the
+normalise-TD arm. Two different jobs; do not report them as one.
 
 ## Build: ~73 lines, no new algorithms
 
@@ -66,7 +72,48 @@ present 1.6% as a measurement until `scored_frac` exists.
   **52-129x** the relative spread of CCE, and multiplicative mixing gives both the same
   exponent.
 
-### 3. `agents/jax_nav/dqn.py` — `evaluate()` (line ~120) and `_MetricsLogger` (line ~60)
+  **DEFERRED 2026-09-03 -> GitHub issue #16. NOT built in this run.** The reasoning below
+  is kept here for context; #16 is the source of truth. Consequence for the run: the
+  `cce_wmean_tdnorm` arm has nothing to set, so it either drops (4 arms x 3 seeds = 12
+  runs) or waits for #16. DECIDE AT LAUNCH — steps 1-4 of the build do not depend on it.
+
+  Why it was deferred rather than just done: **min-max is close to a no-op here; rank
+  is the one that does the job.** Priority is `(td + eps)**beta`, then normalised to sum
+  to 1. Rescaling `td -> td/M` would factor out EXACTLY if `eps` were 0 — `(cx)**beta =
+  c**beta * x**beta` cancels in the normalisation. So min-max acts only through how big
+  the `eps` floor looks after rescaling, which is an arbitrary amount nobody chose. Real
+  numbers from run 274548's last eval: `td_mean 21.3, td_std 68.6 (cv 3.22)` vs
+  `score_mean 0.214, score_std 0.021 (cv 0.10)`, with `eps=0.01, beta=0.25`. Rank
+  normalisation instead makes the marginal uniform on [0,1], so `cv = 0.577` BY
+  CONSTRUCTION — equal exponents then really do mean equal contribution, which is what
+  Jeremy asked for. Rank should be applied to BOTH signals, not just TD.
+
+  **If rank is chosen, ties MUST use average ranks.** 98.4% of the CCE scores are the
+  same inherited running mean; a naive argsort would hand that tie-mass ranks
+  0..98,400 and invent a gradient out of nothing. With average ranks the whole tie-mass
+  lands on one rank (~0.49), which keeps the coverage hole VISIBLE instead of hiding it
+  behind the fix.
+
+  Proposed shape: `normalise_priorities: 'none' | 'minmax' | 'rank'`, default `'none'`,
+  and the `cce_wmean_tdnorm` arm sets it. Keeping `'minmax'` implemented costs ~3 lines
+  and lets us demonstrate the near-no-op if asked. Full write-up in issue #16.
+
+### 3. eval metrics — `dqn_vectorized.py` `evaluate()` (line ~120) + `dqn.py` `_MetricsLogger` (line ~60)
+
+**CORRECTED 2026-09-03 (was wrong in the first draft of this file).** The eval numbers
+must be added in `agents/jax_nav/dqn_vectorized.py`, NOT `dqn.py`. The vectorized class
+OVERRIDES `evaluate()` (`dqn_vectorized.py:120`, built by `_build_eval_fn` at :99) and
+`consequence_dqn_vectorized.py:36` just delegates to it. Every real run is vectorized, so
+instrumenting `dqn.py:evaluate` would have shipped an empty `eval.jsonl`. The
+`_MetricsLogger` half of the target IS correct and stays in `dqn.py:60`.
+
+VERIFIED against the env: JaxNav is constructed with `evaporating=False`, so
+`goal_reached` and `move_term` are STICKY after the episode ends
+(`jaxmarl/environments/jaxnav/jaxnav_env.py:246-247` OR them with their old values). The
+eval scan runs the full H steps past termination, so reading the flags off `final_state`
+is valid. `final_steps` is already masked by `already_done`, so it is the true episode
+length. Keep the buckets exclusive: `crash = move_term & ~goal_reached`, then
+`timeout = ~goal & ~crash`.
 
 `evaluate()` already computes `goals` from `final_state.goal_reached`; the same state
 carries `move_term` (crash) and `step`. Add:
@@ -97,6 +144,15 @@ comparable across arms, and `ess.jsonl` only exists for CCE runs.
                   length FULL 250k  -- required for the trajectory figures
                   15 runs, ~66 GPU-h, one wave at 30 concurrent, ~6.5 h wall
 ```
+
+**THIS RUN IS A MECHANISM RUN, NOT AN OUTCOME RUN.** Agreed 09-03: n=3 is the right size
+because the session is debugging the instruments, not measuring a win. JaxNav's paired sd
+is 30pp and detecting 5pp needs ~290 seed-pairs, so n=3 cannot show that the
+normalise-TD arm learns better and must never be reported as if it could. What n=3 CAN
+show: whether `scored_frac`/staleness/score-histogram/rollout-outcome instruments produce
+sane numbers, and whether normalising moves `ess_frac` and closes the cv gap. Every
+planned figure (A-E, G, H) is a mechanism figure, so the plan is already consistent —
+this note exists so the MEETING WORDS match.
 
 Driver: copy `slurm/sweep_bootstrap.py`, change ARMS and the manifest path. It already
 handles the array, throttle, config base64 and manifest.
@@ -165,6 +221,7 @@ Log the histogram EVERY EVAL, not once. Same data then gives the heatmap (paper)
 ```
   issues     #7 bootstrap (done)  #8 KDE  #10 sparse-vs-shaped  #11 bootstrap-vs-cap
              #12 rollout duplicated x5    #13 FL-det binary score   #15 Algorithm 1 gate
+             #16 normalise_priorities: rank not min-max (filed 09-03, deferred)
   meeting    Notion "09/03 Touchpoint", 5 bullets, in Jeremy Research/Meeting Notes
   deadline   ICLR abstract Sep 18 -> 15 days. Paper has ONE clean C2 win (FL-det).
   paper      paper/Counterfactual_RL + Theory.pdf (2026-08-13) is CURRENT.

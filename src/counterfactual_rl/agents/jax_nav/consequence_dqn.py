@@ -33,6 +33,9 @@ from .dqn import JaxNavDQN, _MetricsLogger
 from ..shared.consequence_buffers import ConsequenceReplayBuffer
 from counterfactual_rl.analysis.metrics import compute_consequence_metric
 
+# Rollout terminal-reason codes (same order/values as ~/probe_logs/probe_reasons.py).
+_R_ALIVE, _R_GOAL, _R_CRASH, _R_TIMEUP = 0, 1, 2, 3
+
 
 class JaxNavConsequenceDQN(JaxNavDQN):
     """Consequence-weighted DQN for JaxNav (Algorithm 2)."""
@@ -68,27 +71,57 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._all_actions = jnp.arange(self.n_actions, dtype=jnp.int32)
         self.q_update_count = 0
         self._compiled_rollout_fn = None
+        # Diagnostics accumulators, drained by _log_priority_diagnostics at each eval.
+        self._last_rollout_reasons: dict = {}
+        self._last_rollout_n = 0
+        self._double_sample_overlaps: list = []
 
     # ------------------------------------------------------------------
     # Counterfactual rollout
     # ------------------------------------------------------------------
 
+    # Rollout terminal reasons. Only GOAL pays under the sparse reward, so these
+    # split the "return == 0" mass into its real causes.
+    _REASON_NAMES = ('alive', 'goal', 'crash', 'timeup')
+
     def _build_rollout_fn(self):
-        """Triple-vmapped JIT rollout: (B states) x (n_actions) x (N rollouts) -> returns (B, A, N)."""
+        """Triple-vmapped JIT rollout: (B states) x (n_actions) x (N rollouts).
+
+        Returns ``(returns, reasons)``, both (B, A, N). ``reasons`` says HOW each
+        counterfactual rollout ended -- goal / crash / timeout / still alive at the
+        horizon -- because only GOAL pays (goal_rew=1.0, coll_rew=0.0, shaping
+        zeroed), so the terminal reason is what splits the large "return == 0" mass
+        into "the action was genuinely worthless" and "the rollout just ran out of
+        room". CCE assumes these rollouts predict what really happens and that has
+        never been checked; logging reasons here lets the rollout outcome
+        distribution sit next to the EVAL outcome distribution from evaluate().
+
+        The reason bookkeeping is lifted verbatim from ~/probe_logs/probe_reasons.py,
+        which was itself written to mirror this function.
+        """
         env = self.env
         network = self.network
         horizon = self.cf_horizon
         gamma = self.cf_gamma
         temperature = self.cf_rollout_temperature
         bootstrap = self.cf_bootstrap
+        max_steps = env.max_steps
+
+        def reason_of(st):
+            g = jnp.asarray(st.goal_reached).ravel()[0]
+            c = jnp.asarray(st.move_term).ravel()[0]
+            t = jnp.asarray(st.step) >= max_steps
+            return jnp.where(g, _R_GOAL, jnp.where(c, _R_CRASH,
+                             jnp.where(t, _R_TIMEUP, _R_ALIVE)))
 
         def single_rollout(params, target_params, state, first_action, rng_key):
             rng_key, step_key = jax.random.split(rng_key)
             next_obs, next_state, reward, done, _ = env.step(step_key, state, first_action)
-            init_carry = (next_state, next_obs, rng_key, reward, jnp.float32(gamma), done)
+            r0 = jnp.where(done, reason_of(next_state), _R_ALIVE).astype(jnp.int32)
+            init_carry = (next_state, next_obs, rng_key, reward, jnp.float32(gamma), done, r0)
 
             def scan_step(carry, _):
-                s, obs, key, cum_ret, disc, done_flag = carry
+                s, obs, key, cum_ret, disc, done_flag, reason = carry
                 q = network.apply(params, obs)
                 key, ak, sk = jax.random.split(key, 3)
                 if temperature and temperature > 0:
@@ -101,12 +134,14 @@ class JaxNavConsequenceDQN(JaxNavDQN):
                 new_cum = cum_ret + disc * masked_r
                 new_disc = jnp.where(done_flag, disc, disc * gamma)
                 new_done = jnp.logical_or(done_flag, nd)
-                return (ns, n_obs, key, new_cum, new_disc, new_done), None
+                # record the reason only on the transition where done FIRST flips
+                new_reason = jnp.where(~done_flag & nd, reason_of(ns), reason).astype(jnp.int32)
+                return (ns, n_obs, key, new_cum, new_disc, new_done, new_reason), None
 
             final, _ = jax.lax.scan(scan_step, init_carry, xs=None, length=horizon - 1)
-            _, obs_H, _, cum, disc, done = final
+            _, obs_H, _, cum, disc, done, reason = final
             if not bootstrap:
-                return cum  # cumulative discounted return, truncated at the horizon
+                return cum, reason  # cumulative discounted return, truncated at the horizon
 
             # The scan ran `horizon` env steps in total (the first action plus
             # horizon-1 more), and `disc` is frozen at gamma**horizon, so it is
@@ -121,7 +156,7 @@ class JaxNavConsequenceDQN(JaxNavDQN):
                 v_H = jnp.sum(jax.nn.softmax(q_H / temperature) * q_H)
             else:
                 v_H = jnp.max(q_H)
-            return cum + jnp.where(done, 0.0, disc * v_H)
+            return cum + jnp.where(done, 0.0, disc * v_H), reason
 
         over_rollouts = jax.vmap(single_rollout, in_axes=(None, None, None, None, 0))  # N keys
         over_actions  = jax.vmap(over_rollouts,  in_axes=(None, None, None, 0, 0))     # A actions
@@ -163,11 +198,19 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._key, subkey = jax.random.split(self._key)
         keys_array = jax.random.split(subkey, B * A * N).reshape(B, A, N, 2)
 
-        returns = self._compiled_rollout_fn(
+        returns, reasons = self._compiled_rollout_fn(
             self.params, self.target_params, states_batched, self._all_actions, keys_array
         )
         returns = jax.block_until_ready(returns)
         returns_np = np.array(returns)  # (B, A, N)
+
+        # Share of rollouts ending each way, over all B x A x N of this scoring pass.
+        reasons_np = np.array(reasons).ravel()
+        self._last_rollout_reasons = {
+            f'rollout_{name}_frac': float(np.mean(reasons_np == code))
+            for code, name in enumerate(self._REASON_NAMES)
+        }
+        self._last_rollout_n = int(reasons_np.size)
 
         # action_probs for weighted_mean aggregation (fixes the bug where 'weighted_mean' was
         # requested but compute_consequence_metric silently fell back to 'max' whenever
@@ -197,7 +240,8 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         scores = np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0)
 
         scored_indices = indices[np.array(valid_indices)]
-        self.buffer.update_consequence_scores(scored_indices, scores)
+        self.buffer.update_consequence_scores(scored_indices, scores,
+                                              q_update_count=self.q_update_count)
 
     # ------------------------------------------------------------------
     # Training step (score periodically, then a normal Q-update)
@@ -213,6 +257,19 @@ class JaxNavConsequenceDQN(JaxNavDQN):
             self._score_buffer_transitions()
 
         transitions, indices, weights = self.buffer.sample(self.batch_size)
+
+        # DOUBLE SAMPLING (Jeremy 07/10, never built until now). On the same cadence
+        # as scoring, draw a shadow batch from TD priority ALONE, train on nothing,
+        # and record how much it overlaps the batch we really used. Overlap near the
+        # uniform baseline (batch_size / |buffer|) means CCE is picking the same
+        # transitions PER would have -- a direct answer, where ess_frac only reports
+        # how sharp the distribution is, not which entries it chose.
+        if self.q_update_count % self.score_interval == 0:
+            shadow = self.buffer.sample_td_only_indices(self.batch_size)
+            if shadow.size:
+                overlap = len(set(indices.tolist()) & set(shadow.tolist())) / len(indices)
+                self._double_sample_overlaps.append(float(overlap))
+
         states  = jnp.asarray(np.stack([t['s']  for t in transitions]), dtype=jnp.float32)
         actions = jnp.asarray([t['a']    for t in transitions], dtype=jnp.int32)
         rewards = jnp.asarray([t['r']    for t in transitions], dtype=jnp.float32)
