@@ -121,6 +121,115 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
 
+### 2026-09-04 (session of 09-03 night) — the buffer is instrumented; coverage is 0.86%, not 1.6%
+
+**THE CORRECTION. Instantaneous replay coverage is 0.86-0.90%, about HALF the 1.6% this
+notebook has been quoting.** Both numbers are right about different things:
+```
+   1.6%   n_score_sample / (score_interval x n_steps_per_update)
+          = what ONE transition accumulates over a FULL LIFETIME in the buffer
+   0.86%  what the buffer HOLDS AT ANY MOMENT -- which is what the sampler sees
+```
+The buffer contains entries of every age at once, and an entry's chance of having been
+scored grows with its age. Averaging over the age distribution:
+`1 - (1-e^-L)/L = 0.795%` for `L = 0.016`, against **0.90% measured**.
+
+Confirmed DIRECTLY from a buffer snapshot (274677), scored fraction by age decile:
+```
+   newest tenth   0.14%
+                  0.24  0.43  0.56  0.82  1.16  1.13  1.38  1.34
+   oldest tenth   1.84%          <- the ramp 1 - exp(-lambda*u) predicts
+```
+This is the first thing the instruments found and it could not have been seen any other
+way. **The JaxNav null is stronger than recorded, not weaker.** It also implies the
+obvious fix is not simply "score more": scores accumulate in the OLDEST entries, which
+are the ones about to be evicted.
+
+**WHAT WAS BUILT** (branch `research/buffer-instrumentation`, off `fix/cce-rollout-bootstrap`;
+commits b111768, a7a4a40, acd09b9). No algorithm change, no default changed, every new
+argument optional and every new log field additive.
+- `shared/consequence_buffers.py`: `scored_at` per-entry stamp with TWO sentinels
+  (`NEVER_SCORED` -1 vs `SCORED_UNTIMED` -2 — collapsing them would report every
+  FrozenLake entry as unscored and zero its coverage). `priority_diagnostics(now=)` gains
+  `scored_frac`, staleness p50/p90, and a 100-bin LOG-spaced score histogram with separate
+  zero/below/above counters that partition the buffer exactly. `snapshot_buffer()` (~0.9 MB
+  at capacity 100k). `sample_td_only_indices()` — read-only, never touches `_cached_probs`.
+- `jax_nav/consequence_dqn.py`: rollouts return a terminal REASON (goal/crash/timeout/
+  alive-at-H); double-sampling overlap against a TD-only shadow batch.
+- `jax_nav/dqn_vectorized.py` + `dqn.py`: eval crash/timeout rates and length-conditional-
+  on-outcome, into a NEW `eval.jsonl` written by `_MetricsLogger` so **uniform and PER get
+  it too**. `metrics.log` untouched — verified `parse_logs._parse_single_log` still reads it.
+
+**PLAN FILE ERROR, corrected.** The handoff pointed eval instrumentation at
+`dqn.py:evaluate()`. That is DEAD CODE for real runs — `dqn_vectorized.py:120` overrides it
+and `consequence_dqn_vectorized.py:36` delegates there. Instrumenting the named target would
+have shipped an empty `eval.jsonl`. Reading `move_term` off `final_state` is safe because
+JaxNav runs `evaporating=False`, so the flags are sticky past termination
+(`jaxnav_env.py:246-247`).
+
+**RUNNING: array 274678**, 6 arms x 3 seeds at 8x8_f03, 250k, one wave of 18. Driver
+`slurm/sweep_instrument.py`, manifest `manifest_instrument.json` (committed). Contrasts:
+wmean-vs-max = AGGREGATION, wmean-vs-only = MIXING, wmean-vs-wmean_bs = BOOTSTRAP, with
+`cf_bootstrap` held fixed except in the pair testing it. **MECHANISM run — n=3 cannot show
+any arm learns better and must not be read that way.**
+
+**THE TWO ANALYSES OWED SINCE JULY/AUGUST**, off array 274476, no compute
+(`analysis/claim2/jaxnav_prob_and_cost.py`):
+```
+   P(arm > uniform)   point   90% interval        P(arm > per)   point
+     cce_only          0.800  [0.520, 1.000]        uniform       0.960
+     cce_add_bs        0.520  [0.160, 0.840]        cce_wmean_bs  0.920
+     cce_wmean         0.280  [0.120, 0.520]        cce_only      1.000
+     per               0.040  [0.000, 0.120]
+```
+Against UNIFORM — the honest bar — only `cce_only` clears 0.5 at 90%, and it is a max over
+8 arms at n=5. **Uniform beats PER at 0.960.** Compute: uniform 1.12 h, PER 1.67 h, CCE
+8.20-9.02 h per run — **~7.8x for the arm that loses.** The scoring-vs-training SPLIT is
+NOT available: `parse_wallclock` reads `update.scoring.*` timers and the JaxNav trainer
+records only `total` and `eval`, so it returns 0.00 and would read as "scoring is free".
+Getting it needs timers in `_score_buffer_transitions`.
+
+**FIGURES.** `fig_instrumentation.png` (new, 6 panels, regenerates from
+`analysis.claim2.jaxnav_instrument_figures`, safe mid-sweep because every arm is truncated
+to the COMMON EPISODE FLOOR — arms advance at very different rates and comparing "as of
+now" ranks them by speed). `fig_why_null.png` panel 1: removed two grey reference bars
+(0.60/0.47) — real measurements, but from the ESS-MATCHED sweep where ess_frac was PINNED
+to 0.60 by construction. A knob setting is not a signal.
+
+**RETRACTIONS — mine, all caught by data within hours:**
+- "Rollouts think the world is deadly (73% crash vs 1% real)" — TRUE at 5k episodes,
+  FALSE as a standing property. The gap closes by ~12k (imagined 7% vs real 2%). It is a
+  wrong world-model while the policy is still random, not a permanent defect.
+- "cv(TD) is ~100x cv(CCE)" is not true early — at 5k CCE is LOUDER (ratio 0.6x). The
+  ratio crosses 1 at ~10k and is ~10x by 31k, heading for the notebook's 52-129x at 250k.
+  The drowning is a LATE-training effect and any fix must be evaluated late.
+- "~10 GPUs free" — 34 were; my `sinfo` check truncated at 14 rows.
+- "CCE runs take 6.4 h" — 8.2-9.0 h measured. 6.4 was a projection from halving the
+  40-rollout number and the halving does not hold.
+- I labelled a 95% CI as 90% in the first version of the P(better) table. Jeremy asked
+  for both widths specifically; both are now computed.
+- Extrapolating a sweep ETA from its first 34 minutes is 1.9x too fast. Runs start fast
+  (short crashy episodes) and settle: 54,686 ep/h early vs 28,688 ep/h over the full run,
+  reconstructed from checkpoint mtimes on finished run 274487.
+
+**PEER-SESSION CLAIM, CHECKED AND REJECTED.** The CVRP session reported a 61x insert
+slowdown in `consequence_buffers.add_batch` from per-transition slicing of a LIVE jax
+pytree, and inferred it was costing JaxNav hours per run. The mechanism is real —
+measured 82x on a real 12-leaf JaxNav State — but jax_nav already takes the fast path:
+`_add_chunk_to_buffer._flat` calls `np.asarray` before the tree map, and the leaves
+reaching `add_batch` are all `ndarray`. At 0.022 ms/transition a 250k run spends ~0.16
+GPU-h on inserts, ~2.5% of an 8.7 h CCE run. **Do not re-derive this.** Their supporting
+argument (12.8 h vs 1.72 h) also compared cf_n_rollouts=40 against a PER arm.
+
+Issues: **#16 filed** — `normalise_priorities` should use RANK, not min-max. Min-max is
+near a no-op here: priority is `(td+eps)**beta` then normalised, and rescaling `td -> td/M`
+would factor out EXACTLY if `eps` were 0, so it acts only through how large the eps floor
+looks after rescaling — an arbitrary amount nobody chose. Rank makes the marginal uniform
+so `cv = 0.577` by construction. If built, ties MUST use average ranks: ~99% of scores are
+the same inherited mean and a naive argsort would invent a gradient from nothing. DEFERRED,
+not built; the `cce_wmean_tdnorm` arm was dropped from 274678 accordingly.
+
+
 ### 2026-09-03 — CCE never prioritised on JaxNav: only 1.6% of the buffer is ever scored
 
 Four sessions (08-26, 08-27, 09-02, 09-03). Bootstrap (issue #7) is implemented and
