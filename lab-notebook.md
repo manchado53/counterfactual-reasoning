@@ -32,38 +32,49 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-08-22)
-Paper data = verified + frozen in paper/repro/ (master 861c0e3). NOT done experimenting — no
-claim hits its target scenario count yet, and the paper's COVERAGE table is unchanged since
-2026-06-02.
+## STATUS (2026-09-03)
+Paper data = verified + frozen in paper/repro/ (master 861c0e3). The COVERAGE table is
+unchanged since 2026-06-02: ONE clean C2 win (FL-det).
 
-JaxNav is REOPENED but is NOT yet a C2 scenario. The 6-cell factorial (180 runs, 179 complete,
-2026-08-22 LOG) shows CCE ahead of PER in 5/6 cells, but "best CCE" there is a max over 4 arms at
-n=5 with no cell individually significant, and much of the margin is PER collapsing under clutter
-rather than CCE winning — uniform beats PER in 3/6 cells. Do not quote the factorial as a result.
+**JaxNav is settled as a NULL and should stop consuming days.** 230 runs across two
+sweeps. CCE there never prioritised at all — `ess_frac` 0.91-1.00 for the whole of every
+run — because only ~1.6% of the buffer ever receives a measured score (FrozenLake: ~32%),
+and because TD carries ~100x the relative spread of CCE under a shared exponent. Uniform
+replay is the best arm (60.2%); the only significant difference in the sweep is PER being
+WORSE (30.6%, p=0.016). The environment cannot resolve a 5pp effect at any feasible n
+(paired sd 30pp -> ~290 seed-pairs).
 
-The two things worth carrying forward: (a) the shipped beta=0.25 under-amplifies the CCE score to
-the point of uniform sampling, which confounds every JaxNav null; (b) at matched concentration,
-mixing in CCE halves the slow-seed rate vs pure TD (p=0.037, n=8) — a reliability effect, with no
-ceiling difference, and a similar claim was retracted on 2026-08-15.
+Two candidate contributions came out of it, both needing instrumentation before they can
+be claimed: **coverage as a pre-training suitability metric** (answers Jeremy's 07/10 ask
+for "additional metrics beyond SNR to predict when the method will succeed"), and the
+**CCE-vs-TD scale mismatch** he flagged on 08/20 and which was never actioned.
 
-27 days to the ICLR abstract deadline (Sep 18). The paper still needs 2 more clean C2 scenarios
-and a C1 redo.
+15 days to the ICLR abstract (Sep 18).
 
 ## NEXT
-0. **Sweep `beta`, not `mu` — it is the cheapest open knob and nobody has touched it.** The
-   shipped beta=0.25 leaves the pure-CCE arm sampling at ESS 0.999 (i.e. uniform), while the
-   same score at exponent ~1.4 reaches 0.600 (2026-08-22 LOG). Every "CCE did nothing" result on
-   JaxNav is confounded with this. Cheap: uniform/PER arms are 1.7 GPU-h.
-1. **Extend the ESS-matched balance sweep from 8 seeds to ~25.** It is the only experiment with
-   concentration held equal, and it shows CCE halving the slow-seed rate vs pure TD
-   (4/8 -> 4/32, Fisher p=0.037). At n=8 that is suggestive, not publishable, and this project
-   has retracted a reliability claim before. Also run it at fill=0.3, and with
-   `consequence_aggregation='max'` (untested at matched ESS).
-2. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
-3. Redo C1 on deterministic FL. Port `FrozenLakeDQN.from_checkpoint()` to master first — it is a
-   wrong-MDP landmine.
-4. Fix 3 paper.tex numbers (FL-det -> 25 seeds; FL-stoch -> 0.67-0.75; SMAX PER -> 0.71).
+0. **DO NOT SWEEP `beta`.** Killed 2026-08-26 and confirmed 09-03: `(0+eps)**beta` is one
+   constant for 98.4% of the buffer, so no exponent can rank it. (This item previously
+   said the opposite. It was wrong.)
+1. **Instrument the buffer, then re-run.** Nothing currently records which entries hold a
+   real score, so every question this week needed its own GPU job. Land in
+   `priority_diagnostics()` + `evaluate()`: `scored_at` array (-> scored_frac, staleness),
+   ~100 log-spaced score-histogram bins + a zero counter LOGGED EVERY EVAL (Jeremy's #8
+   KDE, as a trajectory), rollout terminal reasons, eval crash/timeout rates and
+   `avg_length_goal` (Jeremy 08/27, length-conditional-on-survival), a normalise-TD flag
+   (Jeremy 08/20), and double-sampling (Jeremy 07/10, never built). Plus a raw buffer
+   snapshot npz at ~10 checkpoints (~1.2 MB each) so the buffer is inspectable post-hoc —
+   it never has been.
+2. **Then sweep COVERAGE, not beta.** At fixed compute, coverage trades against precision:
+   `coverage/cost ~ 1/(rollouts x horizon)`. 20x60 -> 5x20 buys 1.6% -> 19% for free, and
+   bootstrap is what makes short horizons viable. Run it on FrozenLake too, where effects
+   are detectable and there is a positive control.
+3. Analysis owed, NO compute needed: P(method > baseline) via bootstrap (Jeremy 08/13 said
+   80-90% is reportable; we have been giving him p-values instead), and the compute-time
+   analysis (Jeremy 07/10).
+4. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
+5. Redo C1 on deterministic FL. Port `FrozenLakeDQN.from_checkpoint()` to master first.
+6. Fix paper.tex numbers AND the Algorithm 1 defects (#15). `paper.tex` is stale vs the
+   PDF — reconcile before editing either.
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -109,6 +120,146 @@ and a C1 redo.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-09-03 — CCE never prioritised on JaxNav: only 1.6% of the buffer is ever scored
+
+Four sessions (08-26, 08-27, 09-02, 09-03). Bootstrap (issue #7) is implemented and
+measured: it fixes the score and does NOT change learning. The reason it cannot is the
+finding of the week.
+
+**THE FINDING. Only ~1.6% of the JaxNav replay buffer ever receives a measured CCE
+score.** The other ~98.4% carries the running mean it inherited on insertion — which is
+what Algorithm 1 line 7 of the paper specifies (`c_t = sum c_j/|D|`), so this is the
+design working as written, not a bug. Capacity cancels out of the arithmetic:
+
+```
+                       n_score_sample
+   E[times scored] = ---------------------------------
+                     score_interval x n_steps_per_update
+
+   JaxNav      64 / (250 x 16)  =  1.6%     -> C2 NULL
+   FrozenLake 128 / (100 x  4)  = 32.0%     -> C2 WIN
+```
+Cross-checked without the formula: FL run 262070 did 615 scoring calls x 128 = 78,720
+scorings over 246,104 transitions (32.0%); JaxNav 274487 did 6,337 x 64 = 405,568 over
+~25.3M (1.6%). **Making the buffer bigger does not change coverage.** Coverage has never
+been logged, never been swept, and is not mentioned in the paper.
+
+Consequence, measured live from the buffer every eval (`ess.jsonl`, array 274476):
+`ess_frac` sits at **0.91-1.00 for all 250k episodes in every CCE arm** (cce_only 0.999).
+`top_half_frac` 0.435-0.459 against 0.50 for perfectly uniform. **The CCE arms have been
+doing uniform replay at ~5x the wall clock.** That is why beta does nothing —
+`(0+eps)**beta` is one constant for 98% of the buffer — and why bootstrap does nothing.
+
+**A SECOND, INDEPENDENT CAUSE — and Jeremy predicted it on 08/20.** He asked to "rerun
+with 0-1 normalization of TD errors ... equal exponents do not imply equal contribution".
+Never actioned. Measured from the finished sweep, relative spread (std/mean), last 20
+evals:
+```
+   arm             cv(CCE)   cv(TD)   TD/CCE
+   cce_wmean         0.184   19.347    105x
+   cce_wmean_bs      0.097   12.564    129x
+   cce_max           0.173    8.938     52x
+   cce_add           0.189   18.894    100x
+```
+Under multiplicative mixing with mu_c = mu_delta = 1 both signals take the SAME exponent,
+but TD is heavy-tailed and carries ~100x the relative spread. CCE is numerically drowned
+before coverage even matters.
+
+**THE BOOTSTRAP SWEEP (array 274476, 50/50 COMPLETED, 8x8 fill 0.3, 10 arms x 5 seeds,
+271 GPU-h, cf_n_rollouts halved 40->20).** Every CCE variant run twice, identical except
+`cf_bootstrap`, against shared uniform/PER controls on the same seeds.
+```
+   arm             median final win%   vs uniform    p (Mann-Whitney, n=5)
+   uniform                60.2             --          --
+   per                    30.6           -29.6       0.016   <- only real difference
+   cce_wmean              55.4            -4.9       0.310      and it is WORSE
+   cce_wmean_bs           55.6            -4.6       0.310
+   cce_max                52.5            -7.8       0.310
+   cce_max_bs             55.2            -5.0       0.095
+   cce_add                52.4            -7.9       0.222
+   cce_add_bs             61.0            +0.8       1.000
+   cce_only               63.0            +2.8       0.151
+   cce_only_bs            56.3            -3.9       0.841
+```
+Bootstrap effect, 20 seed-matched pairs: 11/20 positive, mean -0.69pp, **Wilcoxon
+p = 0.837**, paired t p = 0.919, bootstrap 95% CI [-13.7, +12.2] pp. Per-seed differences
+run from -55.5 to +51.0 because seeds are BIMODAL (~50-67% or ~6-12%); paired sd is 30pp,
+so detecting a 5pp effect here needs ~290 seed-pairs. **JaxNav cannot resolve the effects
+we are looking for at any budget we have.**
+
+`cce_only` at 63.0 > uniform 60.2 is a max over 8 arms at n=5, p=0.151. Not a result.
+Also note `cce_wmean` (55.4) beat `cce_max` (52.5) here — the first counterexample to the
+08/20 claim that "no environment has been found where Mean outperforms Max". n=5, not
+significant, but it bears on the decision to move Mean to the appendix.
+
+**THE SCORE ITSELF (probes 274242 / 274250 / 274474 / 274475, `analysis/claim2/
+jaxnav_score_probe.py`, now in the repo).** Scoring 64 on-policy states from trained
+checkpoints:
+```
+   cell         states scoring EXACTLY 0    after bootstrap
+   8x8_f01              39.1%                   15.6%
+   8x8_f05              84.4%                   48.4%
+   11x11_f03            87.5%                   32.8%
+```
+Why the rollouts return zero — terminal reason, 38,400 rollouts per cell:
+```
+   cell          GOAL   CRASH  TIMEUP  ALIVE@H
+   8x8_f01      19.3%   42.4%   5.7%   32.7%
+   8x8_f05       6.9%   75.1%   5.2%   12.7%
+   11x11_f03     6.3%   69.2%   0.0%   24.5%
+```
+Only GOAL pays (`goal_rew=1.0`, `coll_rew=0.0`, all shaping zeroed). Bootstrap fixes only
+the ALIVE@H bucket; crashes are genuine terminals and correctly stay at 0.
+
+**FrozenLake comparison (274252).** Run 262070 (CCE on) vs 262073 (`score_interval:
+999999`, i.e. scoring OFF) differ in exactly one config line: 100% vs 0% final win rate.
+The healthy run has 0/64 dead states and median TV 1.000; the failed one 64/64 and 0.000.
+FL-det TV is BINARY (0 or 1) because its rollouts are deterministic and greedy — filed as
+issue #13, code untouched since FL-det is the paper's headline.
+
+**RETRACTIONS — mine, all corrected by measurement:**
+- "15 near-duplicate actions dilute the score" — FALSE. TV between adjacent actions
+  (0.078) is indistinguishable from distant ones (0.090). A coarser action set would cut
+  cost, not raise signal.
+- "Bootstrap will fix the zeros" — only 14-40% of them (the ALIVE@H bucket).
+- "BLANK -> BIMODAL -> FLAT phases" — not supported. The OFF arm is mostly zero at EVERY
+  checkpoint (83.6 / 98.0 / 82.4 / 57.0 / 78.1 percent at 10k..250k). Labels pulled from
+  the figure.
+- "Coverage gap is only 3x, so the hypothesis is weak" — WRONG, it is 20x. I had used the
+  paper's stated unit ("Score interval 100 ep") instead of the code's (Q-updates).
+- "cv=0.17 means beta CAN separate the buffer" — WRONG. The spread is entirely in the
+  1.6% tail; the 98.4% bulk is a constant to within ~2%. My ORIGINAL claim was right and
+  the correction was the error.
+- `score_zero_frac` in ess.jsonl is a MISLEADING FIELD: new entries inherit the running
+  mean, never 0, so it reads ~0 whether or not the score is informative. Use
+  `score_std/score_mean`.
+
+**DEAD END (measured, dropped): the ESS-direction gate.** The plan's own success criterion
+was "zeros fall AND ess_frac falls". Zeros fell exactly as predicted (80.7->48.0 and
+93.7->69.2, predicted 48.1 and 69.2) but `ess_frac` ROSE in all four cells. The criterion
+was wrong, not the fix: the pre-bootstrap low ESS was concentrating on the ~12-20% of
+states where ~3 of 40 rollouts happened to reach the goal, i.e. noise. ESS measures
+sharpness, not whether the RANKING improved, and JaxNav has no oracle to settle that.
+
+**PAPER DEFECTS found while cross-checking code against `Counterfactual_RL + Theory.pdf`
+(2026-08-13; note `paper.tex` is STALE, last touched 2026-06-02):**
+- Algorithm 1 puts rescoring and the Q-update inside the same `if t mod K_up = 0`, so they
+  can only run at one rate — but the implementation table lists two ("Q-update freq 4
+  steps", "Score interval 100 ep") and Table I defines no symbol for the second. Needs a
+  `K_score`. Issue #15.
+- "Score interval 100 ep" is the WRONG UNIT: the code counts Q-updates. ~6.3x for FL, and
+  it is the number that produces the 32% vs 1.6% gap.
+- Section IV-D is the placeholder `BLARBLARBLAR` — the section where this belongs.
+- `Update c_j via algorithm ??` — unresolved cross-reference in the compiled PDF.
+
+**WHAT IS DERIVED vs MEASURED.** The 1.6% is arithmetic on three config values plus one
+cross-check against logged scoring-call counts. **Nothing tracks which buffer entries have
+a real score** — no flag exists. Do not present it as a measurement until instrumented.
+
+Cost: 271 GPU-h for the sweep, ~15 min of T4 across 8 probe jobs. Issues #11 #12 #13 #15.
+Figures: `fig_bootstrap_curves`, `fig_bootstrap_ess`, `fig_why_null`, `fig_signal_birth`,
+`MOCKUP_planned_figures`. Branch `fix/cce-rollout-bootstrap`.
 
 ### 2026-08-22 — JaxNav 6-cell factorial (180 runs) + the CCE score is UNDER-AMPLIFIED, not inert
 
