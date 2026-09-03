@@ -123,6 +123,59 @@ Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ### 2026-09-04 (session of 09-03 night) — the buffer is instrumented; coverage is 0.86%, not 1.6%
 
+**FOLLOW-UP, same session: for the ~99% that are never scored, the CCE priority is a
+CLOCK.** Adrian asked what value an unscored entry actually receives and what the initial
+value is. Tracing it end to end:
+```
+   1st entry ever      init_consequence = 0.0        <- hard-coded, no data in it
+   every entry after   mean(consequence_scores)      <- over the WHOLE buffer
+   but the buffer is   ~99% entries that got the mean
+   -> the mean is an average of itself, moved 0.85%/turnover by the measured 1%
+```
+Measured, snapshot `274685/buffer/buf_0025065.npz`:
+```
+   new value = 0.9915 x (old inherited) + 0.0085 x (measured mean)
+             = 0.9915 x 0.00442 + 0.0085 x 0.00208 = 0.004400   (buffer shows 0.004400)
+```
+Time constant `1/0.0085 = ~118 buffer turnovers`; a whole 250k run is ~101 turnovers
+(10.1M env steps / 100k capacity). **The inherited value never catches up within a run.**
+
+Consequences, all measured on the unscored subset only:
+```
+   correlation(age of entry, inherited value)   -0.71   <- newer = higher, mean climbing
+   spread across the whole 99%                  0.0044016 .. 0.0044568  = 1.25%
+   after the beta=0.25 exponent                 (1.0125)^0.25 = 1.0031  = 0.31%
+```
+So a transition's CCE priority encodes WHEN IT ARRIVED and nothing about the transition,
+at a strength of 0.31%. That is uniform replay with a rounding error of recency bias.
+
+**RETRACTION (mine, within the hour): "the unscored 99% are ranked ABOVE 99% of everything
+measured."** True for the three non-bootstrap arms, FALSE for `cce_wmean_bs`, checked
+across all 12 buffer snapshots at 25k:
+```
+   arm             inherited   measured mean   % of measured BELOW inherited
+   cce_wmean         0.0044        0.0021             99.3
+   cce_max           0.0066        0.0007             99.6
+   cce_only          0.0047        0.0030             99.4
+   cce_wmean_bs      0.0692        0.6009              5.8   <- flipped
+```
+The robust statement is not the direction but the LAG: bootstrap puts measured scores at
+~0.60 while the inherited value is still at ~0.077, ~8x behind, exactly as the 118-turnover
+time constant predicts. The inherited value parks wherever history left it — above
+almost everything measured in one config, below almost everything in another. **Arbitrary,
+not "middle".** Coverage itself is stable at 0.82-0.87% across all 12 snapshots.
+
+Also from the same table: the MEDIAN measured score is exactly 0.00000 in all three
+non-bootstrap arms. Bootstrap moves the median to ~0.64, which is the one thing it
+unambiguously fixes.
+
+**LEAD, NOT A RESULT — not built, not run.** PER already solves this on the TD side two
+lines above in the same function: a new entry enters at `max_priority`, so it is sampled
+soon and gets a real error fast. CCE's Algorithm 1 line 7 does the opposite. Note the fix
+cannot be "pick a better initial constant" — any constant produces the same self-average.
+It has to be coverage, or not giving unscored entries a shared value at all.
+
+
 **THE CORRECTION. Instantaneous replay coverage is 0.86-0.90%, about HALF the 1.6% this
 notebook has been quoting.** Both numbers are right about different things:
 ```
