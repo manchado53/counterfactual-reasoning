@@ -15,7 +15,7 @@ cd "$WT" || exit 1
 fail=0
 for m in jaxnav_instrument_figures jaxnav_score_distribution \
          jaxnav_score_ridgeline jaxnav_bootstrap_side_by_side \
-         jaxnav_signal_funnel; do
+         jaxnav_signal_funnel jaxnav_learning_curves; do
     printf '  %-34s ' "$m"
     if out=$($PY -m "counterfactual_rl.analysis.claim2.$m" --array "$ARRAY" 2>&1); then
         echo "OK   $(echo "$out" | grep -o 'floor:.*' | head -1)"
