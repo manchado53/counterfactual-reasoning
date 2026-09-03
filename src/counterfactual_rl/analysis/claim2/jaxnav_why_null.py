@@ -7,10 +7,16 @@ Three panels, left to right, following the causal chain:
   2  the three quantities, before and after bootstrap. Only the first moved.
   3  the realised sampling concentration across all 250k episodes -- flat.
 
-Every number is measured. The reference marks in panel 1 come from this
-project's own runs, not from illustration: 0.60 is the target the ESS-matched
-balance sweep pinned every arm to (lab-notebook 2026-08-19), and 0.47 is what
-pure-CCE produced at a common exponent in that same entry.
+Every number is measured.
+
+PANEL 1 CORRECTED 2026-09-03: two grey reference bars (ess_frac 0.60 and 0.47)
+were removed. They were real measurements, but they came from the ESS-MATCHED
+BALANCE sweep -- a different sweep, at a different exponent, where ess_frac was
+PINNED to 0.60 by construction. Putting them beside this sweep's measured 0.915
+invited the reading "CCE could concentrate to 0.60 and here it failed to", when
+what they actually record is a knob being turned to a chosen value. That is a
+setting, not a signal, and the two are not commensurable. Panel 1 now shows only
+the uniform-replay reference (1.00) and this sweep's own measurement.
 
     PYTHONNOUSERSITE=1 PYTHONPATH=<worktree>/src \
       python -m counterfactual_rl.analysis.claim2.jaxnav_why_null
@@ -46,10 +52,11 @@ def main():
 
     # ---- 1. effective buffer size ---------------------------------------
     ax = axes[0]
+    # Only comparable quantities belong here: the uniform-replay reference and
+    # what THIS sweep measured. See the module docstring for why the two
+    # ESS-matched bars were removed on 2026-09-03.
     marks = [(1.00, "no prioritising at all", COOL),
-             (ESS_OFF, "MEASURED  (both arms)", C_OFF),
-             (0.60, "ESS-matched sweep target", INK2),
-             (0.47, "pure CCE at a common exponent", INK2)]
+             (ESS_OFF, "MEASURED  (both arms)", C_OFF)]
     for i, (v, lab, col) in enumerate(marks):
         hot = "MEASURED" in lab
         ax.barh(i + .14, v * CAP, height=.40, color=col, alpha=.95 if hot else .38)
@@ -143,12 +150,6 @@ def main():
              "Bootstrap tripled the score (panel 2) but left the replay distribution "
              "untouched (panels 1 and 3), so training saw the same data either way.",
              fontsize=10.5, color=INK2)
-    fig.text(.052, .795,
-             "Reference marks in panel 1 are this project's own measurements: 0.60 is the "
-             "target the ESS-matched balance sweep pinned every arm to, 0.47 is pure CCE at a "
-             "common exponent (lab-notebook 2026-08-19).",
-             fontsize=9.5, color=INK2, style="italic")
-
     fig.savefig(OUT, dpi=150, facecolor="white")
     print(f"wrote {OUT}")
 
