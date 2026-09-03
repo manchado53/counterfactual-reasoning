@@ -91,6 +91,16 @@ def main():
                             lw=0, zorder=2 + i)
             ax.step(centers, y, where="mid", color=col, lw=1.9, zorder=2 + i,
                     label=lab if i == 0 else None)
+            # WHERE THE INHERITED VALUE IS. An entry that is never scored is given
+            # mean(consequence_scores) at the moment it is inserted
+            # (consequence_buffers.add, Algorithm 1 line 7), so the spike IS the
+            # running mean -- and its small width is just how far that mean drifted
+            # over one buffer turnover, since entries inserted at different times
+            # inherited slightly different values.
+            ax.vlines(r["score_mean"], base, base + STEP * .86, color=col,
+                      ls=(0, (2, 1.6)), lw=1.5, zorder=39,
+                      label=("what an UNSCORED entry inherits\n= mean(scores) at insertion"
+                             if i == 0 and arm == "cce_wmean" else None))
             # where the spike is, and how much it holds
             k = int(h.argmax())
             ax.plot([centers[k]], [base + STEP * .90], marker="v", ms=6, color=col,
@@ -119,10 +129,11 @@ def main():
     ax.set_axisbelow(True)
     ax.legend(fontsize=10.5, frameon=False, loc="upper left",
               bbox_to_anchor=(1.005, 1.0))
-    ax.text(1.005, .80,
+    ax.text(1.005, .76,
             "each curve is normalised\nto its own peak, so the\nSHAPE is comparable\n"
             "across rows.\n\n▼ marks the tallest bin;\nthe % on the top row is\n"
-            "what that one bin holds.",
+            "what that one bin holds.\n\nthe dashed line sits ON\nthe spike in every row\n"
+            "— because the spike IS\nthe inherited value.",
             transform=ax.transAxes, fontsize=9, color=INK2, va="top")
 
     fig.text(.055, .955, "The buffer's score distribution, checkpoint by checkpoint",
@@ -131,10 +142,12 @@ def main():
              f"JaxNav 8x8 fill 0.3  ·  array {args.array}  ·  cce_wmean, identical "
              f"except cf_bootstrap  ·  the seed furthest along  ·  up to "
              f"{floor:,} of 250,000 episodes.\n\n"
-             "The spike TRAVELS and never spreads. Bootstrap moves it ~40x to the "
-             "right and the buffer is exactly as concentrated when it gets there —\n"
-             "that single bin is the running mean every unscored entry inherits, and "
-             "it is ~99% of the buffer in every row.",
+             "An entry that is never scored is handed mean(consequence_scores) at the "
+             "moment it is inserted — so the ~99% of the buffer that\ncarries no "
+             "measurement all sits on the RUNNING MEAN (dashed). That is the spike. "
+             "It travels as the mean drifts and never spreads,\nand its width is only "
+             "how far the mean moved during one buffer turnover. Bootstrap shifts it "
+             "~40x right and changes nothing else.",
              fontsize=10.5, color=INK2, va="top", linespacing=1.55)
 
     fig.savefig(OUT, dpi=145, facecolor=SURFACE, bbox_inches="tight")
