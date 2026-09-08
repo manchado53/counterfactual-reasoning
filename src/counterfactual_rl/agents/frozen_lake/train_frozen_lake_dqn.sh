@@ -10,7 +10,11 @@
 #SBATCH --cpus-per-gpu=32
 #SBATCH --mem=32G
 #SBATCH --time=14:00:00
-#SBATCH --exclude=dh-node16,dh-node17,dh-node18
+# dh-node12 is a CONFIRMED BAD NODE (lab-notebook 2026-08-13) and the JaxNav array
+# driver has always excluded it; this script never did. On 2026-09-08 that cost 12 of
+# 36 coverage_dose runs: 12/14 jobs landing on dh-node12 were SIGKILLed within 1-13
+# minutes, while all 22 jobs on every other node completed.
+#SBATCH --exclude=dh-node12,dh-node16,dh-node17,dh-node18
 #SBATCH --nice=10000
 
 mkdir -p /home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src/counterfactual_rl/agents/frozen_lake/logs

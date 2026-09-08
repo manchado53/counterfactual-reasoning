@@ -308,6 +308,39 @@ COVERAGE_DOSE = {
 }
 
 
+
+# ── Coverage dose-response, EXTENSION to 26 seeds/level (issue #22) ──────────
+# The n=6 pilot (coverage_dose, 2026-09-08) got the dose axis exactly right --
+# predicted coverage 2.6/5.1/9.9/18.9/34.3%, measured 2.6/5.2/10.0/18.9/33.7% -- and a
+# solve rate rising 1/6 -> 5/6 across a 13x coverage range. But:
+#     trend over 30 runs   r=+0.375  p=0.041   significant
+#     endpoints 1/6 vs 5/6 Fisher    p=0.080   NOT significant
+#     NOT monotone: level 64 gave 1/6 while level 32 gave 3/6
+# At n=6 the binomial SE on a solve rate is ~0.20, so that dip is 1.6 SE -- noise. Two
+# tests on the same 30 runs disagreeing at the 0.05 line is not a defensible result.
+#
+# This adds seeds 6..25, giving 26 per level when pooled with the pilot. Powered to
+# z>4 on the endpoint contrast, and enough to say whether the dip at level 64 is real.
+# Same fixed config as the pilot so the two merge directly.
+COVERAGE_DOSE_EXT = {
+    'name': 'coverage_dose_ext',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',
+           'n_score_sample': n, 'seed': s}
+          for n in (16, 32, 64, 128, 256) for s in range(6, 26)],
+        *[{'algorithm': 'dqn-uniform', 'seed': s} for s in range(6, 26)],
+    ],
+    'fixed': {
+        'map_name': '8x8', 'is_slippery': False, 'n_episodes': 15000, 'mu': 0.25,
+        'consequence_metric': 'total_variation', 'epsilon_decay_episodes': 7500,
+        'score_interval': 100, 'vectorized': True, 'cf_horizon': 200,
+        'early_stop_win_rate': None, 'eval_interval': 150,
+        'n_buffer_snapshots': 4,     # lighter: the pilot already has the buffer detail
+    },
+}
+
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -321,6 +354,7 @@ EXPERIMENTS = {
     'vec_smoke': VEC_SMOKE,
     'buffer_reference': BUFFER_REFERENCE,
     'coverage_dose': COVERAGE_DOSE,
+    'coverage_dose_ext': COVERAGE_DOSE_EXT,
 }
 
 
