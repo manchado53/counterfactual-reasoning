@@ -256,6 +256,58 @@ BUFFER_REFERENCE = {
 }
 
 
+
+# ── Coverage dose-response (issue #22) ───────────────────────────────────────
+# THE experiment the coverage story needs. Everything so far is CORRELATIONAL across
+# two environments -- FrozenLake 18.9% coverage / CCE wins vs JaxNav 0.85% / CCE null --
+# and those two differ on THREE axes at once (coverage, zero-rate, rollout policy), so
+# n=2 environments cannot attribute the difference to any of them.
+#
+# Here coverage is a DIAL in one environment that has a positive control. Only
+# n_score_sample varies; score_interval, n_steps_per_update, rollouts, horizon and every
+# training knob are held. Coverage is set by
+#     lambda = n_score_sample / (score_interval x n_steps_per_update) = n / 400
+# and the instantaneous (on-the-belt) value is calibrated against the one point we have
+# actually measured, n=128 -> 18.9% (buffer_reference, 2026-09-08):
+#
+#     n_score_sample      16     32     64    128    256
+#     coverage          2.6%   5.1%   9.9%  18.9%  34.3%     <- 13x range
+#
+# WHY JAXNAV CANNOT DO THIS: its paired seed sd is ~30pp, so resolving any win-rate
+# effect needs ~290 seed-pairs. FrozenLake-det is bimodal (solve or don't), so the
+# readout is a SOLVE RATE over seeds, which 6 seeds x 5 levels can show as a trend even
+# though no single pairwise comparison would be significant.
+#
+# Read the TREND across levels, not any pair. n=6 per level.
+# early_stop stays disabled, matching buffer_reference, so "solved" means the run ever
+# reached >=95% rather than "the run was halted at 95%".
+COVERAGE_DOSE = {
+    'name': 'coverage_dose',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',
+           'n_score_sample': n, 'seed': s}
+          for n in (16, 32, 64, 128, 256) for s in range(6)],
+        # uniform control, unaffected by n_score_sample (it never scores)
+        *[{'algorithm': 'dqn-uniform', 'seed': s} for s in range(6)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'is_slippery': False,
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': None,
+        'eval_interval': 150,
+        'n_buffer_snapshots': 8,
+    },
+}
+
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -268,6 +320,7 @@ EXPERIMENTS = {
     'claim2_no_slip': CLAIM2_NO_SLIP,
     'vec_smoke': VEC_SMOKE,
     'buffer_reference': BUFFER_REFERENCE,
+    'coverage_dose': COVERAGE_DOSE,
 }
 
 

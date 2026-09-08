@@ -198,14 +198,30 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._key, subkey = jax.random.split(self._key)
         keys_array = jax.random.split(subkey, B * A * N).reshape(B, A, N, 2)
 
-        returns, reasons = self._compiled_rollout_fn(
-            self.params, self.target_params, states_batched, self._all_actions, keys_array
-        )
-        returns = jax.block_until_ready(returns)
-        returns_np = np.array(returns)  # (B, A, N)
+        # CHUNK THE ROLLOUT so GPU memory does not cap n_score_sample. The triple vmap
+        # runs B x A x N environments at once: at the shipped 64 x 15 x 20 that is 19,200,
+        # but n_score_sample=256 asks for 76,800 and a T4 OOMs at ~20.6 GiB (measured,
+        # job 274872). The lab notebook records 38,400 as near the ceiling. Coverage is
+        # proportional to n_score_sample, so leaving it memory-bound would block the
+        # coverage sweep (issue #22) outright. Chunking makes the two independent: the
+        # scores are identical, only the number of kernel launches changes.
+        max_envs = int(self.config.get('cf_score_max_envs', 20_000))
+        per_state = A * N
+        chunk_B = max(1, min(B, max_envs // max(1, per_state)))
+        r_parts, reason_parts = [], []
+        for lo in range(0, B, chunk_B):
+            hi = min(lo + chunk_B, B)
+            sub = jax.tree.map(lambda leaf, a=lo, b=hi: leaf[a:b], states_batched)
+            r, rs = self._compiled_rollout_fn(
+                self.params, self.target_params, sub, self._all_actions, keys_array[lo:hi]
+            )
+            r_parts.append(np.array(jax.block_until_ready(r)))
+            reason_parts.append(np.array(rs))
+        returns_np = np.concatenate(r_parts, axis=0)      # (B, A, N)
+        reasons = np.concatenate(reason_parts, axis=0)
 
         # Share of rollouts ending each way, over all B x A x N of this scoring pass.
-        reasons_np = np.array(reasons).ravel()
+        reasons_np = reasons.ravel()
         self._last_rollout_reasons = {
             f'rollout_{name}_frac': float(np.mean(reasons_np == code))
             for code, name in enumerate(self._REASON_NAMES)
