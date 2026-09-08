@@ -9,6 +9,9 @@ DEFAULT_CONFIG = {
     'alpha': 0.001,
     'batch_size': 32,
     'buffer_capacity': 100000,
+    # Raw replay-buffer snapshots (priority arrays only, ~0.9 MB each at capacity
+    # 100k). Separate cadence from n_checkpoints on purpose. 0 disables.
+    'n_buffer_snapshots': 10,
     'target_update_freq': 200,
     'n_steps_per_update': 4,
     'hidden_dim': 64,

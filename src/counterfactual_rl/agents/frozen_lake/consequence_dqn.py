@@ -174,7 +174,12 @@ class FrozenLakeConsequenceDQN(FrozenLakeDQN):
 
         with timer('update.scoring.buffer_update', episode=ep):
             scored_indices = indices[np.array(valid_indices)]
-            self.buffer.update_consequence_scores(scored_indices, scores)
+            # Pass the Q-update counter so scored_at carries a real timestamp rather
+            # than SCORED_UNTIMED. Without it FL still reports coverage, but the
+            # staleness percentiles come back None and cannot be compared with
+            # JaxNav's -- which is the whole point of the FL reference (issue #18).
+            self.buffer.update_consequence_scores(scored_indices, scores,
+                                                  q_update_count=self.q_update_count)
 
     def _update(self):
         if not self.buffer.can_sample(self.batch_size):

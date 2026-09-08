@@ -205,6 +205,57 @@ CLAIM2_NO_SLIP = {
     },
 }
 
+
+# ── Buffer reference (issue #18, Jeremy 09/03 action item 2) ──────────────────
+# Measure what the FrozenLake replay buffer CONTAINS, using the instruments that
+# landed 2026-09-03, so the JaxNav numbers have a measured comparison instead of an
+# arithmetic one. JaxNav has been measured to death; FL never has.
+#
+# The arithmetic to be checked:
+#     coverage = n_score_sample / (score_interval x n_steps_per_update)
+#              = 128 / (100 x 4) = 32% per lifetime -> ~14.4% on the belt
+#     vs JaxNav 64 / (250 x 16) = 1.6% -> 0.85% measured
+#
+# TWO DELIBERATE DEPARTURES from claim2_no_slip, both because this measures the
+# BUFFER rather than reproducing the headline win:
+#   * early_stop_win_rate disabled -- an early stop truncates exactly the
+#     post-convergence stretch where the zero-rate is most informative.
+#   * eval_interval tightened to 150 for a denser trajectory.
+# Everything else matches the config that produced the paper's FL-det result.
+#
+# WHY THE ZERO-RATE MATTERS MOST. A 3k-episode CPU smoke showed FL-det at 16.7%
+# coverage (formula validated) but 100% of measured scores exactly ZERO, because the
+# agent had not yet reached the goal. The trained-checkpoint probe showed 0/64 dead.
+# So the zero-rate is a TRAJECTORY, and JaxNav-vs-FL must be compared at matched
+# competence, not matched episode count.
+BUFFER_REFERENCE = {
+    'name': 'buffer_reference',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'dqn-uniform', 'seed': s} for s in range(3)],
+        *[{'algorithm': 'dqn', 'seed': s} for s in range(3)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',
+           'seed': s} for s in range(3)],
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'additive', 'mu': 1.0,
+           'seed': s} for s in range(3)],
+    ],
+    'fixed': {
+        'map_name': '8x8',
+        'is_slippery': False,
+        'n_episodes': 15000,
+        'mu': 0.25,
+        'consequence_metric': 'total_variation',
+        'epsilon_decay_episodes': 7500,
+        'score_interval': 100,
+        'vectorized': True,
+        'cf_horizon': 200,
+        'early_stop_win_rate': None,     # see note above
+        'eval_interval': 150,
+        'n_buffer_snapshots': 10,
+    },
+}
+
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -216,6 +267,7 @@ EXPERIMENTS = {
     'claim2_cce_multiplicative': CLAIM2_CCE_MULTIPLICATIVE,
     'claim2_no_slip': CLAIM2_NO_SLIP,
     'vec_smoke': VEC_SMOKE,
+    'buffer_reference': BUFFER_REFERENCE,
 }
 
 

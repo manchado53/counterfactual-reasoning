@@ -81,6 +81,12 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
 
         n_ckpts = self.config.get('n_checkpoints', 100)
         ckpt_interval = max(1, n_episodes // n_ckpts) if n_ckpts > 0 else 0
+        # Raw buffer snapshots on their OWN cadence (see the JaxNav trainer for why
+        # this is not the model-checkpoint interval). This is what makes the FL
+        # buffer inspectable post-hoc the way JaxNav's now is.
+        n_snaps = self.config.get('n_buffer_snapshots', 10)
+        snap_interval = max(1, n_episodes // n_snaps) if n_snaps > 0 else 0
+        prev_snap_ep = 0
         ckpt_dir = os.path.join(self.metrics_logger.dir, 'checkpoints')
         if ckpt_interval > 0:
             os.makedirs(ckpt_dir, exist_ok=True)
@@ -167,6 +173,17 @@ class FrozenLakeConsequenceDQNVectorized(FrozenLakeConsequenceDQN):
                 self.save(os.path.join(ckpt_dir, f'ckpt_{total_episodes:07d}.pkl'))
                 prev_ckpt_ep = total_episodes
 
+            if snap_interval > 0 and \
+               total_episodes // snap_interval > prev_snap_ep // snap_interval:
+                try:
+                    self.buffer.snapshot_buffer(
+                        os.path.join(self.metrics_logger.dir, 'buffer',
+                                     f'buf_{total_episodes:07d}.npz'),
+                        q_update_count=self.q_update_count)
+                except Exception as exc:  # pragma: no cover - diagnostics only
+                    print(f"[snapshot] failed at ep {total_episodes}: {exc}")
+                prev_snap_ep = total_episodes
+
             if eval_interval and \
                total_episodes // eval_interval > prev_eval_ep // eval_interval:
                 with timer('eval', episode=total_episodes):
@@ -203,10 +220,11 @@ def _log_priority_diagnostics(self, episode: int, metrics: dict) -> None:
     claim-2 pipelines. Never raises: diagnostics must not kill a training run.
     """
     try:
-        diag = self.buffer.priority_diagnostics()
+        diag = self.buffer.priority_diagnostics(now=self.q_update_count)
         if not diag:
             return
         diag['episode'] = int(episode)
+        diag['q_update_count'] = int(self.q_update_count)
         diag['win_rate'] = float(metrics.get('win_rate', float('nan')))
         diag['mu_c'] = float(self.config.get('mu_c', 1.0))
         diag['mu_delta'] = float(self.config.get('mu_delta', 1.0))
