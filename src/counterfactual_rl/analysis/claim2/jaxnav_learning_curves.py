@@ -114,6 +114,21 @@ def main():
             matplotlib.ticker.FuncFormatter(lambda v, _: f"{v/1000:.0f}"))
         ax.set_xlim(0, floor)
 
+    # Peak-minus-final per seed, computed BEFORE panel 1 so panel 1's annotation can
+    # report what the data actually shows instead of a hardcoded claim. (The hardcoded
+    # version said "all 3 seeds" from a mid-flight read; on the finished run one
+    # cce_max seed does not collapse at all.)
+    stab_for_note = {}
+    for _arm, _runs in curves.items():
+        _d = []
+        for _x, _y in _runs:
+            _w = _y[_x <= floor]
+            if len(_w) >= 25:
+                _sm = np.convolve(_w, np.ones(21) / 21, mode="valid")
+                _d.append(float(_sm.max() - _w[-20:].mean()))
+        if _d:
+            stab_for_note[_arm] = _d
+
     # ---- 1. median win rate per arm -------------------------------------
     ax = axes[0]
     finals = {}
@@ -134,8 +149,11 @@ def main():
               handlelength=1.6, labelspacing=.32)
     ax.set_title("1.  Win rate — median of 3 seeds", fontsize=12.5,
                  fontweight="bold", color=INK, loc="left", pad=9)
-    if "cce_max" in curves:
-        ax.annotate("cce_max COLLAPSES\n(all 3 seeds — real,\nnot a truncation edge)",
+    if "cce_max" in curves and "cce_max" in stab_for_note:
+        _d = stab_for_note["cce_max"]
+        _n = sum(1 for v in _d if v > 20)
+        ax.annotate(f"cce_max gives back the most\n({_n} of {len(_d)} seeds drop >20pp —\n"
+                    f"the other(s) do not)",
                     xy=(floor * .985, finals["cce_max"] + 3),
                     xytext=(floor * .60, max(finals.values()) * 0.42),
                     fontsize=9.5, color=COL["cce_max"], fontweight="bold",
@@ -225,9 +243,9 @@ def main():
              "(verified bit-identical over 751 evals). Panel 2 is the honest reading — the "
              "seed scatter is larger than every gap between arms, which is the measured\n"
              "reason this sweep is a MECHANISM run: JaxNav's paired seed sd is ~30pp and "
-             "resolving a 5pp effect would need ~290 seed-pairs. The ONE exception is "
-             "panel 3 --\ncce_max gives up ~55pp of its peak in 3 of 3 seeds while nothing "
-             "else exceeds 9pp, an effect large enough and consistent enough to survive n=3.",
+             "resolving a 5pp effect would need ~290 seed-pairs. Panel 3 orders the arms by\n"
+             "how much of their peak they give back, but read the per-seed dots: the "
+             "within-arm spread swamps the ordering there too, so it is not an exception.",
              fontsize=10.5, color=INK2, va="top", linespacing=1.5)
 
     fig.savefig(OUT, dpi=145, facecolor=SURFACE, bbox_inches="tight")

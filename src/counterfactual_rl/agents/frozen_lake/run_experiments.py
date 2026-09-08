@@ -294,6 +294,10 @@ def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
     runs = generate_runs(experiment)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     script_path = os.path.join(script_dir, 'train_frozen_lake_dqn.sh')
+    # src/ of whichever checkout this module was imported from -- main repo or worktree.
+    repo_src = os.path.abspath(os.path.join(script_dir, '..', '..', '..'))
+    log_dir = os.path.join(script_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
 
     print(f"Experiment: {experiment_name}  ({len(runs)} runs)")
     print()
@@ -319,7 +323,14 @@ def submit_experiment(experiment_name, dry_run=False, max_concurrent=None):
         if max_concurrent is not None:
             wait_for_slot(max_concurrent)
         encoded = base64.b64encode(json.dumps(overrides).encode()).decode()
-        cmd = ['sbatch', f'--export=CONFIG_OVERRIDES_B64={encoded}', script_path]
+        # Pin the job to THIS checkout. Without REPO_SRC the sbatch script falls back
+        # to the main repo, so a sweep submitted from a worktree trains main-repo code
+        # and silently produces runs without whatever the worktree was testing.
+        # --export=ALL keeps the rest of the environment (the bare form does not).
+        cmd = ['sbatch',
+               f'--output={log_dir}/train_%j.out',
+               f'--export=ALL,CONFIG_OVERRIDES_B64={encoded},REPO_SRC={repo_src}',
+               script_path]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"  [{i+1:3d}] FAILED: {result.stderr.strip()}")

@@ -1,0 +1,77 @@
+
+==========================================================================
+  JaxNav 8x8 fill 0.3 -- array 274476, final win % (mean of last 20 evals per seed)
+==========================================================================
+  cce_add          n=5  median  52.4   seeds [11.  49.2 52.4 56.2 61.4]
+  cce_add_bs       n=5  median  61.0   seeds [ 9.7  9.8 61.  61.8 62. ]
+  cce_max          n=5  median  52.5   seeds [ 6.4 51.1 52.4 55.2 62.9]
+  cce_max_bs       n=5  median  55.2   seeds [51.6 52.6 55.2 56.  58.6]
+  cce_only         n=5  median  63.0   seeds [54.2 61.8 63.  65.  66.8]
+  cce_only_bs      n=5  median  56.3   seeds [11.4 31.6 56.3 64.2 66.4]
+  cce_wmean        n=5  median  55.4   seeds [ 6.2 53.4 55.4 55.8 60.6]
+  cce_wmean_bs     n=5  median  55.6   seeds [49.  54.8 55.6 57.8 61. ]
+  per              n=5  median  30.6   seeds [12.4 30.4 30.6 51.6 53. ]
+  uniform          n=5  median  60.2   seeds [52.2 59.2 60.2 60.3 62. ]
+
+------------------------------------------------------------------------------
+  P(arm > uniform)   [the honest bar]
+------------------------------------------------------------------------------
+  arm               P(better)           90% interval           95% interval
+  cce_add               0.240         [0.040, 0.480]         [0.040, 0.520]
+  cce_add_bs            0.520         [0.160, 0.840]         [0.160, 0.880]
+  cce_max               0.280         [0.040, 0.600]         [0.040, 0.640]
+  cce_max_bs            0.160         [0.080, 0.200]         [0.080, 0.200]
+  cce_only              0.800         [0.520, 1.000]         [0.480, 1.000]  <-
+  cce_only_bs           0.440         [0.080, 0.800]         [0.040, 0.840]
+  cce_wmean             0.280         [0.120, 0.520]         [0.080, 0.560]
+  cce_wmean_bs          0.280         [0.120, 0.520]         [0.080, 0.560]
+  per                   0.040         [0.000, 0.120]         [0.000, 0.120]
+
+  n=5 seeds per arm. Jeremy 08/13: one-tailed reads the 90% column,
+  two-tailed the 95%. An arm is marked <- only when the 90% interval CLEARS 0.5;
+  a bare point estimate above 0.8 with an interval spanning 0.5 is not a result.
+  With 5 seeds these intervals are very wide -- ~0.5 means 'no signal', not 'no difference'.
+
+------------------------------------------------------------------------------
+  P(arm > per)   [WEAK on JaxNav -- read with the uniform column]
+------------------------------------------------------------------------------
+  arm               P(better)           90% interval           95% interval
+  cce_add               0.680         [0.400, 0.920]         [0.320, 0.960]
+  cce_add_bs            0.600         [0.200, 1.000]         [0.200, 1.000]
+  cce_max               0.680         [0.400, 0.920]         [0.320, 0.960]
+  cce_max_bs            0.900         [0.800, 1.000]         [0.780, 1.000]  <-
+  cce_only              1.000         [1.000, 1.000]         [1.000, 1.000]  <-
+  cce_only_bs           0.720         [0.400, 1.000]         [0.320, 1.000]
+  cce_wmean             0.800         [0.400, 1.000]         [0.400, 1.000]
+  cce_wmean_bs          0.920         [0.760, 1.000]         [0.760, 1.000]  <-
+  uniform               0.960         [0.880, 1.000]         [0.880, 1.000]  <-
+
+  n=5 seeds per arm. Jeremy 08/13: one-tailed reads the 90% column,
+  two-tailed the 95%. An arm is marked <- only when the 90% interval CLEARS 0.5;
+  a bare point estimate above 0.8 with an interval spanning 0.5 is not a result.
+  With 5 seeds these intervals are very wide -- ~0.5 means 'no signal', not 'no difference'.
+
+==============================================================================
+  COMPUTE COST per run (timing.jsonl 'total' = ground truth)
+==============================================================================
+  arm                total h  vs uniform   n runs
+  cce_add               8.85        7.9x        5
+  cce_add_bs            8.53        7.6x        5
+  cce_max               8.55        7.7x        5
+  cce_max_bs            9.02        8.1x        5
+  cce_only              8.50        7.6x        5
+  cce_only_bs           8.20        7.3x        5
+  cce_wmean             8.95        8.0x        5
+  cce_wmean_bs          8.74        7.8x        5
+  per                   1.67        1.5x        5
+  uniform               1.12        1.0x        5
+
+  NOT AVAILABLE: the scoring-vs-training split. parse_wallclock reads it
+  from update.scoring.* timers, and the JaxNav trainer records only 'total'
+  and 'eval'. The totals above are real; the split needs timers added to
+  consequence_dqn._score_buffer_transitions first. Do not infer it from the
+  CCE-minus-uniform gap either -- that difference also contains the extra
+  buffer traffic and the rollout compile.
+
+  Read next to P(better) above: this is what CCE costs for what it buys.
+

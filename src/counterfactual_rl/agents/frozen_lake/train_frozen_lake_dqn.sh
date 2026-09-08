@@ -37,7 +37,20 @@ export LD_LIBRARY_PATH="${PIP_LIBS}${SYS_LIBS:+${SYS_LIBS}:}${LD_LIBRARY_PATH}"
 echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 nvidia-smi -L 2>&1 || echo "nvidia-smi not available"
 
-export PYTHONPATH="${PYTHONPATH}:/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src"
+# REPO_SRC is exported by run_experiments.py and points at the src/ of whichever
+# checkout submitted the job. It MUST be prepended, not appended: the editable install
+# resolves to the MAIN repo, so a job submitted from a git worktree silently trains
+# main-repo code otherwise -- which is exactly what happened on 2026-09-08, when 12
+# FrozenLake jobs ran without the buffer instrumentation that was the point of the run.
+# SLURM executes a spool copy of this script, so $0/BASH_SOURCE cannot be used to
+# discover the checkout; it has to be passed in. Falls back to the main repo so any
+# existing caller that does not set it behaves as before.
+: "${REPO_SRC:=/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/src}"
+export PYTHONPATH="${REPO_SRC}:${PYTHONPATH}"
+# ~/.local carries a broken cffi; keep it off sys.path.
+export PYTHONNOUSERSITE=1
+echo "REPO_SRC=$REPO_SRC"
+echo "PYTHONPATH=$PYTHONPATH"
 
 # Log config overrides
 if [ -n "$CONFIG_OVERRIDES_B64" ]; then

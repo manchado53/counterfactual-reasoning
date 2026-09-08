@@ -169,10 +169,28 @@ CCE scores counterfactuals under a policy that crashes 5x more and reaches the g
 less than the one being trained, **and the error grows as the agent improves.** Not tested
 past 178k; hold until the run lands.
 
-**`cce_max` cannot hold what it learns.** 3 of 3 seeds give up ~55pp from peak, while
-nothing else exceeds 10pp, both measured within the same episode cutoff. This bears on the
-08/20 decision to move Mean to the appendix "because no environment has been found where
-Mean outperforms Max."
+**`cce_max` gives back the most of its peak — but this is weaker than it first looked.**
+RETRACTED AND RESTATED 2026-09-08 on the finished 250k data. At the mid-flight 178k read
+it was 3/3 seeds dropping ~55pp with nothing else above 9pp, which I called the one
+outcome claim that survives n=3. On the finished run:
+
+```
+   arm            median drop     per-seed
+   cce_max          51.6pp        [-1.6, 62.5, 51.6]   <- one seed does NOT collapse
+   per              27.6pp        [30.6, 10.2, 27.6]   <- was 4.6pp at the 178k cutoff
+   cce_only         15.2pp        [33.6, 15.2,  5.0]
+   cce_wmean        12.1pp        [12.1, 50.5,  8.4]
+   cce_wmean_bs      8.7pp        [ 6.3,  8.7, 17.7]
+   uniform           4.9pp        [ 2.5,  4.9,  8.7]
+```
+
+The ORDERING survives — cce_max worst, uniform best — but the gap to the next arm is 1.9x,
+not 6x, and the within-arm seed spread swamps it exactly like every other arm in that
+figure. It is not an exception to the n=3 rule. It is still worth mentioning against the
+08/20 decision to move Mean to the appendix, as a caution rather than as evidence.
+
+**Second time a mid-flight read flattered a claim** (the first was the rollout/reality
+crash gap). Do not quote outcome numbers off a running sweep.
 
 ## Beat 7 — The honest bottom line, and the next move
 
