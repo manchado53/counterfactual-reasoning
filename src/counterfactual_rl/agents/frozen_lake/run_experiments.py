@@ -341,6 +341,34 @@ COVERAGE_DOSE_EXT = {
 }
 
 
+
+# ── Low-coverage FrozenLake: is there a CLIFF below 2.6%? (issue #22) ────────
+# The dose-response (156 runs, 2026-09-08) came back FLAT over 2.6% -> 33.7% coverage
+# (trend p=0.885), which removed the causal support for "low coverage explains the JaxNav
+# null". But the lowest level tested was 2.6% and JaxNav sits at 0.85% -- 3x BELOW
+# anything probed. These two levels bracket it:
+#     n_score_sample  4 -> ~0.65%   below JaxNav
+#     n_score_sample  8 -> ~1.3%    above JaxNav
+# If the solve rate collapses here, the coverage hypothesis survives in a narrow form
+# (a threshold, not a gradient) and raising JaxNav coverage is worth the compute. If it
+# stays flat at ~80%, coverage is out entirely and the JaxNav null needs another cause.
+COVERAGE_CLIFF = {
+    'name': 'coverage_cliff',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',
+           'n_score_sample': n, 'seed': s}
+          for n in (4, 8) for s in range(26)],
+    ],
+    'fixed': {
+        'map_name': '8x8', 'is_slippery': False, 'n_episodes': 15000, 'mu': 0.25,
+        'consequence_metric': 'total_variation', 'epsilon_decay_episodes': 7500,
+        'score_interval': 100, 'vectorized': True, 'cf_horizon': 200,
+        'early_stop_win_rate': None, 'eval_interval': 150, 'n_buffer_snapshots': 4,
+    },
+}
+
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -355,6 +383,7 @@ EXPERIMENTS = {
     'buffer_reference': BUFFER_REFERENCE,
     'coverage_dose': COVERAGE_DOSE,
     'coverage_dose_ext': COVERAGE_DOSE_EXT,
+    'coverage_cliff': COVERAGE_CLIFF,
 }
 
 
