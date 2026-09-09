@@ -29,7 +29,7 @@ R = os.path.join(ROOT, "src/counterfactual_rl/agents/frozen_lake/runs")
 EXP = os.path.join(ROOT, "src/counterfactual_rl/agents/frozen_lake/experiments/2026-09")
 INK, INK2, GRID, SURFACE = "#0b0b0b", "#52514e", "#dcdad5", "#fcfcfb"
 C_CCE, C_UNI = "#0072b2", "#8a8a8a"
-LEVELS = (16, 32, 64, 128, 256)
+LEVELS = (4, 8, 16, 32, 64, 128, 256)
 
 
 def job_states():
@@ -42,7 +42,7 @@ def job_states():
 def load():
     st = job_states()
     runs, skipped = collections.defaultdict(list), collections.Counter()
-    for pat in ("coverage_dose_2026*", "coverage_dose_ext_*"):
+    for pat in ("coverage_dose_2026*", "coverage_dose_ext_*", "coverage_cliff_*"):
         for man in glob.glob(os.path.join(EXP, pat, "*.json")):
             for j, cfg in json.load(open(man)).items():
                 lvl = cfg.get('n_score_sample', 'uniform')

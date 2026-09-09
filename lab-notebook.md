@@ -32,49 +32,60 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-09-03)
-Paper data = verified + frozen in paper/repro/ (master 861c0e3). The COVERAGE table is
-unchanged since 2026-06-02: ONE clean C2 win (FL-det).
+## STATUS (2026-09-09)
+Paper data = verified + frozen in paper/repro/ (master 861c0e3). **9 days to the ICLR
+abstract (Sep 18).**
 
-**JaxNav is settled as a NULL and should stop consuming days.** 230 runs across two
-sweeps. CCE there never prioritised at all — `ess_frac` 0.91-1.00 for the whole of every
-run — because only ~1.6% of the buffer ever receives a measured score (FrozenLake: ~32%),
-and because TD carries ~100x the relative spread of CCE under a shared exponent. Uniform
-replay is the best arm (60.2%); the only significant difference in the sweep is PER being
-WORSE (30.6%, p=0.016). The environment cannot resolve a 5pp effect at any feasible n
-(paired sd 30pp -> ~290 seed-pairs).
+**The coverage hypothesis is dead** (see 2026-09-09 LOG). It was this notebook's
+explanation for the JaxNav null since 09-03 and it does not survive its own test: 208
+FrozenLake runs across a 48x coverage range are FLAT (p=0.854), including at 0.7% which is
+below JaxNav's own 0.85%; and on JaxNav, raising coverage by shrinking the buffer collapsed
+16 of 16 seeds (p=0.001). **The JaxNav null is now unexplained.**
 
-Two candidate contributions came out of it, both needing instrumentation before they can
-be claimed: **coverage as a pre-training suitability metric** (answers Jeremy's 07/10 ask
-for "additional metrics beyond SNR to predict when the method will succeed"), and the
-**CCE-vs-TD scale mismatch** he flagged on 08/20 and which was never actioned.
+**What got stronger.** Those same 208 runs are the best-powered C2 evidence in the project:
+CCE 107/130 = 82% vs uniform 15/26 = 58%, Fisher p = 0.0091 on FL-det, holding at every
+coverage setting. The COVERAGE table below is unchanged in substance but FL-det is now
+backed by 208 runs rather than 25 seeds.
 
-15 days to the ICLR abstract (Sep 18).
+**Best remaining lead, untested: the rollout policy.** JaxNav is the ONLY environment with
+`cf_rollout_temperature` (0.5); all four others use a hard argmax. JaxNav transitions are
+verified deterministic, so those 20 rollouts differ only because of injected action noise,
+and at T=0.5 the rollout follows the greedy action ~35% of the time — it scores a policy the
+agent does not have. Every graded-spread env is a null; the one clean win has the binary
+score the temperature was added to prevent.
+
+**docs/jaxnav_story.md is now WRONG** — beats 2, 3, 4 and 7 argue the dead hypothesis. Do
+not present it as written.
 
 ## NEXT
-0. **DO NOT SWEEP `beta`.** Killed 2026-08-26 and confirmed 09-03: `(0+eps)**beta` is one
-   constant for 98.4% of the buffer, so no exponent can rank it. (This item previously
-   said the opposite. It was wrong.)
-1. **Instrument the buffer, then re-run.** Nothing currently records which entries hold a
-   real score, so every question this week needed its own GPU job. Land in
-   `priority_diagnostics()` + `evaluate()`: `scored_at` array (-> scored_frac, staleness),
-   ~100 log-spaced score-histogram bins + a zero counter LOGGED EVERY EVAL (Jeremy's #8
-   KDE, as a trajectory), rollout terminal reasons, eval crash/timeout rates and
-   `avg_length_goal` (Jeremy 08/27, length-conditional-on-survival), a normalise-TD flag
-   (Jeremy 08/20), and double-sampling (Jeremy 07/10, never built). Plus a raw buffer
-   snapshot npz at ~10 checkpoints (~1.2 MB each) so the buffer is inspectable post-hoc —
-   it never has been.
-2. **Then sweep COVERAGE, not beta.** At fixed compute, coverage trades against precision:
-   `coverage/cost ~ 1/(rollouts x horizon)`. 20x60 -> 5x20 buys 1.6% -> 19% for free, and
-   bootstrap is what makes short horizons viable. Run it on FrozenLake too, where effects
-   are detectable and there is a positive control.
-3. Analysis owed, NO compute needed: P(method > baseline) via bootstrap (Jeremy 08/13 said
-   80-90% is reportable; we have been giving him p-values instead), and the compute-time
-   analysis (Jeremy 07/10).
+0. **DO NOT sweep beta** (unchanged, `(0+eps)**beta` is one constant for ~99% of the
+   buffer). **DO NOT pursue coverage** — killed 09-09 from both directions.
+1. **Rewrite `docs/jaxnav_story.md`** around what survived. Highest priority: it is the
+   meeting/paper narrative and it currently argues a refuted claim. No compute.
+2. **Rollout-policy experiment** (issue #20 + the metric landmine). Controls ALREADY EXIST
+   and do not need rerunning — uniform and PER never call the scoring path, so their
+   results are metric-independent (JaxNav uniform n=8, FL uniform n=29, JaxNav
+   `cce_base` n=8, FL shipped-config n=26 are all done). Only the CCE variants are new:
+   ```
+     JaxNav  B  TV, greedy(T=0), R=20      ~8.6h   isolates the noise
+     JaxNav  C  Wasserstein, T=0.5, R=20   ~8.6h   isolates the metric
+     JaxNav  D  Wasserstein, greedy, R=1   ~1.6h   the proposal, ~20x cheaper
+     FL         Wasserstein, greedy, R=20  ~0.5h   does the win survive a graded score
+     FL         Wasserstein, greedy, R=1   ~0.5h   ...and at 1/20 the cost
+   ```
+   ~200 GPU-h, CONFIG-ONLY (FL is already greedy). A FL rollout-temperature knob exists as
+   an unapplied patch at `/tmp/cce_saved/fl_rollout_temperature.patch` — only needed for the
+   symmetric "inject noise into the winner" arm, and it is UNTESTED.
+   **`cf_n_rollouts=1` REQUIRES Wasserstein**: `compute_total_variation` returns 0.0 when a
+   sample has len<2, so TV+R=1 silently zeroes every score.
+3. Analysis owed, NO compute: P(method > baseline) bootstrap and the compute-time analysis
+   are done (`analysis/claim2/jaxnav_prob_and_cost.py`); the scoring-vs-training SPLIT is
+   still unavailable on JaxNav (only `total`/`eval` timers exist — FrozenLake HAS
+   `update.scoring.*` timers and could supply it).
 4. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
 5. Redo C1 on deterministic FL. Port `FrozenLakeDQN.from_checkpoint()` to master first.
-6. Fix paper.tex numbers AND the Algorithm 1 defects (#15). `paper.tex` is stale vs the
-   PDF — reconcile before editing either.
+6. Fix paper.tex numbers AND the Algorithm 1 defects (#15, and line 7's `c_t = sum c_j/|D|`
+   which makes ~99% of the buffer a clock). `paper.tex` is stale vs the PDF.
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -120,6 +131,134 @@ for "additional metrics beyond SNR to predict when the method will succeed"), an
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-09-09 — THE COVERAGE HYPOTHESIS IS DEAD. Tested from both ends, 240 runs.
+
+**RETRACTION, and it is the big one.** The explanation this notebook has carried since
+2026-09-03 — that CCE is null on JaxNav because only ~0.85% of its buffer holds a measured
+score — is **not supported**. Two experiments, opposite directions, both against it.
+
+**1. FrozenLake dose-response: coverage does NOTHING.** 208 runs. Only `n_score_sample`
+varied (16/32/64/128/256, plus 4 and 8 for the low end); score_interval, rollouts, horizon
+and every training knob held. Solve rate = fraction of seeds ever reaching >=95%.
+```
+   coverage   0.7%   1.3%   2.6%   5.2%   10.0%   18.9%   33.7%      48x range
+   solved      85%    81%    81%    88%     73%     92%     77%
+   uniform     58%
+   trend over 182 CCE runs: r = -0.014, p = 0.854      endpoints Fisher p = 0.727
+```
+**At 0.7% — BELOW JaxNav's own 0.85% — FrozenLake still solves 85% of the time.** There is
+no cliff and no gradient. The `coverage_cliff` levels (n_score_sample 4 and 8) were run
+specifically to probe below the 2.6% floor of the first sweep, because JaxNav sits 3x
+under it. They found nothing.
+
+**2. JaxNav capacity: raising coverage the cheap way DESTROYS learning.** 32 runs, full
+250k, 8 seeds/arm, bimodal solve-rate readout (final-20 mean >= 40%, the empty gap between
+JaxNav's two modes).
+```
+   arm        capacity  coverage  good mode  median win   per-seed
+   uniform     100,000       --       7/8       59.7%     [11,52,55,59,60,60,60,62]
+   cce_base    100,000    0.86%       6/8       47.7%     [ 9,11,45,47,49,51,57,65]
+   cce_8192      8,192     1.6%       0/8       12.0%     [ 7, 9,11,11,13,13,13,15]
+   cce_2500      2,500     5.1%       0/8        9.2%     [ 6, 8, 9, 9, 9,10,10,11]
+                                    p = 0.001 vs uniform for both reduced-capacity arms
+```
+**16 of 16 seeds collapsed.** And `cce_8192` discards NO data (capacity == the collection
+chunk), so this is not sample starvation.
+
+**WHY A SMALL BUFFER KILLS IT — measured, not asserted.** Two clocks:
+```
+   target network refreshes every  125 gradient steps
+   buffer fully replaced every:   100,000 -> 6,250 steps  (50x slower — data is stable)
+                                    8,192 ->   512 steps  ( 4x)
+                                    2,500 ->   156 steps  (1.2x — as fast as the anchor)
+```
+And the buffer holds, at each arm's own PEAK:
+```
+   100,000 -> 1,029 episodes resident, ~690 of them SUCCESSFUL
+     8,192 ->    56 episodes,           ~13 successful
+     2,500 ->    62 episodes,           ~10 successful
+```
+JaxNav pays reward ONLY at the goal, so successful episodes are the entire positive signal.
+The two failure SHAPES differ and that matters: 8,192 climbs to ~25% by 90k then decays for
+150k (learns, cannot consolidate); 2,500 never leaves the floor. That gap is the 4.1x vs
+1.2x above.
+
+**MY MODEL WAS ALSO WRONG, in the other direction.** Issue #17 predicted capacity could not
+raise coverage at all ("capacity cancels"), with a simulation. Measured: 100k 0.86%, 25k
+1.04%, 10k 1.50%, 2500 5.07% — the last two falsify the stated 1.2x threshold. The premise
+I never stated was that inserts trickle in; they do not. The trainer inserts a whole
+8,192-transition chunk in ONE burst and only then runs 512 Q-updates, so freshly-scored
+entries are protected until the next chunk. What matters is capacity vs the COLLECTION
+CHUNK, not vs n_score_sample. Corrected model `paints/capacity` predicts all four points
+(0.80/0.80/0.80/5.24 vs 0.86/1.04/1.50/5.07). **Jeremy's 09/03 instinct was right and my
+argument against it was wrong.** Retracted in issue #17.
+
+**WHAT SURVIVES, and it is the valuable part.** The same 208 FrozenLake runs are now the
+best-powered C2 evidence in the project:
+```
+   CCE pooled  107/130 = 82%     uniform 15/26 = 58%     Fisher p = 0.0091
+```
+and it holds at EVERY coverage setting, which is the point: CCE works, coverage is not why.
+On JaxNav, cce_base 6/8 vs uniform 7/8 (p=1.000) — the null confirmed at 8 seeds with a
+proper readout, and now with no coverage-based excuse.
+
+**NEW LEAD, untested: the rollout policy.** Checked all five environments —
+```
+   frozen_lake  jnp.argmax        smax   jnp.argmax        chess/connect_four  jnp.argmax
+   jax_nav      softmax(q/0.5)    <- the ONLY env with a rollout temperature
+```
+JaxNav transitions are DETERMINISTIC (verified: step_env never touches the key; 4,800
+state x action x key comparisons bit-identical; a 60-step fixed-action rollout identical
+across 5 key streams). So the 20 rollouts differ ONLY because temperature=0.5 injects
+action noise — at that temperature the rollout takes the greedy action ~35% of the time,
+i.e. it scores a policy the agent does not have. This is what produced the imagined-vs-real
+crash gap (57% vs 11%) that WIDENS as the agent improves.
+
+The uncomfortable pattern: every graded-spread environment is a null or marginal, and the
+one clean win (FL-det) has exactly the binary {0,1} score the temperature was introduced to
+prevent.
+
+**AND A METRIC LANDMINE.** `compute_total_variation` returns 0.0 whenever either sample has
+len < 2, and returns exactly 0.0/1.0 when both are constants. So `cf_n_rollouts=1` would
+SILENTLY zero every CCE score. Wasserstein has no such guard:
+```
+   N=1  total_variation 0.00000   <- dead      N=20  total_variation 1.00000  <- saturated
+   N=1  wasserstein     0.25200                N=20  wasserstein     0.25200  <- IDENTICAL
+```
+For deterministic returns the other 19 rollouts carry ZERO information. A greedy +
+1-rollout + Wasserstein configuration would be ~20x cheaper (CCE ~7.8x uniform -> ~1.3x)
+and graded rather than binary. **Untested.**
+
+**RETRACTIONS from this session, all caught by data:**
+- "coverage explains the JaxNav null" — the central claim. Dead.
+- "capacity cannot raise coverage" — wrong; burst insertion, not trickle.
+- "cce_max collapses in 3/3 seeds, the one outcome claim that survives n=3" — at the
+  finished 250k it is 2/3 and the gap to the next arm is 1.9x not 6x. Not an exception.
+- "the rollout/reality crash gap is an early-training transient" — it reopens after 50k.
+- "FrozenLake's zero-rate is ~0%" — it is a TRAJECTORY: ~100% until a seed reaches the
+  goal, ~16% after. Compare envs at matched COMPETENCE, not matched episode count.
+- Reading any sweep before it finishes flattered a claim three separate times.
+
+**INFRASTRUCTURE FIXED (all cost real runs):**
+- **dh-node12 killed 12 of 36 FL runs** (SIGKILL, 1-13 min, ~960 MB RSS vs a 32 G limit);
+  22/22 on every other node completed. Known bad since 2026-08-13 and excluded by the
+  JaxNav array driver, but `train_frozen_lake_dqn.sh` excluded 16/17/18 and never 12. Now
+  excluded.
+- **FL sweeps submitted from a worktree silently ran MAIN-REPO code** — the sbatch appended
+  a hardcoded main-repo PYTHONPATH. Now takes REPO_SRC from the submitter and PREPENDS it.
+- **`n_score_sample` was capped by GPU memory** — the triple-vmapped rollout ran
+  n_score_sample x actions x rollouts envs in ONE launch; 256 asked 76,800 envs / 20.6 GiB
+  and OOMed a T4. Rollout is now chunked (`cf_score_max_envs`, default 20,000), verified
+  bit-identical (max |diff| 0.000e+00).
+- Analysis that keyed off "has a metrics.log" counted CRASHED runs as "never solved". All
+  readouts now filter on sacct state and print what they excluded.
+
+Arrays: FL 274850-862 / 274931+ / coverage_cliff · JaxNav 274863 (25k mechanism),
+275241 (250k outcome), 275325 (extended ladder, running).
+Figures: `fig_coverage_verdict`, `fig_fl_coverage_dose`, `jaxnav/fig_capacity_curves`,
+`jaxnav/fig_why_small_buffer_fails`, `jaxnav/fig_training_loop`, `fig_fl_vs_jaxnav_buffer`.
+
 
 ### 2026-09-04 (session of 09-03 night) — the buffer is instrumented; coverage is 0.86%, not 1.6%
 
