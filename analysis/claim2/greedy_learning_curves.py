@@ -37,6 +37,10 @@ STYLE = [
     ("greedy_base_wm",  "greedy_base wmean",    "#9ec6bd", "--", 1.8),
     ("greedy_cov_max",  "greedy_cov max (16%)", "#0d7c6b", "-",  2.4),
     ("greedy_cov_wm",   "greedy_cov wmean",     "#0d7c6b", "--", 2.4),
+    # same ~16% coverage as greedy_cov, reached by scoring 20x more often instead of
+    # 20x bigger. Distinct colour on purpose: if it lands on greedy_cov, the ROUTE to
+    # coverage does not matter; if it does not, WHEN scores are written does.
+    ("greedy_freq_max", "greedy_freq max (16%)", "#7b4fa8", "-",  2.2),
 ]
 
 
@@ -74,10 +78,16 @@ def _label(cfg, arm):
         return None
     if cfg.get("priority_mixing") != "multiplicative" or not cfg.get("cf_bootstrap"):
         return None
+    # PIN the aggregation. The bootstrap sweep ran BOTH max and weighted_mean at seeds
+    # 0-4, so without this the one-run-per-seed dedup silently blends two different
+    # configurations into a single "CCE shipped" line. weighted_mean is what the paper
+    # describes, so that is the one this curve claims to be.
+    if cfg.get("consequence_aggregation") != "weighted_mean":
+        return None
     return "cce_base_bs"
 
 
-def collect(label_fn=None):
+def collect(label_fn=None, seeds=None):
     jobs = {}
     for p in glob.glob(os.path.join(DATA, "manifest_*.json")):
         if "smoke" in p:
@@ -86,7 +96,14 @@ def collect(label_fn=None):
             if not isinstance(v, dict):
                 continue
             cfg = v if "algorithm" in v else v.get("config", {})
-            if cfg.get("fill") != 0.3 or cfg.get("n_episodes") != 250_000:
+            # map_size MUST be checked. The factorial swept {8x8, 11x11} x {0.1,0.3,0.5},
+            # so filtering on fill alone pulls 11x11 runs into every baseline. 11x11 is a
+            # DIFFERENT problem, not a harder one -- max_steps=200 is fixed across map
+            # sizes, so there is less time to cross a bigger world. Measured, uniform at
+            # fill 0.3 / 250k: 8x8 median 60.2%, 11x11 median 5.4%. Mixing them dragged
+            # the uniform, PER and cce_base curves down by tens of points.
+            if (cfg.get("fill") != 0.3 or cfg.get("n_episodes") != 250_000
+                    or list(cfg.get("map_size") or []) != [8, 8]):
                 continue
             jobs[v.get("job_id", k)] = (cfg, v.get("arm"))
     arrays = sorted({j.split("_")[0] for j in jobs})
@@ -100,6 +117,7 @@ def collect(label_fn=None):
             raw[p[0]], state[p[0]] = p[1], p[2].split()[0]
 
     series = collections.defaultdict(list)
+    best = {}   # (label, seed) -> (rank, points), used only when `seeds` is given
     for jid, (cfg, arm) in jobs.items():
         lab = (label_fn or _label)(cfg, arm)
         # CANCELLED is admitted for CURVES ONLY, and only because the cancellation
@@ -110,6 +128,14 @@ def collect(label_fn=None):
         # FINAL-value comparison is NOT, because cancelled runs stopped at
         # 71-96% of training. Never take a final number from a CANCELLED run.
         if lab is None or state.get(jid) not in ("COMPLETED", "RUNNING", "CANCELLED"):
+            continue
+        # Restrict every arm to the SAME seed indices. Without this, uniform's median is
+        # over 26 seeds and the new arms' over 5, so the baselines look smoother purely
+        # because they average more runs. NOTE this equalises NOISE, not worlds: arms
+        # share one RNG stream and CCE consumes extra keys for its rollouts, so seed s is
+        # a different environment sequence in each arm (measured: cross-arm correlation
+        # over 12 pairs at n=25 scatters around zero).
+        if seeds is not None and cfg.get("seed") not in seeds:
             continue
         rid = raw.get(jid, jid)
         f = os.path.join(RUNS, rid, "eval.jsonl")
@@ -134,6 +160,21 @@ def collect(label_fn=None):
                 if len(acc) > 5:
                     pts = np.array(acc)
         if pts is not None:
+            # One run per (arm, seed). The baselines appear in SEVERAL sweeps -- uniform
+            # alone is in factorial, bootstrap, instrument and capacity_outcome -- so
+            # filtering to seeds 0-4 still matches ~4 runs per seed and the "n=5" would
+            # be a lie. Keep the run that reached furthest, preferring COMPLETED.
+            if seeds is None:
+                series[lab].append(pts)
+            else:
+                key = (lab, cfg.get("seed"))
+                better = (state.get(jid) == "COMPLETED", pts[-1, 0])
+                if key not in best or better > best[key][0]:
+                    best[key] = (better, pts)
+
+    if seeds is not None:
+        series = collections.defaultdict(list)
+        for (lab, _seed), (_rank, pts) in best.items():
             series[lab].append(pts)
 
     curves = {}
@@ -186,6 +227,26 @@ def _label_capacity(cfg, arm):
     if cfg.get("priority_mixing") != "multiplicative" or not cfg.get("cf_bootstrap"):
         return None
     return "cce_base_bs"
+
+
+# ── Third arm-set: PRIORITY NORMALISATION (issue #16) ────────────────────────────
+# Jeremy 08/20: "equal exponents do not imply equal contribution". All three sit on the
+# greedy_cov config (16% coverage) and differ ONLY in normalise_priorities, so 'none' is
+# greedy_cov_max itself and needs no separate run.
+NORM_STYLE = [
+    ("uniform",        "uniform  (no CCE)",     "#5a5a5a", "-",  1.8),
+    ("greedy_cov_max", "none  (shipped)",       "#1f6fb2", "-",  2.5),
+    ("cov_minmax_max", "min-max  (Jeremy's ask)", "#e07b39", "-", 2.5),
+    ("cov_rank_max",   "rank  (issue #16)",     "#c0392b", "-",  2.5),
+]
+
+
+def _label_norm(cfg, arm):
+    if cfg.get("algorithm") == "dqn-uniform":
+        return "uniform"
+    if arm in ("greedy_cov_max", "cov_minmax_max", "cov_rank_max"):
+        return arm
+    return None
 
 
 def write_png(curves, style=None, title=None, out_name=None):
@@ -311,6 +372,15 @@ def write_svg(curves):
 
 if __name__ == "__main__":
     import sys
+    if "--norm" in sys.argv:
+        cv = collect(_label_norm)
+        for k, v in sorted(cv.items()):
+            print(f"  {k:<16} n={v['n']:<3} reaches {v['reach']:>9,.0f} episodes")
+        write_png(cv, NORM_STYLE,
+                  "JaxNav 8x8 fill 0.3 — priority normalisation at 16% coverage (issue #16)\n"
+                  "all three CCE arms identical except normalise_priorities; STILL RUNNING",
+                  "norm_learning_curves.png")
+        raise SystemExit(0)
     if "--capacity" in sys.argv:
         cv = collect(_label_capacity)
         for k, v in sorted(cv.items()):
