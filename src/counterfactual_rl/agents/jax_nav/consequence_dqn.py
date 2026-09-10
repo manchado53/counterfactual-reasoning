@@ -238,7 +238,18 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         # 'weighted_mean' behave as a genuine weighted mean instead of degenerating either way.
         obs_batch = jnp.asarray(np.stack(valid_obs), dtype=jnp.float32)
         q_batch = jax.vmap(self.network.apply, in_axes=(None, 0))(self.params, obs_batch)
-        temp = max(self.cf_rollout_temperature, 1e-3)
+        # These probabilities are the WEIGHTS for 'weighted_mean' aggregation, and until
+        # now they shared the rollout's temperature. That couples two unrelated things:
+        # at cf_rollout_temperature=0 the softmax goes one-hot (measured effective sample
+        # size 1.0/14, vs 11.8-14.0/14 at T=0.5), so 'weighted_mean' silently becomes
+        # 'max'. A greedy-rollout arm could then look like an aggregation change rather
+        # than a rollout change. cf_action_prob_temperature decouples them; left unset it
+        # falls back to cf_rollout_temperature, i.e. identical to every run already on
+        # disk. 'max' aggregation ignores action_probs entirely and cannot be affected.
+        ap_t = self.config.get('cf_action_prob_temperature')
+        if ap_t is None:
+            ap_t = self.cf_rollout_temperature
+        temp = max(float(ap_t), 1e-3)
         probs_batch = np.array(jax.nn.softmax(q_batch / temp, axis=-1))  # (B, A)
 
         scores = np.zeros(B)
