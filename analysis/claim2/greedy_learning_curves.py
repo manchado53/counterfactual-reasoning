@@ -77,7 +77,7 @@ def _label(cfg, arm):
     return "cce_base_bs"
 
 
-def collect():
+def collect(label_fn=None):
     jobs = {}
     for p in glob.glob(os.path.join(DATA, "manifest_*.json")):
         if "smoke" in p:
@@ -101,8 +101,15 @@ def collect():
 
     series = collections.defaultdict(list)
     for jid, (cfg, arm) in jobs.items():
-        lab = _label(cfg, arm)
-        if lab is None or state.get(jid) not in ("COMPLETED", "RUNNING"):
+        lab = (label_fn or _label)(cfg, arm)
+        # CANCELLED is admitted for CURVES ONLY, and only because the cancellation
+        # was an operator decision (freeing GPUs on 2026-09-10), not anything about
+        # the run. FAILED / TIMEOUT / NODE_FAIL stay excluded: keying off "has a
+        # metrics.log" once counted crashed runs as "never solved" and biased the
+        # arms unevenly. A curve-vs-episode is unbiased by early truncation; a
+        # FINAL-value comparison is NOT, because cancelled runs stopped at
+        # 71-96% of training. Never take a final number from a CANCELLED run.
+        if lab is None or state.get(jid) not in ("COMPLETED", "RUNNING", "CANCELLED"):
             continue
         rid = raw.get(jid, jid)
         f = os.path.join(RUNS, rid, "eval.jsonl")
@@ -147,7 +154,41 @@ def collect():
     return curves
 
 
-def write_png(curves):
+# ── Second arm-set: the CAPACITY collapse (issues #17, #22) ──────────────────────
+# Everything here shrinks the buffer to force coverage up, which is the confound the
+# greedy arms exist to avoid: below the 8,192-transition insert burst, part of every
+# chunk is overwritten before a single gradient step sees it. cce_8192 is the exact
+# break-even (largest shrink that discards nothing); cce_8192_i4 adds 4x scoring
+# frequency on top of it and is the only 250k outcome test of the frequency lever.
+CAP_STYLE = [
+    ("uniform",      "uniform  (no CCE)",          "#7c8a94", "-",  1.8),
+    ("cce_base_bs",  "CCE, buffer 100,000",        "#3f5763", "-",  2.2),
+    ("cce_8192",     "buffer 8,192  (break-even)", "#c98a5a", "-",  1.8),
+    ("cce_8192_i4",  "buffer 8,192, 4x scoring",   "#a8341c", "-",  2.2),
+    ("cce_2500",     "buffer 2,500",               "#8a6a9c", "-",  1.5),
+    ("cce_1000",     "buffer 1,000",               "#8a6a9c", "--", 1.5),
+    ("cce_500",      "buffer 500",                 "#8a6a9c", ":",  1.5),
+]
+
+
+def _label_capacity(cfg, arm):
+    if cfg.get("algorithm") == "dqn-uniform":
+        return "uniform"
+    if cfg.get("algorithm") != "consequence-dqn":
+        return None
+    if arm in ("cce_8192", "cce_8192_i4", "cce_2500", "cce_1000", "cce_500"):
+        return arm
+    # the full-capacity reference: shipped multiplicative CCE, bootstrapped, R=20
+    if (cfg.get("buffer_capacity") or 100_000) != 100_000:
+        return None
+    if cfg.get("score_interval") != 250 or cfg.get("cf_n_rollouts") != 20:
+        return None
+    if cfg.get("priority_mixing") != "multiplicative" or not cfg.get("cf_bootstrap"):
+        return None
+    return "cce_base_bs"
+
+
+def write_png(curves, style=None, title=None, out_name=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -156,7 +197,7 @@ def write_png(curves):
     if u is not None:
         ax.fill_between(GRID, u["lo"], u["hi"], color="#7c8a94", alpha=.14, lw=0,
                         label="uniform IQR (seed spread)")
-    for key, lab, colour, ls, lw in STYLE:
+    for key, lab, colour, ls, lw in (style or STYLE):
         c = curves.get(key)
         if c is None:
             continue
@@ -167,15 +208,15 @@ def write_png(curves):
             fontsize=8, color="#a8341c", va="bottom")
     ax.set_xlabel("episode")
     ax.set_ylabel("win rate  (%)")
-    ax.set_title("JaxNav 8x8 fill 0.3 — win rate over training  (rolling median, 5 evals)\n"
-                 "greedy arms STILL RUNNING; lines stop where the runs are now",
+    ax.set_title(title or ("JaxNav 8x8 fill 0.3 — win rate over training  (rolling median, 5 evals)\n"
+                 "greedy arms STILL RUNNING; lines stop where the runs are now"),
                  fontsize=11, loc="left")
     ax.set_xlim(0, 250_000)
     ax.set_ylim(0, 80)
     ax.grid(alpha=.18, lw=.7)
     ax.legend(fontsize=8, loc="upper left", framealpha=.9)
     fig.tight_layout()
-    out = os.path.join(OUTDIR, "greedy_learning_curves.png")
+    out = os.path.join(OUTDIR, out_name or "greedy_learning_curves.png")
     fig.savefig(out)
     print("wrote", out)
 
@@ -269,6 +310,16 @@ def write_svg(curves):
 
 
 if __name__ == "__main__":
+    import sys
+    if "--capacity" in sys.argv:
+        cv = collect(_label_capacity)
+        for k, v in sorted(cv.items()):
+            print(f"  {k:<16} n={v['n']:<3} reaches {v['reach']:>9,.0f} episodes")
+        write_png(cv, CAP_STYLE,
+                  "JaxNav 8x8 fill 0.3 — shrinking the buffer to buy coverage\n"
+                  "every reduced-capacity arm collapses; 4x scoring does not rescue it",
+                  "capacity_learning_curves.png")
+        raise SystemExit(0)
     cv = collect()
     for k, v in sorted(cv.items()):
         print(f"  {k:<18} n={v['n']:<3} reaches {v['reach']:>9,.0f} episodes")
