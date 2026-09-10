@@ -190,7 +190,7 @@ def collect(label_fn=None, seeds=None):
         for a in (med, lo, hi):
             a[n_at < 3] = np.nan
         med, lo, hi = _smooth(med), _smooth(lo), _smooth(hi)
-        curves[lab] = dict(med=med, lo=lo, hi=hi, n=M.shape[0],
+        curves[lab] = dict(med=med, lo=lo, hi=hi, n=M.shape[0], M=M,
                            reach=float(max(r[-1, 0] for r in runs)))
     return curves
 
