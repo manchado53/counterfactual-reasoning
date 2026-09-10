@@ -369,6 +369,42 @@ COVERAGE_CLIFF = {
 }
 
 
+
+# ── Does the FrozenLake headline survive a GRADED aggregation? (issue #3) ────────
+# FrozenLake calls compute_consequence_metric WITHOUT action_probs
+# (frozen_lake/consequence_dqn.py:167), so its configured 'weighted_mean' falls through
+# to the `else: return max(divergences.values())` branch. Verified by direct execution:
+# FL's exact call returns 0.850000, identical to aggregation='max', against 0.825000 for
+# a real weighted mean. So the 208-run headline -- CCE 107/130 = 82% vs uniform
+# 15/26 = 58%, Fisher p=0.0091 -- IS A WIN UNDER MAX, labelled otherwise.
+#
+# 'mean' is the cheap test because it needs NO action_probs and therefore no code change:
+# compute_consequence_metric has an explicit `elif aggregation == 'mean'` branch. It asks
+# the load-bearing question -- does the win need the MAXIMUM divergence, or just a graded
+# score? Identical to the coverage_dose 'fixed' block otherwise, and n_score_sample=128 is
+# the shipped setting, so the 26 max-aggregation runs already on disk are the control and
+# do not need rerunning.
+#
+# If the win survives, the config mislabel is a REPORTING fix. If it dies, the headline
+# depends on an accidental max and the paper has to say so -- better found by us than by a
+# reviewer, 8 days out.
+FL_AGGREGATION = {
+    'name': 'fl_aggregation',
+    'env_key': 'frozen_lake',
+    'runs': [
+        *[{'algorithm': 'consequence-dqn', 'priority_mixing': 'multiplicative',
+           'n_score_sample': 128, 'consequence_aggregation': 'mean', 'seed': s}
+          for s in range(26)],
+    ],
+    'fixed': {
+        'map_name': '8x8', 'is_slippery': False, 'n_episodes': 15000, 'mu': 0.25,
+        'consequence_metric': 'total_variation', 'epsilon_decay_episodes': 7500,
+        'score_interval': 100, 'vectorized': True, 'cf_horizon': 200,
+        'early_stop_win_rate': None, 'eval_interval': 150, 'n_buffer_snapshots': 4,
+    },
+}
+
+
 EXPERIMENTS = {
     'smoke_test': SMOKE_TEST,
     'full_smoke': FULL_SMOKE,
@@ -384,6 +420,7 @@ EXPERIMENTS = {
     'coverage_dose': COVERAGE_DOSE,
     'coverage_dose_ext': COVERAGE_DOSE_EXT,
     'coverage_cliff': COVERAGE_CLIFF,
+    'fl_aggregation': FL_AGGREGATION,
 }
 
 
