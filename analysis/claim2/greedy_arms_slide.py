@@ -17,32 +17,32 @@ OUT = os.path.join(G.WT, "docs/figures/real/claim2/jaxnav")
 # key, label, colour, linestyle, lw, rollout, metric, agg, n_score, interval, coverage, purpose
 ARMS = [
     ("uniform", "uniform", "#5a5a5a", "-", 2.0,
-     "—", "—", "—", "—", "—", "—",
+     "—", "—", "—", "—", "—", "—", "—",
      "no priority at all — pick slots at random"),
     ("per", "PER", "#e07b39", ":", 2.2,
-     "—", "—", "—", "—", "—", "—",
+     "—", "—", "—", "—", "—", "—", "—",
      "TD error only — the standard method"),
     ("cce_base_bs", "CCE shipped", "#1f6fb2", "-", 2.4,
-     "T=0.5  ×20", "TV", "wmean", "64", "250", "0.86%",
+     "T=0.5  ×20", "60", "TV", "wmean", "64", "250", "0.86%",
      "what the PAPER describes — noisy rollouts"),
     ("greedy_base_max", "greedy_base max", "#2ca02c", "-", 2.2,
-     "T=0  ×1", "W", "max", "64", "250", "0.86%",
+     "T=0  ×1", "60", "W", "max", "64", "250", "0.86%",
      "REFERENCE — new recipe, OLD coverage"),
     ("greedy_base_wm", "greedy_base wmean", "#2ca02c", "--", 2.2,
-     "T=0  ×1", "W", "wmean", "64", "250", "0.86%",
+     "T=0  ×1", "60", "W", "wmean", "64", "250", "0.86%",
      "same, other aggregation — isolates the recipe"),
     ("greedy_cov_max", "greedy_cov max", "#c0392b", "-", 2.7,
-     "T=0  ×1", "W", "max", "1,280", "250", "~16%",
+     "T=0  ×1", "60", "W", "max", "1,280", "250", "~16%",
      "THE EXPERIMENT — coverage via BIGGER BATCHES"),
     ("greedy_cov_wm", "greedy_cov wmean", "#c0392b", "--", 2.7,
-     "T=0  ×1", "W", "wmean", "1,280", "250", "~16%",
+     "T=0  ×1", "60", "W", "wmean", "1,280", "250", "~16%",
      "same, other aggregation."),
     ("greedy_freq_max", "greedy_freq max", "#8e44ad", "-", 2.5,
-     "T=0  ×1", "W", "max", "128", "25", "~16%",
+     "T=0  ×1", "60", "W", "max", "128", "25", "~16%",
      "same coverage via MORE OFTEN (128/25 = 1280/250)"),
 ]
-COLS = [("rollout", .300), ("metric", .400), ("agg", .467),
-        ("n_score", .553), ("interval", .630), ("coverage", .715)]
+COLS = [("rollout", .272), ("horizon", .338), ("metric", .400), ("agg", .455),
+        ("n_score", .533), ("interval", .608), ("coverage", .688)]
 
 
 def main():
@@ -85,7 +85,7 @@ def main():
     tb.text(.062, y, "arm", fontsize=9.5, weight="bold", color="#55666f")
     for name, x in COLS:
         tb.text(x, y, name, fontsize=9.5, weight="bold", color="#55666f", ha="center")
-    tb.text(.760, y, "what it's for", fontsize=9.5, weight="bold", color="#55666f")
+    tb.text(.752, y, "what it's for", fontsize=9.5, weight="bold", color="#55666f")
     tb.plot([.062, .995], [y - .028, y - .028], color="#c5cfd6", lw=1,
             transform=tb.transAxes, clip_on=False)
 
@@ -96,10 +96,10 @@ def main():
         tb.add_line(Line2D([.068, .105], [row + .012, row + .012], color=colour, ls=ls,
                            lw=lw + .4, clip_on=False))
         tb.text(.115, row, f"{lab}  {n}", fontsize=10, color=colour, weight="bold")
-        for (name, x), val in zip(COLS, cells[:6]):
+        for (name, x), val in zip(COLS, cells[:7]):
             tb.text(x, row, val, fontsize=9.5, ha="center", color="#101a22",
                     family="DejaVu Sans Mono")
-        tb.text(.760, row, cells[6], fontsize=9.5, color="#55666f")
+        tb.text(.752, row, cells[7], fontsize=9.5, color="#55666f")
         row -= .098
 
     tb.plot([.062, .977], [row + .062, row + .062], color="#c5cfd6", lw=1,

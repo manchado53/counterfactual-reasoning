@@ -14,19 +14,32 @@ import greedy_learning_curves as G
 
 OUT = os.path.join(G.WT, "docs/figures/real/claim2/jaxnav")
 
-# key, label, colour, ls, lw, norm, ESS, top-1% kept, peak/uniform, purpose
+# key, label, colour, ls, lw, then the CONFIG columns, then the SAMPLER columns, purpose.
+# Config is identical across the three CCE arms -- that is the point of the figure, so the
+# repeated columns are deliberate. Coverage is MEASURED from scored_frac in ess.jsonl at
+# the last eval of each run (mean over 5 seeds), not derived from n_score/interval.
 ARMS = [
     ("uniform", "uniform", "#5a5a5a", "-", 1.9,
-     "—", "—", "—", "—", "no CCE at all — the floor"),
+     "—", "—", "—", "—", "—", "—", "—",
+     "—", "—", "—", "—", "—",
+     "no CCE at all — the floor"),
     ("greedy_cov_max", "none  (shipped)", "#1f6fb2", "-", 2.6,
-     "none", "0.944", "100%", "10.0×", "what every run to date used"),
+     "T=0 ×1", "60", "W", "max", "1,280", "250", "15.4%",
+     "none", "0.944", "100%", "10.0×",
+     "every run to date"),
     ("cov_minmax_max", "min-max", "#e07b39", "-", 2.6,
-     "minmax", "0.985", "45.5%", "3.2×", "Jeremy's 08/20 ask: '0-1 normalization'"),
+     "T=0 ×1", "60", "W", "max", "1,280", "250", "15.8%",
+     "minmax", "0.985", "45.5%", "3.2×",
+     "Jeremy's 08/20 ask"),
     ("cov_rank_max", "rank", "#c0392b", "-", 2.6,
-     "rank", "0.930", "33.2%", "1.5×", "issue #16 — cv(TD) 47.4 → 0.58"),
+     "T=0 ×1", "60", "W", "max", "1,280", "250", "15.9%",
+     "rank", "0.930", "33.2%", "1.5×",
+     "issue #16 — cv 47.4 → 0.58"),
 ]
-COLS = [("normalise_priorities", .375), ("ESS", .490), ("top-1% kept", .575),
-        ("peak / uniform", .672)]
+CFG_COLS = [("rollout", .240), ("horizon", .296), ("metric", .347), ("agg", .396),
+            ("n_score", .452), ("interval", .512), ("coverage", .570)]
+SMP_COLS = [("normalise", .640), ("ESS", .706), ("top-1% kept", .772),
+            ("peak/unif", .845)]
 
 
 def main():
@@ -35,7 +48,7 @@ def main():
     import matplotlib.pyplot as plt
 
     curves = G.collect(G._label_norm)
-    fig = plt.figure(figsize=(15, 9.4), dpi=150)
+    fig = plt.figure(figsize=(17, 9.8), dpi=150)
     ax = fig.add_axes([.062, .445, .915, .470])
     tb = fig.add_axes([.0, .0, 1, .39]); tb.set_xlim(0, 1); tb.set_ylim(0, 1); tb.axis("off")
 
@@ -59,39 +72,44 @@ def main():
                  fontsize=11, loc="left", pad=10)
 
     y = .93
-    tb.text(.062, y + .05, "THE ARMS", fontsize=13, weight="bold")
-    tb.text(.062, y, "arm", fontsize=9.5, weight="bold", color="#55666f")
-    for name, x in COLS:
-        tb.text(x, y, name, fontsize=9.5, weight="bold", color="#55666f", ha="center")
-    tb.text(.762, y, "what it's for", fontsize=9.5, weight="bold", color="#55666f")
+    tb.text(.062, y + .052, "THE ARMS", fontsize=13, weight="bold")
+    tb.text(.262, y + .052, "CONFIG  (identical across the three CCE arms)",
+            fontsize=9, color="#55666f")
+    tb.text(.640, y + .052, "WHAT IT DOES TO THE SAMPLER  (measured offline)",
+            fontsize=9, color="#55666f")
+    tb.text(.062, y, "arm", fontsize=9, weight="bold", color="#55666f")
+    for name, x in CFG_COLS + SMP_COLS:
+        tb.text(x, y, name, fontsize=9, weight="bold", color="#55666f", ha="center")
+    tb.text(.884, y, "what it's for", fontsize=9, weight="bold", color="#55666f")
     tb.plot([.062, .995], [y - .032, y - .032], color="#c5cfd6", lw=1, clip_on=False)
+    tb.plot([.607, .607], [y + .04, y - .52], color="#c5cfd6", lw=1, clip_on=False)
 
     row = y - .105
     for key, lab, colour, ls, lw, *cells in ARMS:
         c = curves.get(key)
         n = f"n={c['n']}" if c else "—"
         reach = f"  {c['reach']/1000:.0f}k" if c and c["reach"] < 245_000 else ""
-        tb.add_line(Line2D([.068, .108], [row + .013, row + .013], color=colour, ls=ls,
+        tb.add_line(Line2D([.066, .100], [row + .013, row + .013], color=colour, ls=ls,
                            lw=lw + .4, clip_on=False))
-        tb.text(.118, row, f"{lab}  {n}{reach}", fontsize=10, color=colour, weight="bold")
-        for (name, x), val in zip(COLS, cells[:4]):
-            tb.text(x, row, val, fontsize=9.5, ha="center", color="#101a22",
+        tb.text(.108, row, f"{lab} {n}{reach}", fontsize=9.5, color=colour, weight="bold")
+        for (name, x), val in zip(CFG_COLS + SMP_COLS, cells[:11]):
+            tb.text(x, row, val, fontsize=8.8, ha="center", color="#101a22",
                     family="DejaVu Sans Mono")
-        tb.text(.762, row, cells[4], fontsize=9.5, color="#55666f")
+        tb.text(.884, row, cells[11], fontsize=8.8, color="#55666f")
         row -= .125
 
     tb.plot([.062, .995], [row + .075, row + .075], color="#c5cfd6", lw=1, clip_on=False)
     tb.text(.062, row + .050,
-            "ESS / top-1% / peak are MEASURED OFFLINE from a real buffer snapshot at 15.9% "
-            "coverage — a snapshot carries the scores, the TD magnitudes and scored_at, which is "
-            "everything the priority computation consumes, so no GPU was needed.\n"
-            "ESS 1.0 = uniform replay.  'top-1% kept' = share of the 1,000 highest-priority slots "
-            "still in the top 1% after the change.  'peak / uniform' = replay tickets for the "
-            "single most-sampled slot.\n"
-            "NOTE issue #16's title says min-max is a near-no-op. It is NOT — it cuts the peak "
-            "from 10.0× to 3.2× and reshuffles 54% of the top slots. Every mode sits at ESS "
-            "0.93–0.99, so replay is close to uniform whatever we pick.",
-            fontsize=9, color="#55666f", va="top")
+            "COVERAGE is MEASURED from scored_frac at the last eval, mean over 5 seeds — not "
+            "derived from n_score/interval.  All three CCE arms sit at ~15.5%, as intended: they "
+            "differ ONLY in normalise_priorities.\n"
+            "ESS / top-1% / peak come from a real buffer snapshot — a snapshot carries the scores, "
+            "the TD magnitudes and scored_at, which is everything the priority computation "
+            "consumes, so no GPU was needed.  ESS 1.0 = uniform replay.\n"
+            "NOTE issue #16's title says min-max is a near-no-op. It is NOT — it cuts the peak from "
+            "10.0× to 3.2× and reshuffles 54% of the top slots.  But every mode sits at ESS "
+            "0.93–0.99, so replay stays close to uniform whatever we pick.",
+            fontsize=8.6, color="#55666f", va="top")
     p = os.path.join(OUT, "norm_arms_slide.png")
     fig.savefig(p, facecolor="white"); print("wrote", p)
 
