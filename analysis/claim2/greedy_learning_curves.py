@@ -63,16 +63,25 @@ def _smooth(v, w=5):
     return out
 
 
+# The baselines are pinned to the DEFAULT capacity for the same reason map_size is
+# pinned: the capacity-floor sweep runs uniform and PER at 8,192 - 50,000, and without
+# this guard all 50 of those runs are absorbed into the "uniform" and "per" lines of
+# every figure in this module. That is exactly the shape of the map_size bug, which
+# dragged the baselines down by tens of points and cost us a published verdict.
+def _is_default_capacity(cfg):
+    return (cfg.get("buffer_capacity") or 100_000) == 100_000
+
+
 def _label(cfg, arm):
     if arm and arm.startswith("greedy"):
         return arm
     algo = cfg.get("algorithm")
-    if algo == "dqn":
-        return "per"
-    if algo == "dqn-uniform":
-        return "uniform"
+    if algo in ("dqn", "dqn-uniform"):
+        if not _is_default_capacity(cfg):
+            return None
+        return "per" if algo == "dqn" else "uniform"
     # only the shipped multiplicative CCE at full capacity, bootstrapped, R=20
-    if (cfg.get("buffer_capacity") or 100_000) != 100_000:
+    if not _is_default_capacity(cfg):
         return None
     if cfg.get("score_interval") != 250 or cfg.get("cf_n_rollouts") != 20:
         return None
@@ -214,7 +223,8 @@ CAP_STYLE = [
 
 def _label_capacity(cfg, arm):
     if cfg.get("algorithm") == "dqn-uniform":
-        return "uniform"
+        # capacity-floor runs also use dqn-uniform; see _is_default_capacity
+        return "uniform" if _is_default_capacity(cfg) else None
     if cfg.get("algorithm") != "consequence-dqn":
         return None
     if arm in ("cce_8192", "cce_8192_i4", "cce_2500", "cce_1000", "cce_500"):
@@ -243,10 +253,23 @@ NORM_STYLE = [
 
 def _label_norm(cfg, arm):
     if cfg.get("algorithm") == "dqn-uniform":
-        return "uniform"
+        return "uniform" if _is_default_capacity(cfg) else None
     if arm in ("greedy_cov_max", "cov_minmax_max", "cov_rank_max"):
         return arm
     return None
+
+
+# ── Fourth arm-set: THE CAPACITY FLOOR (no CCE at all) ───────────────────────────
+# Every small-buffer run this project has done was a CCE run, so "shrinking the buffer
+# collapses learning" has never been separated from "shrinking the buffer collapses
+# CCE". This ladder runs plain uniform and plain PER down the same capacities. Labels
+# carry the capacity so these NEVER merge into the uniform/PER baselines above.
+def _label_floor(cfg, arm):
+    algo = cfg.get("algorithm")
+    if algo not in ("dqn", "dqn-uniform"):
+        return None
+    cap = cfg.get("buffer_capacity") or 100_000
+    return f"{'per' if algo == 'dqn' else 'uniform'}_{cap}"
 
 
 def write_png(curves, style=None, title=None, out_name=None):
