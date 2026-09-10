@@ -85,11 +85,29 @@ ARMS = {
     # coverage ~17% -- differs from the reference by ONE key, n_score_sample
     "greedy_cov_max":  {**_G, **_H60, **_MAX, "n_score_sample": 1_280},
     "greedy_cov_wm":   {**_G, **_H60, **_WM,  "n_score_sample": 1_280},
-    # SMOKE-GATED: horizon instead of coverage, no bootstrap needed at H = max_steps
+    # Jeremy's lever 2: reach the SAME coverage by scoring OFTEN instead of BIG.
+    # 128/25 == 1280/250 == 5.12 exactly, so coverage matches greedy_cov with clean
+    # integers, and the per-chunk transitions scored are 2,624 in both. Same GPU cost:
+    # measured on the smoke, scoring time is LINEAR in envs/pass (960 -> 19,200 envs
+    # took 17s -> 348s), so 20 small passes and 2 big ones buy the same total.
+    # The staleness case for this arm is WEAKER than it first looked: entry lifetime is
+    # capacity/n_steps_per_update = 6,250 updates and expected draws per entry is only
+    # 0.32, so almost every scored entry is scored ONCE and staleness is set by the draw
+    # rate, not by burstiness. Measured: 18x the rate (base -> cov) moved staleness p50
+    # only 2,050 -> 1,788. Rearranging the same rate should move it ~interval/2 = 125.
+    # Run it anyway: same result as greedy_cov means coverage is what matters and the
+    # route does not; a different result means something other than coverage is at play.
+    "greedy_freq_max": {**_G, **_H60, **_MAX, "n_score_sample": 128, "score_interval": 25},
+    "greedy_freq_wm":  {**_G, **_H60, **_WM,  "n_score_sample": 128, "score_interval": 25},
+    # SMOKE-GATED: horizon instead of coverage, no bootstrap needed at H = max_steps.
+    # KILLED 2026-09-09: 88-90% of its measured scores are exactly 0.0. Under sparse
+    # reward only GOAL pays, so an un-bootstrapped return is binary and ~90% of rollouts
+    # return 0 at ANY horizon -- H=200 turns "alive" into "timeout", which pays the same.
     "greedy_full_max": {**_G, **_H200, **_MAX, "n_score_sample": 384},
     "greedy_full_wm":  {**_G, **_H200, **_WM,  "n_score_sample": 384},
 }
 MAIN_ARMS = ["greedy_base_max", "greedy_base_wm", "greedy_cov_max", "greedy_cov_wm"]
+FREQ_ARMS = ["greedy_freq_max", "greedy_freq_wm"]
 FULL_ARMS = ["greedy_full_max", "greedy_full_wm"]
 
 BASE = dict(
@@ -112,8 +130,11 @@ _BASE_H, _SCORE_H = 1.25, 7.35
 
 def cost(arm):
     c = ARMS[arm]
+    # scoring time measured LINEAR in envs/pass on the smoke, so total scoring cost is
+    # (work per pass) x (passes), i.e. proportional to n_score/score_interval.
     work = c["n_score_sample"] * c["cf_n_rollouts"] * c["cf_horizon"]
-    return _BASE_H + _SCORE_H * work / 76_800.0
+    freq = BASE["score_interval"] / c.get("score_interval", BASE["score_interval"])
+    return _BASE_H + _SCORE_H * freq * work / 76_800.0
 
 
 def main():
@@ -153,7 +174,8 @@ def main():
         c = ARMS[arm]
         h = cost(arm) * scale
         hours += h * seeds
-        cov = 0.86 * c["n_score_sample"] / 64.0
+        cov = 0.86 * (c["n_score_sample"] / 64.0) * (250.0 / c.get("score_interval",
+                                                     BASE["score_interval"]))
         print(f"{arm:<18}{c['cf_horizon']:>5}{str(c['cf_bootstrap']):>6}"
               f"{c['n_score_sample']:>9}  {c['consequence_aggregation']:<14}"
               f"{cov:>9.2f}%{h:>8.2f}")
@@ -162,6 +184,7 @@ def main():
             if key in manifest:
                 print(f"   SKIP {key} (already submitted as {manifest[key]['job_id']})")
                 continue
+            # arm dict merges AFTER BASE, so an arm may override score_interval
             cfg = {**BASE, **CELL, **c, "seed": seed,
                    "n_episodes": episodes, "n_buffer_snapshots": snaps}
             pending.append((key, arm, seed, cfg))
