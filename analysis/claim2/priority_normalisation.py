@@ -81,8 +81,8 @@ def main():
     import matplotlib.pyplot as plt
     panels = [("greedy_base_max", "coverage 0.84%  (shipped rate)"),
               ("greedy_cov_max", "coverage 15.9%  (the new arm)")]
-    fig, axes = plt.subplots(1, 2, figsize=(11.5, 5.0), dpi=150, sharey=True)
-    for ax, (arm, subtitle) in zip(axes, panels):
+    fig, axes = plt.subplots(1, 2, figsize=(12.5, 6.0), dpi=150, sharey=True)
+    for pi, (ax, (arm, subtitle)) in enumerate(zip(axes, panels)):
         got = _load(arm)
         if got is None:
             ax.text(.5, .5, f"{arm}\nno snapshot yet", ha="center", transform=ax.transAxes)
@@ -92,27 +92,55 @@ def main():
         n = cs.size
         for mode, lab, colour, ls in MODES:
             p = np.sort(rows[mode]["p"])[::-1] * n     # priority relative to uniform
-            ax.plot(np.arange(1, n + 1), p, color=colour, ls=ls, lw=1.9,
-                    label=f"{lab}   ESS {rows[mode]['ess']:.3f}")
-        ax.axhline(1.0, color="#a8341c", lw=1.0, ls=":")
-        ax.text(1.3, 1.06, "uniform replay", fontsize=8, color="#a8341c")
+            ax.plot(np.arange(1, n + 1), p, color=colour, ls=ls, lw=2.1,
+                    label=f"{lab}   top slot gets {rows[mode]['peak']:.1f} tickets")
+        ax.axhline(1.0, color="#a8341c", lw=1.2, ls=":")
+        ax.text(1.3, 1.05, "1 ticket each = uniform replay (a fair lottery)",
+                fontsize=8.5, color="#a8341c")
         ax.set_xscale("log"); ax.set_yscale("log")
-        ax.set_xlabel("slots, ordered by priority  (1 = most-sampled)")
-        ax.set_title(f"{subtitle}\nmeasured {(sa >= 0).mean()*100:.2f}%   {fname}",
-                     fontsize=10, loc="left")
+        ax.set_xlabel("slots, lined up LUCKIEST (left) -> UNLUCKIEST (right)")
+        # Read-the-chart guides on the LEFT panel only. The lesson is identical in
+        # both and the right panel has no free space that clears the stats box.
+        pn = np.sort(rows["none"]["p"])[::-1] * n
+        peak = pn[0]
+        shelf_end = int(np.argmax(pn < 0.99 * peak)) or 1      # where the tie-mass ends
+        if pi == 0:
+          ax.annotate("higher = a few slots\nhog the replay",
+                      xy=(1.2, peak * 0.97), xytext=(6, peak * 0.42),
+                      fontsize=8.5, color="#55666f",
+                      arrowprops=dict(arrowstyle="->", color="#55666f", lw=.9))
+          ax.annotate("flat shelf = slots TIED at the top\n"
+                      "(the batch just inserted, td = MAX)",
+                      xy=(max(2, shelf_end // 3), peak * 1.005),
+                      xytext=(max(6, shelf_end) * 2.2, peak * 0.58),
+                      fontsize=8.5, color="#55666f",
+                      arrowprops=dict(arrowstyle="->", color="#55666f", lw=.9))
+        ax.set_title(subtitle, fontsize=10.5, loc="left", pad=6)
         ax.grid(alpha=.18, lw=.6, which="both")
         ax.legend(fontsize=8, loc="lower left")
-        txt = (f"top-1% slots kept vs 'none'\n"
+        txt = (f"{fname}\n"
+               f"top-1% slots kept vs 'none'\n"
                f"  min-max {100*rows['minmax']['overlap']:.0f}%"
                f"    rank {100*rows['rank']['overlap']:.0f}%\n"
                f"cv(TD) {rows['none']['cv_td']:.1f} -> rank {rows['rank']['cv_td']:.2f}\n"
                f"cv(CCE) {rows['none']['cv_cce']:.2f} -> rank {rows['rank']['cv_cce']:.2f}")
-        ax.text(.97, .97, txt, transform=ax.transAxes, ha="right", va="top", fontsize=8,
+        ax.text(.97, .97, txt, transform=ax.transAxes, ha="right", va="top", fontsize=7.8,
                 bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#c5cfd6", alpha=.92))
-    axes[0].set_ylabel("sampling probability  x  N\n(1.0 = uniform)")
-    fig.suptitle("Priority normalisation: what each mode does to the sampler  (issue #16)",
-                 fontsize=12, x=.01, ha="left")
-    fig.tight_layout(rect=[0, 0, 1, .95])
+    axes[0].set_ylabel("REPLAY TICKETS PER SLOT\n"
+                       "(1.0 = drawn as often as everyone else)")
+    fig.suptitle("How unfair is the replay lottery?   priority normalisation, issue #16",
+                 fontsize=13, x=.01, ha="left", weight="bold")
+    fig.text(.01, .935,
+             "Each buffer slot is a lottery ticket holder. The line is tickets-per-slot, "
+             "richest to poorest. Higher and steeper = more unfair.",
+             fontsize=9.5, color="#55666f")
+    fig.text(.01, .015,
+             "Read: 'none' (shipped) gives the top slots 10x tickets. min-max squashes that to "
+             "3x. rank is almost flat at 1.5x -- nearly a fair lottery.\n"
+             "Note every mode has ESS 0.92-0.99, i.e. replay is close to uniform ALREADY, "
+             "which caps how much this knob can matter.",
+             fontsize=8.5, color="#55666f")
+    fig.tight_layout(rect=[0, .055, 1, .915])
     out = os.path.join(OUT, "priority_normalisation.png")
     fig.savefig(out); print("wrote", out)
     for arm, _ in panels:
