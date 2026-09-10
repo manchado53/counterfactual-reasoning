@@ -99,6 +99,27 @@ ARMS = {
     # route does not; a different result means something other than coverage is at play.
     "greedy_freq_max": {**_G, **_H60, **_MAX, "n_score_sample": 128, "score_interval": 25},
     "greedy_freq_wm":  {**_G, **_H60, **_WM,  "n_score_sample": 128, "score_interval": 25},
+    # PRIORITY NORMALISATION (issue #16). Jeremy 08/20: "equal exponents do not imply
+    # equal contribution". Measured on real snapshots at 15.9% coverage: cv(TD)=47.4 vs
+    # cv(CCE)=0.80, a 59x mismatch at identical exponents. rank puts both at 0.58 by
+    # construction. Both arms sit on greedy_cov_max, so 'none' is already running as
+    # that arm and this is a clean 3-way at matched everything else.
+    # NOT a no-op, contrary to issue #16's title: min-max cuts the sampler's peak from
+    # 10.0x uniform to 3.2x and reshuffles 54% of the top-1% slots. Measured offline.
+    "cov_rank_max":   {**_G, **_H60, **_MAX, "n_score_sample": 1_280,
+                       "normalise_priorities": "rank"},
+    "cov_minmax_max": {**_G, **_H60, **_MAX, "n_score_sample": 1_280,
+                       "normalise_priorities": "minmax"},
+    # DRIFT PROBE (issue: does a stored CCE score go stale, or just get old?).
+    # Everything else matches greedy_base_max -- the probe measures how fast a SCORE
+    # moves, which does not depend on how often the arm scores its own buffer, so the
+    # cheap arm is the right host. 100k episodes: past the 62,500-episode epsilon decay
+    # with ~37k of converged training after it, which is the regime where a stale score
+    # would actually be doing damage. Probe set frozen at episode 20,000, 512
+    # transitions, re-scored at every eval (~400 probes, ~640 Q-updates apart -- fine
+    # granularity against the 1,788-update median staleness we are testing).
+    "drift_probe": {**_G, **_H60, **_MAX, "n_score_sample": 64,
+                    "cf_drift_probe_n": 512, "cf_drift_probe_start_ep": 20_000, "n_episodes": 100_000},
     # SMOKE-GATED: horizon instead of coverage, no bootstrap needed at H = max_steps.
     # KILLED 2026-09-09: 88-90% of its measured scores are exactly 0.0. Under sparse
     # reward only GOAL pays, so an un-bootstrapped return is binary and ~90% of rollouts
@@ -108,6 +129,8 @@ ARMS = {
 }
 MAIN_ARMS = ["greedy_base_max", "greedy_base_wm", "greedy_cov_max", "greedy_cov_wm"]
 FREQ_ARMS = ["greedy_freq_max", "greedy_freq_wm"]
+DRIFT_ARMS = ["drift_probe"]
+NORM_ARMS = ["cov_rank_max", "cov_minmax_max"]
 FULL_ARMS = ["greedy_full_max", "greedy_full_wm"]
 
 BASE = dict(
@@ -146,6 +169,12 @@ def main():
     p.add_argument("--seeds", type=int, default=None)
     p.add_argument("--max-concurrent", type=int, default=MAX_CONCURRENT)
     p.add_argument("--tag", default=None)
+    p.add_argument("--manifest", default=None,
+                   help="write to docs/.../manifest_<name>.json instead of the sweep "
+                        "manifest. REQUIRED for any arm that is not part of the "
+                        "coverage outcome comparison -- mixing a diagnostic run into "
+                        "manifest_greedy_coverage.json would silently pull it into the "
+                        "outcome analysis.")
     p.add_argument("--partition", default="teaching")
     p.add_argument("--gres", default="gpu:t4:1")
     args = p.parse_args()
@@ -155,7 +184,11 @@ def main():
         if a not in ARMS:
             p.error(f"unknown arm {a!r}; choose from {list(ARMS)}")
     seeds = args.seeds if args.seeds is not None else (1 if args.smoke else N_SEEDS)
-    manifest_path = SMOKE_MANIFEST if args.smoke else MANIFEST
+    if args.manifest:
+        manifest_path = os.path.join(os.path.dirname(MANIFEST),
+                                     f"manifest_{args.manifest}.json")
+    else:
+        manifest_path = SMOKE_MANIFEST if args.smoke else MANIFEST
     tag = args.tag or ("greedy_smoke" if args.smoke else "greedy_coverage")
     episodes = 5_000 if args.smoke else BASE["n_episodes"]
     snaps = 3 if args.smoke else BASE["n_buffer_snapshots"]
@@ -185,8 +218,10 @@ def main():
                 print(f"   SKIP {key} (already submitted as {manifest[key]['job_id']})")
                 continue
             # arm dict merges AFTER BASE, so an arm may override score_interval
+            # arm dict merges AFTER BASE, so an arm may override score_interval
             cfg = {**BASE, **CELL, **c, "seed": seed,
-                   "n_episodes": episodes, "n_buffer_snapshots": snaps}
+                   "n_episodes": c.get("n_episodes", episodes),
+                   "n_buffer_snapshots": snaps}
             pending.append((key, arm, seed, cfg))
 
     n, conc = len(pending), args.max_concurrent
@@ -194,7 +229,9 @@ def main():
     slowest = max((cost(a) * scale for a in arms), default=0.0)
     print(f"\n{'DRY RUN: ' if args.dry_run else ''}{n} jobs "
           f"({len(arms)} arms x {seeds} seed(s)){'  [SMOKE]' if args.smoke else ''}")
-    print(f"  episodes/run {episodes:,}   estimated {hours:.0f} GPU-h")
+    eps_set = sorted({ARMS[a].get("n_episodes", episodes) for a in arms})
+    eps_str = ", ".join(f"{e:,}" for e in eps_set)
+    print(f"  episodes/run {eps_str}   estimated {hours:.0f} GPU-h")
     print(f"  slowest arm ~{slowest:.2f} h  ->  {waves} wave(s) of {conc}"
           f"  =  ~{waves * slowest:.1f} h wall-clock")
     print(f"  time limit {TIME_LIMIT}   exclude {EXCLUDE}   manifest {os.path.basename(manifest_path)}")

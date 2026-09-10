@@ -21,6 +21,7 @@ Variants (identical knobs to FrozenLake):
   algorithm='consequence-dqn', priority_mixing='multiplicative'  → CCE + TD multiplicative (Eq. 5)
 """
 
+import json
 import os
 from typing import Optional
 
@@ -56,6 +57,7 @@ class JaxNavConsequenceDQN(JaxNavDQN):
             cce_balance=self.config.get('cce_balance', None),
             target_ess_frac=self.config.get('target_ess_frac', None),
             ess_recalib_every=self.config.get('ess_recalib_every', 50),
+            normalise_priorities=self.config.get('normalise_priorities', 'none'),
         )
 
         self.score_interval = self.config.get('score_interval', 100)
@@ -75,6 +77,22 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._last_rollout_reasons: dict = {}
         self._last_rollout_n = 0
         self._double_sample_overlaps: list = []
+
+        # DRIFT PROBE. A CCE score is written once and never recomputed; the measured
+        # median staleness is ~1,788 Q-updates (~14 target-net refreshes). Whether that
+        # MATTERS depends on how fast a score actually moves, which nothing has ever
+        # measured -- the buffer snapshots hold only the priority arrays, not the
+        # states, so it cannot be done after the fact. This keeps a FIXED set of
+        # transitions (states copied out of the buffer so later overwrites cannot touch
+        # them) and re-scores exactly those, with the current network, at every eval.
+        # Correlating score vectors across time gives rho(delta) -- the answer to "is a
+        # 1,788-update-old score still the same score?". TD magnitudes for the same
+        # transitions are logged alongside, so CCE drift can be read against the signal
+        # that IS refreshed for free. Off by default; costs one extra scoring pass per
+        # probe.
+        self.cf_drift_probe_n = int(self.config.get('cf_drift_probe_n', 0))
+        self.cf_drift_probe_start = int(self.config.get('cf_drift_probe_start_ep', 20_000))
+        self._probe = None          # dict(states=batched pytree, obs, actions)
 
     # ------------------------------------------------------------------
     # Counterfactual rollout
@@ -269,6 +287,96 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         scored_indices = indices[np.array(valid_indices)]
         self.buffer.update_consequence_scores(scored_indices, scores,
                                               q_update_count=self.q_update_count)
+
+    # ------------------------------------------------------------------
+    # Drift probe
+    # ------------------------------------------------------------------
+
+    def _score_states(self, states_batched, obs_list, actions_taken):
+        """Score an arbitrary batch of transitions with the CURRENT network.
+
+        Shares the compiled rollout function and the chunking with
+        _score_buffer_transitions, but reads nothing from and writes nothing to the
+        buffer -- so the probe cannot perturb training.
+        """
+        B, A, N = len(actions_taken), self.n_actions, self.cf_n_rollouts
+        if self._compiled_rollout_fn is None:
+            self._build_rollout_fn()
+        self._key, subkey = jax.random.split(self._key)
+        keys_array = jax.random.split(subkey, B * A * N).reshape(B, A, N, 2)
+        max_envs = int(self.config.get('cf_score_max_envs', 20_000))
+        chunk_B = max(1, min(B, max_envs // max(1, A * N)))
+        parts = []
+        for lo in range(0, B, chunk_B):
+            hi = min(lo + chunk_B, B)
+            sub = jax.tree.map(lambda leaf, a=lo, b=hi: leaf[a:b], states_batched)
+            r, _ = self._compiled_rollout_fn(
+                self.params, self.target_params, sub, self._all_actions, keys_array[lo:hi])
+            parts.append(np.array(jax.block_until_ready(r)))
+        returns_np = np.concatenate(parts, axis=0)
+
+        obs_batch = jnp.asarray(np.stack(obs_list), dtype=jnp.float32)
+        q_batch = jax.vmap(self.network.apply, in_axes=(None, 0))(self.params, obs_batch)
+        ap_t = self.config.get('cf_action_prob_temperature')
+        if ap_t is None:
+            ap_t = self.cf_rollout_temperature
+        probs_batch = np.array(jax.nn.softmax(q_batch / max(float(ap_t), 1e-3), axis=-1))
+
+        scores = np.zeros(B)
+        for i in range(B):
+            scores[i] = compute_consequence_metric(
+                action=(actions_taken[i],),
+                return_distributions={(a,): returns_np[i, a] for a in range(A)},
+                metric=self.consequence_metric,
+                action_probs={(a,): float(probs_batch[i, a]) for a in range(A)},
+                aggregation=self.consequence_aggregation,
+            )
+        return np.nan_to_num(scores, nan=0.0, posinf=0.0, neginf=0.0), np.array(q_batch)
+
+    def _maybe_init_drift_probe(self, episode: int):
+        """Freeze a fixed probe set once, by COPYING states out of the buffer.
+
+        Copied on purpose: buffer slots are overwritten every ~12 chunks, so holding
+        indices would silently re-point the probe at different transitions and the
+        correlation would measure the ring pointer instead of score drift.
+        """
+        if (self.cf_drift_probe_n <= 0 or self._probe is not None
+                or episode < self.cf_drift_probe_start
+                or len(self.buffer) < self.cf_drift_probe_n):
+            return
+        transitions, indices = self.buffer.sample_uniform(self.cf_drift_probe_n)
+        states, obs, acts = [], [], []
+        for t, idx in zip(transitions, indices):
+            st = self.buffer.get_jax_state(idx)
+            if st is None:
+                continue
+            states.append(jax.tree.map(lambda x: jnp.array(x), st))
+            obs.append(np.array(t['s']))
+            acts.append(int(t['a']))
+        if not states:
+            return
+        self._probe = dict(
+            states=jax.tree.map(lambda *l: jnp.stack(l), *states),
+            obs=obs, actions=acts, episode=episode)
+        print(f"[drift] probe frozen: {len(acts)} transitions at episode {episode}")
+
+    def run_drift_probe(self, episode: int) -> Optional[dict]:
+        """Re-score the frozen probe set and append one line to drift.jsonl."""
+        self._maybe_init_drift_probe(episode)
+        if self._probe is None:
+            return None
+        scores, q = self._score_states(self._probe['states'], self._probe['obs'],
+                                       self._probe['actions'])
+        # TD magnitude for the same transitions, from the same forward pass, so CCE
+        # drift can be read against the signal that IS refreshed for free.
+        q_taken = np.array([q[i, a] for i, a in enumerate(self._probe['actions'])])
+        rec = dict(episode=int(episode), q_update=int(self.q_update_count),
+                   n=len(scores), cce=[round(float(x), 6) for x in scores],
+                   q_taken=[round(float(x), 6) for x in q_taken])
+        path = os.path.join(self.metrics_logger.dir, 'drift.jsonl')
+        with open(path, 'a') as fh:
+            fh.write(json.dumps(rec) + "\n")
+        return rec
 
     # ------------------------------------------------------------------
     # Training step (score periodically, then a normal Q-update)

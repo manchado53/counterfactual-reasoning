@@ -232,6 +232,14 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
                     metrics = self.evaluate(eval_episodes)
                 self.metrics_logger.log_eval(total_episodes, self.q_update_count, self.epsilon, metrics)
                 self._log_priority_diagnostics(total_episodes, metrics)
+                # Drift probe: re-score a FIXED transition set with the current
+                # network. Off unless cf_drift_probe_n > 0. Guarded like the other
+                # diagnostics -- a probe failure must never kill a training run.
+                if getattr(self, 'cf_drift_probe_n', 0) > 0:
+                    try:
+                        self.run_drift_probe(total_episodes)
+                    except Exception as exc:  # pragma: no cover - diagnostics only
+                        print(f"[drift] probe failed at ep {total_episodes}: {exc}")
                 if metrics['win_rate'] > best_success:
                     best_success = metrics['win_rate']
                     self.save(best_path)

@@ -17,6 +17,42 @@ _HIST_LO, _HIST_HI, _HIST_NBINS = 1e-5, 1.0, 100
 _HIST_EDGES = np.logspace(np.log10(_HIST_LO), np.log10(_HIST_HI), _HIST_NBINS + 1)
 
 
+
+def _normalise(x: np.ndarray, mode: str) -> np.ndarray:
+    """Put a raw priority magnitude on a common scale before (x+eps)**beta.
+
+    Jeremy 08/20: "equal exponents do not imply equal contribution". Measured on run
+    274548, TD has cv 3.22 while the CCE score has cv 0.10 -- a ~30x mismatch in how
+    much each signal actually moves the sampler, at identical exponents.
+
+    'none'    ship as-is.
+    'minmax'  x -> (x-min)/(max-min). Near a NO-OP by construction: with eps=0 the
+              rescale factors straight out of the normalisation, since
+              (c*x)**beta = c**beta * x**beta cancels in p/sum(p). It bites only
+              through how large the eps floor looks after rescaling, which is an
+              arbitrary amount nobody chose. Kept so that can be demonstrated.
+    'rank'    x -> average-rank in [0,1]. Makes the marginal uniform, so cv = 0.577
+              BY CONSTRUCTION for both signals and equal exponents finally mean equal
+              contribution.
+
+    TIES MUST BE AVERAGED. ~84% of the buffer carries the same inherited running mean
+    (add(), Algorithm 2 line 7). A plain argsort would hand that tie-mass ranks
+    0..84,000 and invent a gradient out of nothing. With method='average' the whole
+    tie-mass collapses onto a single rank, which keeps the coverage hole VISIBLE
+    instead of hiding it behind the normaliser.
+    """
+    if mode == 'none' or x.size == 0:
+        return x
+    if mode == 'minmax':
+        lo, hi = float(x.min()), float(x.max())
+        return np.zeros_like(x) if hi <= lo else (x - lo) / (hi - lo)
+    if mode == 'rank':
+        from scipy.stats import rankdata
+        r = rankdata(x, method='average')
+        return (r - 1.0) / max(1.0, (x.size - 1))
+    raise ValueError(mode)
+
+
 class ConsequenceReplayBuffer:
     """
     Prioritized replay buffer with consequence-weighted priorities.
@@ -46,6 +82,7 @@ class ConsequenceReplayBuffer:
         priority_mixing: str = 'additive',
         mu_c: float = 1.0,
         mu_delta: float = 1.0,
+        normalise_priorities: str = 'none',
         cce_balance: Optional[float] = None,
         target_ess_frac: Optional[float] = None,
         ess_recalib_every: int = 50,
@@ -62,6 +99,10 @@ class ConsequenceReplayBuffer:
         self.priority_mixing = priority_mixing
         self.mu_c = mu_c
         self.mu_delta = mu_delta
+        if normalise_priorities not in ('none', 'minmax', 'rank'):
+            raise ValueError("normalise_priorities must be 'none', 'minmax' or 'rank', "
+                             f"got {normalise_priorities!r}")
+        self.normalise_priorities = normalise_priorities
         # ESS-matched mode: hold the sampler's effective sample size at
         # target_ess_frac and let cce_balance decide how much of that
         # concentration comes from the CCE score vs the TD error. Without this
@@ -167,6 +208,13 @@ class ConsequenceReplayBuffer:
         # Safety: replace any NaN/inf with 0 before priority computation
         cs = np.nan_to_num(cs, nan=0.0, posinf=0.0, neginf=0.0)
         td = np.nan_to_num(td, nan=0.0, posinf=0.0, neginf=0.0)
+
+        # Put both magnitudes on a common scale FIRST, if asked. Applied to BOTH
+        # signals on purpose: normalising only TD would leave cv 0.577 against 0.10,
+        # still a ~6x gap, which is the thing being fixed.
+        if self.normalise_priorities != 'none':
+            cs = _normalise(cs, self.normalise_priorities)
+            td = _normalise(td, self.normalise_priorities)
 
         # Eq 3: p^C(j)
         p_c_raw = (cs + self.eps) ** self.beta
