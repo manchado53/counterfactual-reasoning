@@ -32,60 +32,54 @@ C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
 
-## STATUS (2026-09-09)
-Paper data = verified + frozen in paper/repro/ (master 861c0e3). **9 days to the ICLR
+## STATUS (2026-09-10)
+Paper data = verified + frozen in paper/repro/ (master 861c0e3). **8 days to the ICLR
 abstract (Sep 18).**
 
-**The coverage hypothesis is dead** (see 2026-09-09 LOG). It was this notebook's
-explanation for the JaxNav null since 09-03 and it does not survive its own test: 208
-FrozenLake runs across a 48x coverage range are FLAT (p=0.854), including at 0.7% which is
-below JaxNav's own 0.85%; and on JaxNav, raising coverage by shrinking the buffer collapsed
-16 of 16 seeds (p=0.001). **The JaxNav null is now unexplained.**
+**The coverage hypothesis is still dead** (2026-09-09 LOG) — but the LEVER now works. By
+selling redundant rollouts (deterministic env + greedy policy makes R=1 exact) we bought
+0.86% -> **16.05% measured** coverage at IDENTICAL GPU cost, buffer untouched at 100,000.
+Whether that changes learning is what array 275427 is answering. **The JaxNav null remains
+unexplained.**
 
-**What got stronger.** Those same 208 runs are the best-powered C2 evidence in the project:
-CCE 107/130 = 82% vs uniform 15/26 = 58%, Fisher p = 0.0091 on FL-det, holding at every
-coverage setting. The COVERAGE table below is unchanged in substance but FL-det is now
-backed by 208 runs rather than 25 seeds.
+**Unchanged and still the strongest thing we have:** FL-det, 208 runs, CCE 107/130 = 82% vs
+uniform 15/26 = 58%, Fisher p = 0.0091, holding at every coverage setting.
 
-**Best remaining lead, untested: the rollout policy.** JaxNav is the ONLY environment with
-`cf_rollout_temperature` (0.5); all four others use a hard argmax. JaxNav transitions are
-verified deterministic, so those 20 rollouts differ only because of injected action noise,
-and at T=0.5 the rollout follows the greedy action ~35% of the time — it scores a policy the
-agent does not have. Every graded-spread env is a null; the one clean win has the binary
-score the temperature was added to prevent.
+**The rollout-policy lead is now half-spent.** Greedy rollouts (T=0) are running, and they
+are justified twice over: they remove the injected noise AND they make `cf_n_rollouts=1`
+exact. The measured rollout/reality gap that motivated it: the T=0.5 rollout reaches the
+goal 9.7% of the time and crashes 46.7%, against 18.8% / 23.3% for the policy actually
+being evaluated (101 runs; the horizon differs too, so the crash gap is the least confounded).
 
-**docs/jaxnav_story.md is now WRONG** — beats 2, 3, 4 and 7 argue the dead hypothesis. Do
-not present it as written.
+**New framing, and it may matter more than coverage.** CCE is the weaker half of the
+priority product in four ways at once: 16% coverage vs 100%, staleness 1,788 vs ~542,
+no self-correction vs a closed loop, and 5.55 ms/write vs free. We have now attacked
+exactly one of those four.
+
+**In flight (37 jobs):** 275427 coverage outcome (20), 275469 rank vs min-max (10),
+275482 frequency outcome (5), 275465 drift probe (3).
+
+**docs/jaxnav_story.md is still WRONG** — beats 2, 3, 4 and 7 argue the dead hypothesis.
 
 ## NEXT
-0. **DO NOT sweep beta** (unchanged, `(0+eps)**beta` is one constant for ~99% of the
-   buffer). **DO NOT pursue coverage** — killed 09-09 from both directions.
-1. **Rewrite `docs/jaxnav_story.md`** around what survived. Highest priority: it is the
-   meeting/paper narrative and it currently argues a refuted claim. No compute.
-2. **Rollout-policy experiment** (issue #20 + the metric landmine). Controls ALREADY EXIST
-   and do not need rerunning — uniform and PER never call the scoring path, so their
-   results are metric-independent (JaxNav uniform n=8, FL uniform n=29, JaxNav
-   `cce_base` n=8, FL shipped-config n=26 are all done). Only the CCE variants are new:
-   ```
-     JaxNav  B  TV, greedy(T=0), R=20      ~8.6h   isolates the noise
-     JaxNav  C  Wasserstein, T=0.5, R=20   ~8.6h   isolates the metric
-     JaxNav  D  Wasserstein, greedy, R=1   ~1.6h   the proposal, ~20x cheaper
-     FL         Wasserstein, greedy, R=20  ~0.5h   does the win survive a graded score
-     FL         Wasserstein, greedy, R=1   ~0.5h   ...and at 1/20 the cost
-   ```
-   ~200 GPU-h, CONFIG-ONLY (FL is already greedy). A FL rollout-temperature knob exists as
-   an unapplied patch at `/tmp/cce_saved/fl_rollout_temperature.patch` — only needed for the
-   symmetric "inject noise into the winner" arm, and it is UNTESTED.
-   **`cf_n_rollouts=1` REQUIRES Wasserstein**: `compute_total_variation` returns 0.0 when a
-   sample has len<2, so TV+R=1 silently zeroes every score.
-3. Analysis owed, NO compute: P(method > baseline) bootstrap and the compute-time analysis
-   are done (`analysis/claim2/jaxnav_prob_and_cost.py`); the scoring-vs-training SPLIT is
-   still unavailable on JaxNav (only `total`/`eval` timers exist — FrozenLake HAS
-   `update.scoring.*` timers and could supply it).
-4. C4 Layer 1 — verify fixes are in code, then: does plain DQN beat the opponent at all?
-5. Redo C1 on deterministic FL. Port `FrozenLakeDQN.from_checkpoint()` to master first.
-6. Fix paper.tex numbers AND the Algorithm 1 defects (#15, and line 7's `c_t = sum c_j/|D|`
-   which makes ~99% of the buffer a clock). `paper.tex` is stale vs the PDF.
+0. **DO NOT sweep beta.** **DO NOT shrink the buffer** (32 runs, all collapse). **DO NOT
+   run the rollout to the end without bootstrap** — 88-90% of scores come back exactly 0.
+1. **Read the four running arrays.** 275465 (drift) is the gate on everything expensive:
+   if a CCE score barely moves over 2,000 updates, freshness is a phantom and the 89-175
+   GPU-h `interval=1` arm should never be run.
+2. **Paper, no compute, and this is what Sep 18 needs:**
+   - #19 the Claim 1 section is still EMPTY. Biggest single blocker.
+   - #15 Algorithm 2 has NO scoring-interval parameter; add `K_C`, report
+     `kappa = min(1, B_est^C/(K_C K_up))`. Use kappa — rho is the C1 correlation.
+   - #23 define pi. It decides whether `cf_n_rollouts=1` is exact or under-sampled.
+   - #3  FrozenLake passes no `action_probs`, so its `weighted_mean` IS `max`. The
+     208-run headline is a win under max, labelled otherwise.
+3. **Rewrite `docs/jaxnav_story.md`** around what survived.
+4. **Close/update the 8 answered issues** (#22 #18 #11 #7 #4 #9 #3 #15). None of this
+   week's findings are visible to anyone outside this repo.
+5. Untested and cheap, since memory was never the constraint (buffer is 277 MB of a 32 GB
+   allocation): a BIGGER buffer. We have only ever shrunk it.
+6. C4 Layer 1; redo C1 on deterministic FL (port `from_checkpoint()` to master first).
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -131,6 +125,164 @@ not present it as written.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-09-10 — Coverage bought at ZERO extra compute: 0.86% → 16.05%, measured. Plus 7 corrections.
+
+Branch `research/jaxnav-greedy-coverage`. Six arrays launched, one cancelled. Nothing here
+overturns the 09-09 retraction — coverage is still not the explanation for the JaxNav null —
+but the *lever* now works, so the question can finally be asked properly.
+
+**THE TRICK.** Scoring cost is `n_score x actions x rollouts x horizon`. JaxNav transitions
+are deterministic, so at `cf_rollout_temperature=0` the 20 rollouts of an action are the SAME
+rollout 20 times. One rollout is EXACT, not an approximation. Sell that, buy coverage:
+
+```
+  cce_base    64 x 15 x 20 x 60 = 1,152,000 env-steps/pass    coverage 0.86% MEASURED
+  greedy_cov 1,280 x 15 x 1 x 60 = 1,152,000                  coverage 16.05% MEASURED
+```
+
+Buffer stayed at 100,000. Nothing discarded. Same GPU budget. 18x more of the buffer now
+carries a real measured score, confirmed at 250k scale, not just in the smoke.
+
+**FORCED CONSEQUENCES OF R=1** (not free choices):
+- `consequence_metric` MUST be wasserstein. `compute_total_variation` returns exactly 0.0
+  when a sample has len<2, so TV+R=1 silently zeroes every score and degrades CCE to uniform
+  with no error.
+- At T=0 the action-probability softmax collapses to one-hot (measured ESS 1.0/14 vs
+  11.0/14 at T=0.5), so `weighted_mean` silently BECOMES `max`. Added
+  `cf_action_prob_temperature` to decouple them; unset it is bit-identical to every run on
+  disk (parity-tested, max|diff| 0.000e+00).
+
+**DEAD END (mine, measured and dropped): run the rollout to the end instead of bootstrapping.**
+H=200 = `max_steps` DOES guarantee termination — `rollout_alive_frac` came back exactly 0.0%.
+But 88-90% of its measured scores are exactly 0.0, against 7% for the bootstrapped H=60 arms.
+Cause is the REWARD, not the horizon: under sparse reward only GOAL pays, so an
+un-bootstrapped return is binary, and goal-rate is ~9% at H=60 and at H=200 alike. Running to
+the end converts "alive" (75%) into "timeout" (84%), which pays the same 0.0. **Bootstrap is
+what grades the score.** Killed the arm, saved 86 GPU-h.
+
+**BOOTSTRAP ON, from the disk not from theory.** Matched on mixing+aggregation at fill 0.3 /
+250k, multiplicative arms collapse (<30% final) in **7/24 seeds without bootstrap and 0/13
+with it** (Fisher p=0.038); means +11.7 and +16.2 pp, both n.s. CAVEAT: a similar JaxNav
+reliability claim was retracted 2026-08-15 (this notebook, l.622). Treat as a knob setting,
+not a reportable result.
+
+**FREQUENCY == BATCH at fixed budget.** `greedy_freq` (128/25) vs `greedy_cov` (1280/250) —
+identical coverage by construction. Smoke measured coverage 15.69 vs 16.05, staleness p50
+1,750 vs 1,788, zeros 7.0% vs 7.2%, and freq **13% SLOWER** (20 passes of 1,920 envs vs 2 of
+19,200 — the GPU prefers wide). Launched at 250k anyway (275482): the smoke compares
+END-OF-CHUNK snapshots and cannot see that freq rebuilds the sampling distribution 20x per
+chunk against 20 different network states while cov does it twice.
+
+**CAPACITY ARMS RISE THEN DECAY** — not visible in any final-value table we had:
+
+```
+  arm            peak win%   at episode   final win%
+  uniform            67.8%      216,158       52.6%
+  cce_8192           27.4%       82,058       11.6%
+  cce_8192_i4        28.1%       83,528       11.6%
+  cce_2500           15.4%       29,598        9.1%
+```
+
+A buffer smaller than the 8,192 insert burst holds only recent experience: fast off the line,
+then it forgets. `cce_8192_i4` tracks `cce_8192` exactly — **4x the scoring frequency at
+capacity 8,192 changes nothing**, an independent 250k/n=8 confirmation that frequency does not
+rescue a collapsed arm. CANCELLED its 6 remaining jobs at 20.5h (71-96% done, every seed
+7-18% against a 40% threshold).
+
+**CORRECTED COVERAGE MODEL.** I had been using `1 - e^(-d)`, which is P(a slot was scored by
+the END of its life). The buffer holds slots of EVERY age, so the right quantity averages
+over age:
+
+```
+  coverage = 1 - (1 - e^(-d)) / d      d = draws per slot lifetime
+  validated:  d=0.016 -> 0.80% predicted vs 0.90% MEASURED
+              d=0.320 -> 14.41%        vs 16.05% MEASURED
+```
+
+This corrects two numbers I gave earlier: `n_score 64, interval 1` gives **75.5%, not 98%**;
+TD-parity gives **87.5%, not 100%**. 100% is an asymptote under uniform draws — coverage ->
+1 - 1/d — because new slots keep arriving unscored. Only TARGETED draws (pick from
+`scored_at == NEVER_SCORED`) reach 100% exactly, at the arrival rate, and that diverges from
+Algorithm 2 line 219's `U(D)`.
+
+**TD vs CCE, the asymmetry that may matter more than coverage.**
+
+```
+                        TD              CCE
+  writes per run        81,920,000      3,276,800       25x
+  refreshed             every update    every 250th
+  median staleness      542 DERIVED     1,788 MEASURED
+  marginal cost         free            5.55 ms
+  self-correcting       YES             NO
+```
+
+TD refresh is a byproduct of the gradient step, so a wrong-high TD priority causes a draw,
+gets measured, and corrects itself. A wrong CCE score has no such loop — nothing recomputes
+it and it persists for the slot's whole life. Note also `add()` seeds new entries with
+`c = MEAN` but `d = MAX`: two different philosophies in the same slot. Cost to give CCE TD's
+refresh rate: 25x = ~127 GPU-h/run/seed.
+
+**PAPER DEFECT (issue #15, now quantified).** Algorithm 2 has **no scoring-interval
+parameter**. Scoring sits inside the `t mod K_up = 0` block, i.e. on every Q-update. Every
+implementation has `score_interval` and runs 100-250x less scoring than that:
+
+```
+  env                B_est^C  score_interval  K_up   kappa (coverage)
+  FrozenLake            128        100          4      32.0%
+  SMAX                  256        200          4      32.0%
+  JaxNav (sweeps)        64        250         16       1.6% derived / 0.86% measured
+```
+
+The hyperparameter table reports "Score interval 200 ep" — a parameter the algorithm does not
+define, in EPISODES when the code counts Q-UPDATES. Fix: add `K_C` to Algorithm 2 and report
+`kappa = min(1, B_est^C / (K_C K_up))`. Use **kappa**, not rho — rho is already the Claim-1
+Spearman correlation.
+
+**ISSUE #16 CORRECTED: min-max is NOT a near-no-op.** Measured offline on real snapshots at
+15.9% coverage (a snapshot carries scores, td and scored_at, which is all the priority
+computation consumes, so this needed no GPU):
+
+```
+  mode      ESS      top-1% kept   peak/uniform
+  none     0.944        100%          10.0
+  minmax   0.985         45.5%         3.2
+  rank     0.930         33.2%         1.5
+```
+
+The issue's mechanism note was right (it acts through the eps floor) but the magnitude claim
+was wrong — min-max cuts the sampler's peak from 10x uniform to 3.2x and reshuffles 54% of
+the top-1%. `rank` puts cv(TD) 47.4 -> 0.58 and cv(CCE) 0.80 -> 0.58, which IS the thing
+Jeremy asked for on 08/20. **Sobering:** every mode sits at ESS 0.92-0.99, so replay is close
+to uniform whatever we choose — that caps how much this knob can matter.
+
+**BUFFER MEMORY, since it came up.** 277 MB at capacity 100,000, of which ~68% is redundant:
+`s'` duplicates the next slot's `s`, `jax_obs` is a byte-for-byte copy of `transition['s']`,
+and the 8x8 map is stored once per step (~124 copies; only ~804 distinct maps live in a full
+buffer). None of it costs us anything against a 32 GB allocation. The consequence worth
+recording: **memory was never the reason capacity is 100,000, and we have never tested a
+BIGGER buffer** — only 32 runs shrinking it, all of which collapsed.
+
+**MY OWN ERRORS THIS SESSION, for the record:**
+1. Cost model under-predicted `greedy_base` by 2.4x (1.6h estimated, 3.9h actual). The
+   scoring term was fine; the fixed-overhead constant came from an old `uniform` run.
+2. First smoke gate killed `greedy_full` by comparing a 5,000-episode goal-rate against a
+   number measured on fully-trained 250k runs — two different training stages. Same verdict,
+   wrong reason; replaced with the structural zero-fraction test.
+3. Claimed wide batches are GPU-efficient, retracted it on a confounded comparison, then the
+   clean freq-vs-cov comparison restored it at 13% — much smaller than first implied.
+4. Quoted means on a bimodal outcome. 20 of 26 uniform seeds land at 52-62% and 6 die at
+   3-38%, so the mean reports how many seeds died. Report the solve rate or the median.
+
+**RUNS.** 275420 smoke (6), 275427 coverage outcome (20), 275455 freq smoke (2), 275465 drift
+probe (3), 275469 rank/min-max (10), 275482 frequency outcome (5). 275325 cancelled.
+
+**NEW INSTRUMENTS.** `cf_action_prob_temperature` (decouple the aggregation weights from the
+rollout policy), `normalise_priorities` none/minmax/rank (ties averaged, deliberately — a
+plain argsort would hand the 84% inherited-mean tie-mass ranks 0..84,000 and invent a gradient
+out of nothing), `cf_drift_probe_n` (re-score a FIXED transition set at every eval, states
+COPIED out of the buffer since slots are overwritten every ~12 chunks). All default-off.
+
 
 ### 2026-09-09 — THE COVERAGE HYPOTHESIS IS DEAD. Tested from both ends, 240 runs.
 
