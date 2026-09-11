@@ -31,55 +31,58 @@ SMAX-8m     —                         UNFINISHED (never ran clean)
 C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
-
 ## STATUS (2026-09-10)
 Paper data = verified + frozen in paper/repro/ (master 861c0e3). **8 days to the ICLR
 abstract (Sep 18).**
 
-**The coverage hypothesis is still dead** (2026-09-09 LOG) — but the LEVER now works. By
-selling redundant rollouts (deterministic env + greedy policy makes R=1 exact) we bought
-0.86% -> **16.05% measured** coverage at IDENTICAL GPU cost, buffer untouched at 100,000.
-Whether that changes learning is what array 275427 is answering. **The JaxNav null remains
-unexplained.**
+**All JaxNav levers are now pulled and JaxNav is a null.** Coverage (0.86% -> 16.05%,
+measured, at identical GPU cost), the frequency route to the same coverage, min-max
+normalisation, rank normalisation, bootstrap, greedy rollouts. Nothing beats uniform.
+The one arm that is *significantly* different from uniform is `greedy_cov_max` at
+**p=0.048 — significantly WORSE**.
 
-**Unchanged and still the strongest thing we have:** FL-det, 208 runs, CCE 107/130 = 82% vs
-uniform 15/26 = 58%, Fisher p = 0.0091, holding at every coverage setting.
+**Three independent measurements say CCE on JaxNav measures noise, not consequence:**
+drift probe rho_CCE 0.36 vs rho_Q 0.96 · 74-80% of buffer scores dead · spatial map
+rho +0.688 with distance-to-obstacle (highest in OPEN space, the opposite of the
+motivating intuition) and 47.8% of positions scoring exactly 0.
 
-**The rollout-policy lead is now half-spent.** Greedy rollouts (T=0) are running, and they
-are justified twice over: they remove the injected noise AND they make `cf_n_rollouts=1`
-exact. The measured rollout/reality gap that motivated it: the T=0.5 rollout reaches the
-goal 9.7% of the time and crashes 46.7%, against 18.8% / 23.3% for the policy actually
-being evaluated (101 runs; the horizon differs too, so the crash gap is the least confounded).
+**The small-buffer collapse is settled and is NOT a CCE effect** (2026-09-10b LOG).
+uniform and PER collapse together at every capacity below 50,000, and the curves show
+*catastrophic forgetting* — small buffers learn, peak at 26-37% around episode 65k-125k,
+then lose ~19pp. Mechanism, not just outcome.
 
-**New framing, and it may matter more than coverage.** CCE is the weaker half of the
-priority product in four ways at once: 16% coverage vs 100%, staleness 1,788 vs ~542,
-no self-correction vs a closed loop, and 5.55 ms/write vs free. We have now attacked
-exactly one of those four.
+**Unchanged and still the strongest thing we have:** FL-det, 208 runs, CCE 107/130 = 82%
+vs uniform 15/26 = 58%, Fisher p = 0.0091, holding at every coverage setting.
 
-**In flight (37 jobs):** 275427 coverage outcome (20), 275469 rank vs min-max (10),
-275482 frequency outcome (5), 275465 drift probe (3).
+**The one live thread:** `greedy_cov_wm` matches uniform's median (62.6 vs 62.8) with a
+QUARTER the spread (sd 4.1 vs 16.3) and no dead seed in 5. A variance effect needs ~10
+seeds to test, not the ~290 a mean effect would need. Untested, and found by looking at
+finished data — a hypothesis, not a result.
 
-**docs/jaxnav_story.md is still WRONG** — beats 2, 3, 4 and 7 argue the dead hypothesis.
+**Nothing is running.** All arrays complete.
 
 ## NEXT
-0. **DO NOT sweep beta.** **DO NOT shrink the buffer** (32 runs, all collapse). **DO NOT
-   run the rollout to the end without bootstrap** — 88-90% of scores come back exactly 0.
-1. **Read the four running arrays.** 275465 (drift) is the gate on everything expensive:
-   if a CCE score barely moves over 2,000 updates, freshness is a phantom and the 89-175
-   GPU-h `interval=1` arm should never be run.
-2. **Paper, no compute, and this is what Sep 18 needs:**
+0. **DO NOT sweep beta.** **DO NOT shrink the buffer** — now proven env-level, not CCE
+   (2026-09-10b). **DO NOT run the rollout to the end without bootstrap** (88-90% zeros).
+   **DO NOT read an unfinished sweep** — the fast seeds are the good seeds; that trap
+   manufactured a p=0.007 for rank this week that finished at p=0.204.
+1. **Paper, no compute, and this is what Sep 18 needs:**
    - #19 the Claim 1 section is still EMPTY. Biggest single blocker.
+   - #3  FrozenLake passes no `action_probs`, so its `weighted_mean` IS `max`. The 208-run
+     headline is a win under max, labelled otherwise. **Most serious of the four.**
    - #15 Algorithm 2 has NO scoring-interval parameter; add `K_C`, report
      `kappa = min(1, B_est^C/(K_C K_up))`. Use kappa — rho is the C1 correlation.
    - #23 define pi. It decides whether `cf_n_rollouts=1` is exact or under-sampled.
-   - #3  FrozenLake passes no `action_probs`, so its `weighted_mean` IS `max`. The
-     208-run headline is a win under max, labelled otherwise.
-3. **Rewrite `docs/jaxnav_story.md`** around what survived.
-4. **Close/update the 8 answered issues** (#22 #18 #11 #7 #4 #9 #3 #15). None of this
+2. **Rewrite `docs/jaxnav_story.md`** — beats 2, 3, 4 and 7 still argue the dead coverage
+   hypothesis. The story is now the negative result WITH a mechanism.
+3. **Close/update the ~8 answered issues** (#22 #18 #11 #7 #4 #9 #3 #15). None of this
    week's findings are visible to anyone outside this repo.
-5. Untested and cheap, since memory was never the constraint (buffer is 277 MB of a 32 GB
-   allocation): a BIGGER buffer. We have only ever shrunk it.
-6. C4 Layer 1; redo C1 on deterministic FL (port `from_checkpoint()` to master first).
+4. Re-check the bootstrap claim (0/13 vs 7/24, Fisher p=0.038) on the map_size-clean pool —
+   it predates that fix and may not survive it.
+5. If any GPU goes spare: 10 more seeds on `greedy_cov_wm` to test the variance claim
+   (~150 GPU-h). Not before the paper items.
+6. Score-on-insert (100% coverage, capacity-independent cost, ~3.1x today) is designed and
+   gated — run at capacity 100,000, accept staleness ~3,125. Only after Sep 18.
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -125,6 +128,77 @@ exactly one of those four.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-09-10b — The small-buffer collapse is NOT a CCE effect. It is catastrophic forgetting.
+
+Array 275562: uniform and PER down six capacities (8,192 / 12,288 / 16,384 / 25,000 /
+50,000 / 100,000), 5 seeds each, 250k episodes, **no consequence scoring of any kind**.
+60 runs, 72 GPU-h, ~3.5 h wall. Driver `slurm/sweep_capacity_floor.py` raises SystemExit if
+any `cf_*` / `score_interval` / `priority_mixing` key reaches a config.
+
+**Why it was run.** Every small-buffer run this project had ever done was a CCE run --
+uniform and PER existed only at capacity 100,000. So the standing rule "32 runs, all
+collapse, DO NOT shrink the buffer" had never been separated from "shrinking the buffer
+collapses CCE".
+
+**Result: both arms collapse, together, at every rung.**
+
+    capacity   uniform            PER              verdict
+       8,192    7.4%  p=0.000     7.4%  p=0.001    BOTH collapse
+      12,288   15.0%  p=0.001    11.0%  p=0.005    BOTH collapse
+      16,384   11.2%  p=0.002     8.1%  p=0.002    BOTH collapse
+      25,000   40.0%  p=0.014    22.3%  p=0.350    uniform collapses
+      50,000   49.5%  p=0.111    33.3%  p=0.681    survivable
+     100,000   62.8%  anchor     30.3%  anchor     today's default
+
+At 8,192 both arms sit at exactly 7.4%. Prioritising out of a small buffer adds no extra
+harm, so the "PER-only collapse" hypothesis is dead too. **The 32 dead CCE small-buffer runs
+were dying of the buffer. The rule stands and is no longer confounded.**
+
+**The curves gave the MECHANISM, and it is not what I assumed.** The small buffers do not
+fail to learn. They learn, peak, and then lose it:
+
+    uniform   8,192   peak 26.5% @ 67,500    ->  final  7.3%   -19.3pp
+    uniform  12,288   peak 36.3% @ 125,000   ->  final 15.0%   -21.3pp
+    uniform  16,384   peak 37.1% @ 120,000   ->  final 18.4%   -18.7pp
+    uniform  25,000   peak 48.3% @ 247,500   ->  final 46.0%    -2.4pp
+    uniform  50,000   peak 60.4% @ 250,000   ->  final 60.4%    +0.0pp
+
+Catastrophic forgetting -- exactly what too little replay diversity predicts. 25,000 and
+50,000 are still RISING at 250k; every rung below 25,000 has already peaked and fallen.
+
+**Side finding, not what the sweep asked:** `per_100000` loses **-25.5pp** from its peak
+(56.3% @ 222k -> 30.8%), the largest decay in the grid, at the DEFAULT capacity. PER on
+JaxNav degrades late in training. Worth its own look.
+
+**Consequence for score-on-insert:** run it at capacity 100,000 and accept staleness ~3,125.
+50,000 is tempting (staleness 1,562, better than today's measured 1,788, and p=0.111) but
+the point estimate is -13.2pp and "not significant at n=5" is not "not real".
+
+**Live contamination bug found and fixed on the way in.**
+`analysis/claim2/greedy_learning_curves.py:_label` returned `"uniform"` for ANY
+`dqn-uniform` run and `"per"` for ANY `dqn` run, with no capacity check -- so the moment
+this sweep landed, 50 small-buffer runs would have been absorbed into the baselines of every
+figure in the module. Same shape as the map_size bug. `_is_default_capacity` now guards
+`_label`, `_label_capacity` and `_label_norm`; `_label_floor` keys this sweep by capacity.
+Verified: the +5 per baseline is the in-sweep 100,000 anchor, by design, and the 20
+small-buffer runs per arm stay out.
+
+**Arrays 275469 / 275482 finished. Final, all seeds complete, vs uniform n=26 at 62.8%:**
+
+    greedy_freq_max   69.2%  p=0.892      cov_minmax_max   55.7%  p=0.292
+    greedy_cov_wm     62.6%  p=0.892      cov_rank_max     48.2%  p=0.204
+                                          greedy_cov_max   37.2%  p=0.048  (WORSE)
+
+`cov_rank_max` finishing at p=0.204 **confirms the fast-seed trap**: a 4-of-5-seed read at
+episode 185k had shown p=0.007, because the fifth seed was still at 172k sitting at 35%.
+Never take a comparison from an unfinished sweep -- the fast seeds are the good seeds.
+`collect()` now returns the per-seed matrix `M` so this check is one line.
+
+**Still the one live thread:** `greedy_cov_wm` holds 58.6-69.0 with no dead seed, sd 4.1
+against uniform's 16.3, median identical. A variance effect, not a mean effect -- and
+variance ratios need ~10 seeds, not ~290. Untested.
+
 
 ### 2026-09-10 — Coverage bought at ZERO extra compute: 0.86% → 16.05%, measured. Plus 7 corrections.
 
