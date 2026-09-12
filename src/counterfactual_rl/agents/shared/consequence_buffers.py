@@ -189,12 +189,19 @@ class ConsequenceReplayBuffer:
         or a *batched pytree* with leading axis N (JaxNav: a full ``State`` per transition).
         ``jax.tree.map(lambda leaf: leaf[i], ...)`` slices the i-th element for both, since a
         bare array is itself a single pytree leaf.
+
+        Returns the slot indices written, oldest-write first. ``add`` advances
+        ``_write_pos`` by one per call, so the run is contiguous modulo capacity. Callers
+        that do not need it simply ignore the return value -- FrozenLake, SMAX and Connect
+        Four are unaffected. score-on-insert uses it to score exactly the arrivals.
         """
         n = len(next(iter(transitions.values())))
+        start = self._write_pos
         for i in range(n):
             t = {k: v[i] for k, v in transitions.items()}
             js = jax.tree.map(lambda leaf: leaf[i], jax_states) if jax_states is not None else None
             self.add(t, jax_state=js)
+        return (start + np.arange(n)) % self.capacity
 
     def _compute_priorities(self) -> np.ndarray:
         """Compute combined priorities (Equations 2-5)."""
@@ -498,6 +505,10 @@ class ConsequenceReplayBuffer:
         for idx, td_error in zip(indices, td_errors):
             self.td_magnitudes[idx] = float(abs(td_error))
         self._cached_probs = None
+
+    def get_transition(self, index: int) -> Dict:
+        """One stored transition by slot index. Same object sample_uniform hands back."""
+        return self.buffer[index]
 
     def get_jax_state(self, index: int) -> Any:
         return self.jax_states[index]

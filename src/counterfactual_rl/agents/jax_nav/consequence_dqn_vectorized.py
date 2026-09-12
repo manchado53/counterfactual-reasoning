@@ -93,7 +93,7 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
             return xn.reshape((n,) + xn.shape[2:])
         jax_states = jax.tree.map(_flat, state_pytree)   # numpy State pytree, leading axis n
 
-        self.buffer.add_batch(
+        written = self.buffer.add_batch(
             {
                 's':    obs_np.reshape(n, self.obs_dim),
                 'a':    actions_np.reshape(n),
@@ -103,6 +103,14 @@ class JaxNavConsequenceDQNVectorized(JaxNavConsequenceDQN):
             },
             jax_states=jax_states,
         )
+
+        # SCORE-ON-INSERT. Score exactly the arrivals, once, right here -- instead of
+        # drawing random slots out of the whole buffer later and hoping to hit them.
+        # Coverage becomes 100% by construction, and score_interval / n_score_sample stop
+        # meaning anything. _score_indices chunks internally: this is 8,192 transitions and
+        # 8,192 x 15 actions would be 122,880 parallel envs unchunked.
+        if getattr(self, 'score_on_insert', False):
+            self._score_indices(written)
 
     def learn(self, n_episodes: Optional[int] = None, verbose: bool = True) -> 'JaxNavConsequenceDQNVectorized':
         n_episodes    = n_episodes or self.config['n_episodes']

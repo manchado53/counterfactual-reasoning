@@ -62,6 +62,14 @@ class JaxNavConsequenceDQN(JaxNavDQN):
 
         self.score_interval = self.config.get('score_interval', 100)
         self.n_score_sample = self.config.get('n_score_sample', 128)
+        # score-on-insert: score every arrival exactly once instead of drawing at random.
+        # Default OFF so every run already on disk reproduces bit-for-bit. When ON,
+        # score_interval and n_score_sample stop meaning anything -- there is nothing to
+        # choose, every transition is scored once.
+        self.score_on_insert = bool(self.config.get('score_on_insert', False))
+        # Rows per rollout batch. 1,280 x 15 actions = 19,200 parallel envs, the widest
+        # batch measured safe on a T4 (greedy_cov ran exactly this).
+        self.cf_score_chunk = self.config.get('cf_score_chunk', 1280)
         self.consequence_metric = self.config.get('consequence_metric', 'total_variation')
         self.consequence_aggregation = self.config.get('consequence_aggregation', 'weighted_mean')
         self.cf_horizon = self.config.get('cf_horizon', 20)
@@ -182,12 +190,38 @@ class JaxNavConsequenceDQN(JaxNavDQN):
         self._compiled_rollout_fn = jax.jit(over_states)
 
     def _score_buffer_transitions(self):
-        """Score a uniform sample of stored transitions by counterfactual return spread."""
+        """Score a uniform RANDOM sample of stored transitions -- the historical path.
+
+        This is the coupon-collector route. A slot is scored only if a draw happens to land
+        on it, and over its whole 6,250-update life it gets 0.32 expected draws, so ~73% of
+        slots die carrying the running mean they inherited on insertion. See _score_indices
+        for the score-on-insert path, which visits each arrival exactly once instead.
+        """
         n_score = min(self.n_score_sample, len(self.buffer))
         if n_score == 0:
             return
+        _, indices = self.buffer.sample_uniform(n_score)
+        self._score_indices(indices)
 
-        transitions, indices = self.buffer.sample_uniform(n_score)
+    def _score_indices(self, indices):
+        """Score exactly these buffer slots, in GPU-sized chunks.
+
+        Chunking is NOT optional for score-on-insert: one insert burst is
+        n_envs x collect_steps = 8,192 transitions, and 8,192 x 15 actions x 1 rollout is
+        122,880 parallel envs -- 6.4x the widest batch ever run here (1,280 x 15 = 19,200,
+        the proven-safe T4 width). Unchunked it OOMs on the first burst.
+        """
+        indices = np.asarray(indices)
+        if indices.size == 0:
+            return
+        chunk = max(1, int(self.cf_score_chunk))
+        for start in range(0, indices.size, chunk):
+            self._score_index_chunk(indices[start:start + chunk])
+
+    def _score_index_chunk(self, indices):
+        """Score one chunk. Body unchanged from the original random-sample path; only the
+        SOURCE of `indices` differs."""
+        transitions = [self.buffer.get_transition(idx) for idx in indices]
 
         valid_states, valid_obs, valid_actions_taken, valid_indices = [], [], [], []
         for i, (t, idx) in enumerate(zip(transitions, indices)):
@@ -387,7 +421,11 @@ class JaxNavConsequenceDQN(JaxNavDQN):
             return
 
         self.q_update_count += 1
-        if (self.q_update_count % self.score_interval == 0
+        # Under score-on-insert the scoring clock is INSERTION, not the update counter --
+        # the trainer calls _score_indices on each burst. Firing here too would re-score
+        # random slots on top of it and reintroduce the waste this mode exists to remove.
+        if (not self.score_on_insert
+                and self.q_update_count % self.score_interval == 0
                 and len(self.buffer) >= self.n_score_sample):
             self._score_buffer_transitions()
 
