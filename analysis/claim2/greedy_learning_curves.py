@@ -69,7 +69,13 @@ def _smooth(v, w=5):
 # every figure in this module. That is exactly the shape of the map_size bug, which
 # dragged the baselines down by tens of points and cost us a published verdict.
 def _is_default_capacity(cfg):
-    return (cfg.get("buffer_capacity") or 100_000) == 100_000
+    # Also pins the DEFAULT ENVIRONMENT. Array 275761/275791 ran uniform and PER at
+    # coll_rew=-1, a different reward and so a different learning problem; without this
+    # clause those 10 runs leaked straight into the "uniform" and "per" baselines
+    # (measured: uniform n 26 -> 31, per 18 -> 23) -- the third bug of this exact shape
+    # after map_size and buffer_capacity. The name is kept so every caller is covered.
+    return ((cfg.get("buffer_capacity") or 100_000) == 100_000
+            and float(cfg.get("coll_rew", 0.0) or 0.0) == 0.0)
 
 
 def _label(cfg, arm):
@@ -268,6 +274,8 @@ def _label_floor(cfg, arm):
     algo = cfg.get("algorithm")
     if algo not in ("dqn", "dqn-uniform"):
         return None
+    if float(cfg.get("coll_rew", 0.0) or 0.0) != 0.0:   # different reward = different ladder
+        return None
     cap = cfg.get("buffer_capacity") or 100_000
     return f"{'per' if algo == 'dqn' else 'uniform'}_{cap}"
 
@@ -418,3 +426,16 @@ if __name__ == "__main__":
         print(f"  {k:<18} n={v['n']:<3} reaches {v['reach']:>9,.0f} episodes")
     write_png(cv)
     write_svg(cv)
+
+
+# -- Fifth arm-set: SCORE-ON-INSERT x COLLISION REWARD (arrays 275761 / 275791) ---------
+# Comparisons are made WITHIN a reward cell only: coll_rew=-1 is a different learning
+# problem, so its baselines are uniform_rneg / per_rneg from the same sweep, and the
+# coll_rew=0 cell uses the pooled default-environment uniform / per.
+def _label_soi(cfg, arm):
+    if arm and (arm.startswith("soi_") or arm in ("uniform_rneg", "per_rneg")):
+        return arm
+    algo = cfg.get("algorithm")
+    if algo in ("dqn", "dqn-uniform") and _is_default_capacity(cfg):
+        return "per_r0" if algo == "dqn" else "uniform_r0"
+    return None
