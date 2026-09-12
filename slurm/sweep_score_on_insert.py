@@ -60,11 +60,22 @@ ARRAY_SBATCH = os.path.join(WT, "slurm", "array_job.sbatch")
 MANIFEST = os.path.join(WT, "docs/figures/real/claim2/jaxnav/data/manifest_score_on_insert.json")
 CONFIG_DIR = os.path.join(WT, "slurm", "configs")
 
-MAX_CONCURRENT = 30
+# The user asked not to take the whole cluster. 24 leaves headroom on dgx/dgxh100 and
+# touches none of the 80 T4s on teaching. All 20 long CCE runs still start in wave 1;
+# the 10 baselines are 1-2 h and trickle through behind them.
+MAX_CONCURRENT = 24
 N_SEEDS = 5
-EXCLUDE = "dh-node12"          # confirmed bad node, lab-notebook 2026-08-13
+# dh-node12: confirmed bad, lab-notebook 2026-08-13.
+# dh-dgx1-1 / dh-dgx1-2: CANNOT initialise CUDA for this conda env --
+#   "CUDA_ERROR_INVALID_VALUE" then "no supported devices found for platform CUDA",
+#   within 16 s, 21/21 jobs, while dh-dgx1-3 and dh-dgxh100-1 ran the identical config
+#   fine (array 275761, 2026-09-12). Node problem, not a code problem.
+EXCLUDE = "dh-node12,dh-dgx1-1,dh-dgx1-2"
 # teaching TIMELIMIT is 7 days. H=200 projects to 58-152 h/seed, so 24h would kill it and a
 # run killed AT the wall wastes the whole run. The smoke replaces this guess with a measurement.
+# dgx / dgxh100 TIMELIMIT is 21 days. The hour figures below are T4-measured; V100 and
+# especially H100 are substantially faster, so these are upper bounds twice over. A run
+# killed AT the wall wastes the whole run, so the limit is deliberately generous.
 TIME_LIMIT = "6-00:00:00"
 SMOKE_TIME_LIMIT = "06:00:00"
 
@@ -125,8 +136,10 @@ def main():
     p.add_argument("--seeds", type=int, default=N_SEEDS)
     p.add_argument("--max-concurrent", type=int, default=MAX_CONCURRENT)
     p.add_argument("--tag", default=None)
-    p.add_argument("--partition", default="teaching")
-    p.add_argument("--gres", default="gpu:t4:1")
+    # gpu:1 (untyped) is what lets one array span BOTH partitions -- gpu:v100:1 would
+    # pin it to dgx and gpu:h100:1 to dgxh100.
+    p.add_argument("--partition", default="dgx,dgxh100,teaching")
+    p.add_argument("--gres", default="gpu:1")
     args = p.parse_args()
 
     arms = args.arms or (SMOKE_ARMS if args.smoke else list(ARMS))
@@ -200,8 +213,7 @@ def main():
     cmd = ["sbatch", "--parsable", f"--array=0-{n-1}%{c}", f"--time={time_limit}",
            f"--partition={args.partition}", f"--gres={args.gres}",
            f"--export=ALL,CONFIG_FILE={cfg_path}", ARRAY_SBATCH]
-    if args.partition == "teaching":
-        cmd.insert(-2, f"--exclude={EXCLUDE}")
+    cmd.insert(-2, f"--exclude={EXCLUDE}")
     out = subprocess.run(cmd, capture_output=True, text=True)
     array_id = out.stdout.strip()
     if not array_id:
