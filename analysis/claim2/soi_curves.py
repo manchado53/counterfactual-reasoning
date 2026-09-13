@@ -124,12 +124,15 @@ def main():
                 if okz.size:
                     zax.text(grid[okz[-1]] + 1_500, med[okz[-1]], f"H={h}  {med[okz[-1]]:.0f}%",
                              fontsize=9, color=colr, va="center")
-        zax.set_xlim(0, 60_000); zax.set_ylim(0, 100)
+        zmax = max([r[-1, 0] for a in zs.values() for r in a] + [60_000])
+        zmax = int(np.ceil(zmax / 20_000) * 20_000)       # grows as the runs do
+        zax.set_xlim(0, zmax); zax.set_ylim(0, 100)
         zax.set_ylabel("scores EXACTLY 0  (%)", fontsize=10)
         zax.set_xlabel("episode", fontsize=10)
         zax.grid(alpha=.18, lw=.7)
-        zax.set_xticks([0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000])
-        zax.set_xticklabels(["0", "10k", "20k", "30k", "40k", "50k", "60k"])
+        zt = np.arange(0, zmax + 1, 20_000)
+        zax.set_xticks(zt); zax.set_xticklabels([f"{t//1000}k" if t else "0" for t in zt])
+        zax.axvline(G.EPS_DECAY, color="#a8341c", lw=1.0, ls="--")
 
     top[0].text(G.EPS_DECAY + 3_000, 74, "epsilon decay ends\nleft = exploration",
                 fontsize=8, color="#a8341c", va="top")
