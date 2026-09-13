@@ -74,8 +74,13 @@ def _is_default_capacity(cfg):
     # clause those 10 runs leaked straight into the "uniform" and "per" baselines
     # (measured: uniform n 26 -> 31, per 18 -> 23) -- the third bug of this exact shape
     # after map_size and buffer_capacity. The name is kept so every caller is covered.
+    # And the REWARD MODE: sparse_reward=False with goal_rew=4 is the published JaxNav reward
+    # (array for sweep_paper_reward.py) -- a different learning problem again. Pinned on all
+    # three reward knobs so the next reward change cannot leak either.
     return ((cfg.get("buffer_capacity") or 100_000) == 100_000
-            and float(cfg.get("coll_rew", 0.0) or 0.0) == 0.0)
+            and float(cfg.get("coll_rew", 0.0) or 0.0) == 0.0
+            and cfg.get("sparse_reward", True) is not False
+            and float(cfg.get("goal_rew", 1.0) or 1.0) == 1.0)
 
 
 def _label(cfg, arm):
@@ -439,3 +444,10 @@ def _label_soi(cfg, arm):
     if algo in ("dqn", "dqn-uniform") and _is_default_capacity(cfg):
         return "per_r0" if algo == "dqn" else "uniform_r0"
     return None
+
+
+# -- Sixth arm-set: the PUBLISHED JaxNav reward (sweep_paper_reward.py) --------------------
+# goal +4 / crash -4 / time -0.01 / distance +0.25 / wall -0.1, everything else ours. Compared
+# only inside this cell.
+def _label_paper(cfg, arm):
+    return arm if arm in ("uniform_paper", "per_paper", "cov_wm_paper") else None
