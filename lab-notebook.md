@@ -31,58 +31,50 @@ SMAX-8m     —                         UNFINISHED (never ran clean)
 C4          —                         NOT FAIRLY TESTED (buggy)   <- DIG
 Chess       oracle too weak           no improvement              DROPPED
 ```
-## STATUS (2026-09-10)
-Paper data = verified + frozen in paper/repro/ (master 861c0e3). **8 days to the ICLR
-abstract (Sep 18).**
+## STATUS (2026-09-12)
+Paper data = verified + frozen in paper/repro/ (master 861c0e3). **6 days to the ICLR abstract
+(Sep 18).**
 
-**All JaxNav levers are now pulled and JaxNav is a null.** Coverage (0.86% -> 16.05%,
-measured, at identical GPU cost), the frequency route to the same coverage, min-max
-normalisation, rank normalisation, bootstrap, greedy rollouts. Nothing beats uniform.
-The one arm that is *significantly* different from uniform is `greedy_cov_max` at
-**p=0.048 — significantly WORSE**.
+**Coverage is finally at 100%** (score-on-insert, arrays 275761/275791): 20/20 CCE runs measured
+at 100.0%, up from 0.86% shipped. Whether that changes learning is not readable yet.
 
-**Three independent measurements say CCE on JaxNav measures noise, not consequence:**
-drift probe rho_CCE 0.36 vs rho_Q 0.96 · 74-80% of buffer scores dead · spatial map
-rho +0.688 with distance-to-obstacle (highest in OPEN space, the opposite of the
-motivating intuition) and 47.8% of positions scoring exactly 0.
+**The dead-score problem has two causes, now separated:** horizon (H=200 is 84-99% zeros; H=60 is
+~25%) and the reward (crash = timeout = 0 means ties everywhere). And dead scores RISE through
+training as greedy rollouts converge — a structural limit on greedy R=1 scoring.
 
-**The small-buffer collapse is settled and is NOT a CCE effect** (2026-09-10b LOG).
-uniform and PER collapse together at every capacity below 50,000, and the curves show
-*catastrophic forgetting* — small buffers learn, peak at 26-37% around episode 65k-125k,
-then lose ~19pp. Mechanism, not just outcome.
+**Our JaxNav is not the benchmark's JaxNav.** The published setup uses a shaped reward that never
+makes wandering free, continuous actions, PPO, and 12x our data. Our crash=-1 cell produced a timid
+agent (uniform timeouts 29% -> 57%). The published reward is now running (array 275821).
 
-**Unchanged and still the strongest thing we have:** FL-det, 208 runs, CCE 107/130 = 82%
-vs uniform 15/26 = 58%, Fisher p = 0.0091, holding at every coverage setting.
+**Unchanged and still the strongest thing we have:** FL-det, 208 runs, CCE 107/130 = 82% vs
+uniform 15/26 = 58%, Fisher p = 0.0091.
 
-**The one live thread:** `greedy_cov_wm` matches uniform's median (62.6 vs 62.8) with a
-QUARTER the spread (sd 4.1 vs 16.3) and no dead seed in 5. A variance effect needs ~10
-seeds to test, not the ~290 a mean effect would need. Untested, and found by looking at
-finished data — a hypothesis, not a result.
-
-**Nothing is running.** All arrays complete.
+**In flight (35 jobs):** 275761 + 275791 score-on-insert (20 CCE, ~40-55 h total, started
+2026-09-12 ~10:25); 275821 paper reward (15, CCE ~15 h, started ~23:00).
 
 ## NEXT
-0. **DO NOT sweep beta.** **DO NOT shrink the buffer** — now proven env-level, not CCE
-   (2026-09-10b). **DO NOT run the rollout to the end without bootstrap** (88-90% zeros).
-   **DO NOT read an unfinished sweep** — the fast seeds are the good seeds; that trap
-   manufactured a p=0.007 for rank this week that finished at p=0.204.
-1. **Paper, no compute, and this is what Sep 18 needs:**
-   - #19 the Claim 1 section is still EMPTY. Biggest single blocker.
-   - #3  FrozenLake passes no `action_probs`, so its `weighted_mean` IS `max`. The 208-run
-     headline is a win under max, labelled otherwise. **Most serious of the four.**
-   - #15 Algorithm 2 has NO scoring-interval parameter; add `K_C`, report
-     `kappa = min(1, B_est^C/(K_C K_up))`. Use kappa — rho is the C1 correlation.
-   - #23 define pi. It decides whether `cf_n_rollouts=1` is exact or under-sampled.
-2. **Rewrite `docs/jaxnav_story.md`** — beats 2, 3, 4 and 7 still argue the dead coverage
-   hypothesis. The story is now the negative result WITH a mechanism.
-3. **Close/update the ~8 answered issues** (#22 #18 #11 #7 #4 #9 #3 #15). None of this
-   week's findings are visible to anyone outside this repo.
-4. Re-check the bootstrap claim (0/13 vs 7/24, Fisher p=0.038) on the map_size-clean pool —
-   it predates that fix and may not survive it.
-5. If any GPU goes spare: 10 more seeds on `greedy_cov_wm` to test the variance claim
-   (~150 GPU-h). Not before the paper items.
-6. Score-on-insert (100% coverage, capacity-independent cost, ~3.1x today) is designed and
-   gated — run at capacity 100,000, accept staleness ~3,125. Only after Sep 18.
+0. **DO NOT read an unfinished sweep** — fast seeds are good seeds. **DO NOT compare win rates across
+   reward cells** — each reward is a different problem; compare arms inside one cell only.
+   **DO NOT requeue for faster GPUs** — the scorer is CPU-bound (V100 = 1.3x T4).
+1. **275821 (paper reward), ~15 h:** does the time cost end the timid agent (timeouts back toward
+   ~29%)? Then CCE vs uniform vs PER inside that cell. Extend `soi_curves.py` pattern to it.
+2. **275761/275791 (score-on-insert), ~2 days:** CCE vs uniform per reward cell once past 62.5k;
+   watch whether H=60 dead scores keep climbing. H=200 crash=0 (99% zeros) is the first thing to
+   kill if GPUs are needed.
+3. **Paper, no compute, still what Sep 18 needs:**
+   - #19 the Claim 1 section is still EMPTY.
+   - #3  FrozenLake passes no `action_probs`, so its `weighted_mean` IS `max` — the 208-run headline
+     is labelled as an aggregation we did not run. **Most serious.**
+   - #15 Algorithm 2 has no scoring-interval parameter; score-on-insert removes that knob entirely.
+   - #23 define pi.
+   - New: a JaxNav setup paragraph stating every deviation from the benchmark (discrete, goal radius,
+     max_steps, map, reward, DQN) and why CCE needs discrete actions.
+4. Rewrite `docs/jaxnav_story.md`; close/update answered issues.
+5. Re-check the bootstrap claim (0/13 vs 7/24) on the map_size-clean pool.
+6. uniform_rneg is n=5 with a 10-50% band — add seeds before any claim in the crash=-1 cell.
+7. Possible later: ask Rosie admins about dh-dgxh100-2 (8 idle H100s, drained since Jul 7) and the
+   two DGX nodes that cannot init CUDA.
+
 
 ## DEAD ENDS (ruled out — don't redo)
 - Chess C2: no improvement.  Chess C1: oracle player too weak.
@@ -114,6 +106,18 @@ finished data — a hypothesis, not a result.
 - **PER is a weak baseline on JaxNav** and gets weaker with clutter (75 -> 31 -> 18 as fill goes
   0.1 -> 0.3 -> 0.5 on 8x8), while uniform degrades gently (73 -> 60 -> 49). Always report the
   uniform control; "beats PER" alone overstates the result.
+- **`sparse_reward=True` forces `dt_rew`, `weight_g`, `lidar_rew` to 0 as a block**
+  (`envs/jax_nav.py:47,73`). `sparse_reward=False` turns ALL of them on at JaxNav's defaults, which
+  are the published values. There is no "time cost only" setting without a code change.
+- **Every new reward/env knob must be added to `_is_default_capacity`** in
+  `analysis/claim2/greedy_learning_curves.py` BEFORE launch, or its uniform/PER runs silently merge
+  into the default baselines. Bit us three times (map_size, buffer_capacity, coll_rew). Check that
+  uniform stays n=26 / per n=18.
+- **dh-dgx1-1 and dh-dgx1-2 cannot initialise CUDA for the `counterfactual` env**
+  (`CUDA_ERROR_INVALID_VALUE`); dh-dgx1-3 and dh-dgxh100-1 work. dh-dgxh100-2 is admin-drained.
+  Use `--exclude=dh-node12,dh-dgx1-1,dh-dgx1-2` and untyped `--gres=gpu:1` to span partitions.
+- **CCE scoring is CPU-bound**: V100 ran 1.3x a T4 on the same arm. Faster cards barely help.
+- **The No Regrets paper swaps its Figure 16 y-axis labels** (0-1 panel is success, -7..4 is return).
 - /home is a shared disk at 100% (294 GB free of 102 TB). Writes can fail and large
   uncommitted files are at risk. Keep anything important in git (that's what paper/repro/
   is for). [C1 deterministic runs vanished — cause unconfirmed.]
@@ -128,6 +132,86 @@ finished data — a hypothesis, not a result.
 Active: FL-det, FL-stoch, SMAX-3m, C4.   Dropped: Chess, raw diagnostics.
 
 ## LOG (append-only, newest on top)
+
+### 2026-09-12 — Score-on-insert reaches 100% coverage; the reward was hiding the signal; paper reward launched
+
+Branch `research/jaxnav-greedy-coverage`. Three arrays, one found bug of a now-familiar shape, and
+a benchmark check that reframes our JaxNav setup.
+
+**1. Score-on-insert (arrays 275761 + 275791, 30 runs).** Built: `add_batch()` returns the slot
+indices it wrote; the scorer scores exactly those arrivals, chunked at 1,280 (one burst is 8,192
+transitions x 15 actions = 122,880 parallel envs unchunked); the `score_interval` gate is skipped
+when on. `score_on_insert` defaults False. Sweep = 2x2 {H=60, H=200} x {coll_rew 0, -1}, all
+weighted_mean + rank, 5 seeds, plus uniform/PER at coll_rew=-1.
+
+- **Coverage gate PASSED: 20/20 CCE runs at 100.0%** (was 0.86% shipped, 15.6% greedy_cov).
+- Dead scores (exactly 0) at full coverage, first evals -> ~9 h in:
+
+      H=60   crash=0    6.7%  ->  25%
+      H=60   crash=-1   2.6%  ->  25%
+      H=200  crash=0   91.4%  ->  99%
+      H=200  crash=-1  73.6%  ->  84%
+
+  Horizon dominates (H=200 ends before truncation, so bootstrap never fires). The crash penalty's
+  early advantage (2.6 vs 6.7%) is GONE by ~40k episodes. **Dead scores rise through training**:
+  greedy rollouts from all 15 first actions converge onto one path as Q settles, so returns tie.
+  That is the thing to watch — full coverage can fill back up with zeros late in training.
+- Smoke skipped at the user's call; the real runs answer the smoke's questions at their first eval.
+- **Two DGX nodes cannot start CUDA for our env** (dh-dgx1-1, dh-dgx1-2: `CUDA_ERROR_INVALID_VALUE`,
+  21/21 jobs dead in 16 s; dgx1-3 and dgxh100-1 fine). Excluded. dh-dgxh100-2 has been DRAINED by
+  an admin since 2026-07-07 ("Host models") with 8 idle H100s.
+- **V100 is only 1.3x a T4 here** (same arm: 7,698 vs 5,976 episodes/h). The bottleneck is CPU
+  (per-score Python write-back + rank sort), so faster GPUs barely help. Not worth requeueing.
+- Win rates not yet readable (CCE ~55-60k episodes at last look, exploration ends at 62.5k).
+
+**2. The crash penalty makes plain DQN timid** (coll_rew=-1 baselines, finished, last 20 evals):
+
+      uniform  crash=0   win 58.8%  crash 12.2%  timeout 29.0%
+      uniform  crash=-1  win 35.1%  crash  7.5%  timeout 57.4%
+      PER      crash=0   win 35.6%  crash 25.1%  timeout 39.3%
+      PER      crash=-1  win 34.3%  crash  7.3%  timeout 58.4%
+
+  Crashes traded for timeouts. With wandering free (0) and crashing -1, "stay safe" beats trying
+  early in training. Seeds split into escaped (~50% win) or stuck wandering (~15% win, ~75% timeout).
+  PER's win rate did not drop — it had crashes to spare. (Mechanism is reasoning from the reward,
+  not measured directly.)
+
+**3. BUG, third of its shape.** The coll_rew=-1 uniform/PER runs leaked into the default baselines
+(uniform n 26 -> 31, per 18 -> 23). The guard was in the approved plan and never built; caught
+before any figure used the pool. `_is_default_capacity` now pins capacity, coll_rew, sparse_reward
+and goal_rew. For the next batch the guard was added BEFORE launch.
+
+**4. How the benchmark actually uses JaxNav** (No Regrets, Rutherford et al., NeurIPS 2024 — JaxNav's
+origin; configs read from the sampling-for-learnability repo):
+
+      paper   PPO (no replay), CONTINUOUS actions, 11x11 fill<=0.6, goal radius 0.3, max_steps 500,
+              reward goal +4 / crash -4 / time -0.01 / distance +0.25 / wall -0.1, 3e8 env steps
+      ours    DQN + replay, 15 discrete actions, 8x8 fill 0.3, goal radius 0.8, max_steps 200,
+              sparse goal +1 only, ~2.4e7 env steps
+
+  - Their learning curves: `docs/figures/reference/noregrets_fig16_jaxnav_curves.png`. **The paper
+    swaps the two y-axis labels** (the 0-1 panel is success rate). DR (random maps = our regime)
+    reaches only ~67% success at 3e8 steps; curricula reach ~97%.
+  - "2,250 updates" is not small: one PPO update = 256 envs x 512 steps = 131k env steps and 16
+    gradient steps of 32,768 samples. They collect 12x our env steps, take 40x fewer gradient
+    steps, each 256x larger. Likely part of why their seed bands are tight and ours are not.
+  - No DQN/replay JaxNav numbers exist to compare against (PPO has no buffer, so no PER either).
+  - Discrete is officially supported ("discretised into 15 options") and CCE needs it (it enumerates
+    counterfactual actions; greedy + discrete is what makes R=1 exact). State it in the paper.
+  - SFL's "learnability" score is a published, working "focus on what matters" signal on this env —
+    related work, and a possible comparison.
+
+**5. Paper-reward batch (array 275821, 15 runs, launched 2026-09-12 ~23:00).** The published reward,
+nothing else changed (user's call): `sparse_reward=False, goal_rew=4, coll_rew=-4`; JaxNav's
+defaults supply the rest and match the paper config term for term. **No code change.** Verified:
+`compute_reward` byte-identical between our installed jaxmarl 0.1.0 and every JaxNav commit since
+June 2024; step/goal/update match the Dec-2024 version; wall term fires at thresh + rad = 0.4 m,
+matching the paper's D_close. CPU check: crash step = -4.11, sparse env still exactly 0. Arms
+uniform_paper / per_paper / cov_wm_paper (greedy_cov_wm key for key), 5 seeds, ~90 GPU-h. Early
+evals show avg_return on the -1.5..-6.5 scale, so the shaped reward is live in the real runs.
+Caveat, once: with distance shaping, CCE's return spread includes "which action got closer", not
+only a changed outcome.
+
 
 ### 2026-09-10b — The small-buffer collapse is NOT a CCE effect. It is catastrophic forgetting.
 
