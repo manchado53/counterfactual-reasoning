@@ -43,6 +43,29 @@ class PrioritizedReplayBuffer(DrawLogMixin):
     def __len__(self) -> int:
         return self._size
 
+    def reward_diagnostics(self) -> Dict[str, float]:
+        """Share of stored transitions that carry reward > 0.
+
+        JaxNav pays reward only at the goal -- crashing and timing out both score
+        0.0 -- so this is literally the fraction of the buffer an agent can learn
+        anything from. It is the direct test of whether a collapsed run starved:
+        a buffer that has dropped to zero reward cannot recover, because the only
+        way to refill it is to reach the goal.
+
+        O(_size) over a list of dicts, so call it once per eval, never per
+        gradient step. Returns {} on an empty buffer, matching
+        ``priority_diagnostics``.
+        """
+        if self._size == 0:
+            return {}
+        r = np.fromiter((self.buffer[i]['r'] for i in range(self._size)),
+                        dtype=np.float64, count=self._size)
+        return {
+            'buffer_size': int(self._size),
+            'buffer_reward_frac': float(np.mean(r > 0.0)),
+            'buffer_reward_mean': float(np.mean(r)),
+        }
+
     def add(self, transition: Dict):
         """Add a transition with maximum priority. O(1) — writes at _write_pos."""
         pos = self._write_pos
