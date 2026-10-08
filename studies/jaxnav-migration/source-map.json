@@ -1,0 +1,62 @@
+[
+  {
+    "reference": "fixed/src/counterfactual_rl/envs/jax_nav.py",
+    "candidate": "experiments/envs/jaxnav.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/analysis/metrics.py",
+    "candidate": "src/counterfactual_rl/scoring/metrics.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/buffers.py",
+    "candidate": "src/counterfactual_rl/replay/buffers.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/early_stopping.py",
+    "candidate": "experiments/common/early_stopping.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/__init__.py",
+    "candidate": "experiments/common/timing/__init__.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/timer.py",
+    "candidate": "experiments/common/timing/timer.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/plot.py",
+    "candidate": "experiments/common/timing/plot.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/config.py",
+    "candidate": "experiments/learners/jaxnav/config.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/qdiag.py",
+    "candidate": "experiments/learners/jaxnav/qdiag.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn.py",
+    "candidate": "experiments/learners/jaxnav/dqn.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn.py",
+    "candidate": "experiments/learners/jaxnav/consequence_dqn.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
+    "candidate": "experiments/learners/jaxnav/dqn_vectorized.py"
+  },
+  {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
+    "candidate": "experiments/learners/jaxnav/consequence_dqn_vectorized.py"
+  },
+  {
+    "reference": "old/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
+    "candidate": "experiments/learners/jaxnav/dqn_vectorized_legacy.py"
+  },
+  {
+    "reference": "old/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
+    "candidate": "experiments/learners/jaxnav/consequence_dqn_vectorized_legacy.py"
+  }
+]

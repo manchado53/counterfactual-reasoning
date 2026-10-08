@@ -1,0 +1,118 @@
+"""Validate or run a named recipe. No scheduler submission or implicit overrides."""
+import argparse
+import hashlib
+import importlib.metadata
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import zipfile
+from experiments.recipes import load_recipe
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("action", choices=["validate", "train"])
+    p.add_argument("--recipe", type=Path, required=True)
+    p.add_argument("--task", type=int, required=True)
+    p.add_argument("--output", type=Path)
+    p.add_argument("--vendor", type=Path, help="Explicit JaxMARL source root, if not installed")
+    p.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
+    p.add_argument("--smoke", action="store_true", help="Explicit reduced test settings, not a research result")
+    p.add_argument("--max-wall-seconds", type=int, default=600)
+    args = p.parse_args()
+    row = load_recipe(args.recipe, args.task)
+    cfg = row["config"].copy()
+    if args.smoke:
+        from experiments.smoke import JAXNAV_OVERRIDES
+        cfg.update(JAXNAV_OVERRIDES)
+    if args.action == "validate":
+        print(json.dumps(dict(row=row, resolved_config=cfg, smoke=args.smoke), indent=2))
+        return
+    if args.output is None or args.max_wall_seconds < 1:
+        p.error("train requires a fresh --output and a positive time limit")
+    out = args.output.resolve()
+    out.mkdir(parents=True, exist_ok=False)
+    os.environ["CCE_RUN_DIR"] = str(out)
+    os.environ["JAX_PLATFORMS"] = args.device
+    if args.device == "cpu":
+        os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4])
+    if args.vendor:
+        sys.path.insert(0, str(args.vendor.resolve()))
+    record = dict(status="starting", recipe=row, smoke=args.smoke,
+                  resolved_config=cfg, recipe_sha256=hashlib.sha256(args.recipe.read_bytes()).hexdigest(),
+                  python=sys.version, wall_limit=args.max_wall_seconds)
+    def save():
+        (out/"attempt.json").write_text(json.dumps(record, indent=2))
+    def deadline(signum, frame):
+        raise TimeoutError("Training wall-time limit reached")
+    signal.signal(signal.SIGALRM, deadline)
+    signal.alarm(args.max_wall_seconds)
+    save()
+    try:
+        from experiments.learners.jaxnav.build import build_agent
+        import jax
+        if jax.default_backend() != args.device:
+            raise RuntimeError("Requested backend is unavailable")
+        record["packages"] = {k: importlib.metadata.version(k) for k in
+            ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex")}
+        root = Path(__file__).resolve().parents[1]
+        record["source_hashes"] = {str(f.relative_to(root)): hashlib.sha256(f.read_bytes()).hexdigest()
+            for folder in ("experiments", "src") for f in (root/folder).rglob("*.py")}
+        import jaxmarl
+        vendor_root = Path(jaxmarl.__file__).resolve().parent
+        record["jaxmarl_source_hashes"] = {str(f.relative_to(vendor_root)): hashlib.sha256(f.read_bytes()).hexdigest()
+            for f in vendor_root.rglob("*.py")}
+        # Hashes identify source; the bundle makes it recoverable after worktree cleanup.
+        sources = [(root / name, "project/" + name, expected)
+                   for name, expected in record["source_hashes"].items()]
+        sources += [(vendor_root / name, "jaxmarl/" + name, expected)
+                    for name, expected in record["jaxmarl_source_hashes"].items()]
+        if sum(f.stat().st_size for f, _, _ in sources) > 100 * 1024**2:
+            raise ValueError("Source bundle exceeds 100 MiB cap")
+        with zipfile.ZipFile(out/"source.zip", "x", compression=zipfile.ZIP_DEFLATED) as archive:
+            for file, name, expected in sources:
+                content = file.read_bytes()
+                if hashlib.sha256(content).hexdigest() != expected:
+                    raise ValueError("Source changed while making attempt bundle")
+                archive.writestr(name, content)
+        record["source_bundle_sha256"] = hashlib.sha256((out/"source.zip").read_bytes()).hexdigest()
+        record["device"] = [str(d) for d in jax.devices()]
+        (out/"config.json").write_text(json.dumps(cfg, indent=2))
+        save()
+        agent = build_agent(cfg)
+        if agent.config != cfg:
+            raise ValueError("Resolved config drift")
+        def record_bank():
+            if not hasattr(agent, "_fixed_eval_init_states"):
+                return
+            import numpy as np
+            h = hashlib.sha256()
+            for leaf in jax.tree.leaves((agent._fixed_eval_init_states, agent._fixed_eval_step_keys)):
+                a = np.asarray(leaf)
+                h.update(str((a.shape,a.dtype)).encode())
+                h.update(a.tobytes())
+            record["eval_bank_hash"] = h.hexdigest()
+            save()
+        original_evaluate = agent.evaluate
+        def evaluate_with_identity(*values, **kwargs):
+            result = original_evaluate(*values, **kwargs)
+            record_bank()
+            return result
+        agent.evaluate = evaluate_with_identity
+        record["status"] = "running"
+        save()
+        agent.learn(verbose=False)
+        record_bank()
+        record["status"] = "completed"
+    except BaseException as exc:
+        record.update(status="failed", error=str(exc))
+        raise
+    finally:
+        signal.alarm(0)
+        save()
+
+
+if __name__ == "__main__":
+    main()
