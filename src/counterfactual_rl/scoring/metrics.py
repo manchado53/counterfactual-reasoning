@@ -21,7 +21,7 @@ def compute_kl_divergence_kde(
 
     We use Gaussian KDE to estimate the densities from samples, then
     discretize and compute KL divergence.
-
+    
     Note: KL divergence is unbounded and can be arbitrarily large when
     distributions differ significantly. For constant distributions with
     different values, returns float('inf') representing mathematical infinity.
