@@ -17,6 +17,7 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--profile", choices=["smoke", "full-size"], default="smoke")
     p.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
+    p.add_argument("--gpu-type", choices=["h100", "t4"], default="h100")
     p.add_argument("--chunks", type=int, default=3)
     args = p.parse_args()
     if not 1 <= args.chunks <= 3:
@@ -67,8 +68,8 @@ def main():
     import numpy as np
     if jax.default_backend() != args.device:
         raise RuntimeError("Requested parity device is unavailable")
-    if args.device == "gpu" and not all("H100" in d.device_kind for d in jax.devices()):
-        raise RuntimeError("Full-size GPU gate requires an H100")
+    if args.device == "gpu" and not all(args.gpu_type.upper() in d.device_kind for d in jax.devices()):
+        raise RuntimeError("Full-size GPU gate requires the requested " + args.gpu_type)
     if agent.config != cfg:
         raise ValueError("Resolved config drift")
     events = []

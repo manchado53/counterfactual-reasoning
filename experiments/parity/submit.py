@@ -1,4 +1,4 @@
-"""Seal and queue one H100 parity gate after an existing array finishes."""
+"""Seal and queue one GPU parity gate."""
 import argparse
 import json
 import os
@@ -8,6 +8,11 @@ import subprocess
 import sys
 import time
 from experiments.parity.run import snapshot, digest, dump, MAX_SOURCE_BYTES
+
+
+def gpu_resources(gpu_type):
+    partition = {"h100": "dgxh100", "t4": "teaching"}[gpu_type]
+    return ["--partition="+partition, "--gres=gpu:"+gpu_type+":1"]
 
 
 def watch(job, output):
@@ -34,6 +39,7 @@ def main():
     p.add_argument("--reference", type=Path)
     p.add_argument("--output", required=True,type=Path)
     p.add_argument("--after-job")
+    p.add_argument("--gpu-type", choices=["h100", "t4"], default="h100")
     p.add_argument("--submit", action="store_true")
     p.add_argument("--watch")
     args = p.parse_args()
@@ -41,8 +47,10 @@ def main():
     if args.watch:
         watch(args.watch,out)
         return
-    if args.reference is None or not args.after_job or not args.after_job.isdigit():
-        p.error("reference and numeric after-job are required")
+    if args.reference is None or (args.after_job is not None and not args.after_job.isdigit()):
+        p.error("reference is required; after-job must be numeric when given")
+    if args.gpu_type == "h100" and not args.after_job:
+        p.error("H100 gate requires after-job to preserve the training GPU cap")
     if any(c.isspace() for c in str(out)):
         p.error("SLURM output paths cannot contain whitespace")
     out.mkdir(parents=True,exist_ok=False)
@@ -60,12 +68,12 @@ def main():
         shutil.copyfile(f,target)
         hashes[str(rel)] = digest(target)
     dump(out/"candidate-hashes.json",hashes)
-    cmd = ["sbatch","--parsable","--job-name=cce-full-parity","--partition=dgxh100",
-        "--account=undergrad_research","--qos=normal","--gres=gpu:h100:1",
+    cmd = ["sbatch","--parsable","--job-name=cce-full-parity"] + gpu_resources(args.gpu_type) + [
+        "--account=undergrad_research","--qos=normal",
         "--cpus-per-task=8","--mem=60G","--time=10:00:00",
-        "--dependency=afterany:"+args.after_job,
+        *(["--dependency=afterany:"+args.after_job] if args.after_job else []),
         "--output="+str(out/"job.out"),"--error="+str(out/"job.err"),
-        str(out/"candidate/slurm/parity.sbatch"),str(out),sys.executable]
+        str(out/"candidate/slurm/parity.sbatch"),str(out),sys.executable,args.gpu_type]
     dry = subprocess.run(cmd[:1]+["--test-only"]+cmd[1:],capture_output=True,text=True,check=True)
     dump(out/"dry-run.json",dict(command=cmd,stdout=dry.stdout,stderr=dry.stderr))
     print(dry.stdout+dry.stderr,flush=True)
@@ -85,6 +93,7 @@ def main():
             "--watch",job,"--output",str(out)],cwd=out/"candidate",
             env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
     dump(out/"job.json",dict(job=job,dependency=args.after_job,gpus=1,wall_hours=10,
+        gpu_type=args.gpu_type,
         monitor_pid=child.pid,source_commit=subprocess.check_output(["git","-C",str(root),"rev-parse","HEAD"],text=True).strip()))
     print("SUBMITTED "+job,flush=True)
 

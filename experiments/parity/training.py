@@ -17,6 +17,7 @@ def main():
     p.add_argument("--tasks", default="1,7,13,18,21,24,27,30,33")
     p.add_argument("--profile", choices=["smoke","full-size"], default="smoke")
     p.add_argument("--device", choices=["cpu","gpu"], default="cpu")
+    p.add_argument("--gpu-type", choices=["h100","t4"], default="h100")
     args = p.parse_args()
     tasks = [int(t) for t in args.tasks.split(",")]
     if not tasks or len(tasks) > 9 or len(set(tasks)) != len(tasks):
@@ -24,12 +25,13 @@ def main():
     root = Path(__file__).resolve().parents[2]
     if args.profile == "full-size" and args.device != "gpu":
         p.error("Full-size gate requires a GPU allocation")
-    timeout = 1200 if args.profile == "full-size" else 300
+    timeout = (3600 if args.gpu_type == "t4" else 1200) if args.profile == "full-size" else 300
     out = args.output.resolve()
     if out.is_relative_to(args.reference.resolve()):
         p.error("Output must not be inside reference")
     out.mkdir(parents=True, exist_ok=False)
     report = dict(scope=args.profile+"-real-jaxnav-learn-loop", status="running", checks=[],
+                  gpu_type=args.gpu_type if args.device == "gpu" else None,
                   production_budget_parity="NOT_TESTED",
                   gradient_capture="first-batch diagnostic" if args.profile=="full-size" else "NOT_TESTED",
                   limits=dict(worker_wall_seconds=timeout, workers=1, prefix_chunks=3,max_tasks=9))
@@ -68,7 +70,8 @@ def main():
                 print(f"START task={task} copy={name}", flush=True)
                 proc = subprocess.run([sys.executable,str(worker), "--source",str(source),
                     "--reference",str(out/"reference"),"--kind",kind,"--task",str(task),
-                    "--output",str(target),"--profile",args.profile,"--device",args.device],
+                    "--output",str(target),"--profile",args.profile,"--device",args.device,
+                    "--gpu-type",args.gpu_type],
                     cwd=out, env=env, capture_output=True,text=True,timeout=timeout)
                 (out/f"task-{task}-{name}.log").write_text(proc.stdout + proc.stderr)
                 if proc.returncode:

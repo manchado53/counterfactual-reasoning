@@ -7,6 +7,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_gpu_resource_selection():
+    from experiments.parity.submit import gpu_resources
+    assert gpu_resources("t4") == ["--partition=teaching", "--gres=gpu:t4:1"]
+    assert gpu_resources("h100") == ["--partition=dgxh100", "--gres=gpu:h100:1"]
+
+
 def test_full_size_profile_does_not_override_config():
     tree = ast.parse((ROOT/"experiments/parity/training_worker.py").read_text())
     branches = [n for n in ast.walk(tree) if isinstance(n,ast.If)
