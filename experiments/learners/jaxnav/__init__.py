@@ -1,1 +1,1 @@
-"""Research migration module; see studies/jaxnav-migration."""
+"""JaxNav learner implementations."""

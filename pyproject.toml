@@ -39,6 +39,7 @@ cce-study = "experiments.studies.run:main"
 research = [
     "jax==0.9.1", "jaxlib==0.9.1", "flax==0.10.4", "optax==0.2.5",
     "chex==0.1.91", "matplotlib==3.10.7", "tqdm==4.67.1", "gymnasium>=1.0",
+    "rliable>=1.2.0",
 ]
 legacy = ["gymnasium>=0.27.0", "stable-baselines3>=1.6.0", "matplotlib>=3.5.0"]
 dev = [
@@ -54,10 +55,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/counterfactual-reasoning"
-Documentation = "https://counterfactual-reasoning.readthedocs.io"
-Repository = "https://github.com/yourusername/counterfactual-reasoning.git"
-Issues = "https://github.com/yourusername/counterfactual-reasoning/issues"
+Homepage = "https://github.com/manchado53/counterfactual-reasoning"
+Repository = "https://github.com/manchado53/counterfactual-reasoning.git"
+Issues = "https://github.com/manchado53/counterfactual-reasoning/issues"
 
 [tool.setuptools]
 package-dir = { "counterfactual_rl" = "src/counterfactual_rl", "experiments" = "experiments" }
@@ -67,9 +67,12 @@ where = ["src", "."]
 include = ["counterfactual_rl*", "experiments*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+"experiments.learners.doorkey" = ["source_recipe.json"]
+
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py312']
 
 [tool.isort]
 profile = "black"

@@ -10,8 +10,6 @@
       "arm": "uniform",
       "seed": 0,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_0.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278561",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -83,8 +81,6 @@
       "arm": "uniform",
       "seed": 1,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_1.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278562",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -156,8 +152,6 @@
       "arm": "per",
       "seed": 0,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_5.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278566",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -229,8 +223,6 @@
       "arm": "per",
       "seed": 1,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_6.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278567",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -302,8 +294,6 @@
       "arm": "cce_mul",
       "seed": 0,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_10.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278571",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -381,8 +371,6 @@
       "arm": "cce_mul",
       "seed": 1,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_11.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278572",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -460,8 +448,6 @@
       "arm": "cce_add",
       "seed": 0,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_20.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278581",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -539,8 +525,6 @@
       "arm": "cce_add",
       "seed": 1,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_21.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278582",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -618,8 +602,6 @@
       "arm": "cce_only",
       "seed": 0,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_15.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278576",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",
@@ -697,8 +679,6 @@
       "arm": "cce_only",
       "seed": 1,
       "variant": "fixed",
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278560_16.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278577",
       "config": {
         "scenario": null,
         "map_id": "Grid-Rand-Poly",

@@ -1,8 +1,0 @@
-{
-  "schema_version": 1,
-  "seed": 0,
-  "study": "suitability_precision",
-  "input": "studies/historical-analysis-migration/fixtures/suitability.json",
-  "input_evidence": "synthetic_metric_check_not_empirical_suitability",
-  "data_root": "../.."
-}

@@ -6,10 +6,10 @@ One place for each kind of work.
 src/counterfactual_rl/    shared CCE and replay math
 experiments/envs/        task rules and state
 experiments/learners/    training loops, split by task and old protocol
-configs/experiment/     full run settings
+configs/experiment/     runnable training recipes
 configs/studies/        analysis settings; not training jobs
-experiments/studies/    old paper and diagnostic analysis
-studies/                source proof, checks, and known gaps
+experiments/studies/    paper and diagnostic analysis
+docs/migration-audit.md recovery pointer for old migration proof
 runs/                   new outputs; not source code
 ```
 
@@ -25,9 +25,9 @@ python -m experiments.catalog --root /path/to/checkout
 ```
 
 This lists training recipes and analysis configs. Valid settings do not mean
-that training finished or that a result was reproduced. Read the linked study
-reports for those checks. `studies/all-study-migration/discovery.json` states
-where the search looked and what it skipped.
+that training finished or that a result was reproduced. Each new run writes its
+own status and source record. Old migration evidence is recoverable through the
+commit named in `docs/migration-audit.md`.
 
 ## Run a small check
 
@@ -68,6 +68,7 @@ Each adapter supplies `validate_config`, `build_agent`, `smoke_overrides`,
 and implements `learn` and `evaluate`. An optional `evaluation_identity` reports
 real fixed-bank details. Different clocks must keep different names.
 
-Before calling a port done, keep the old source, compare old/new behavior with
-the same small inputs, run the shared entrypoint, and rebuild the report where
-the needed data exists. If source or data is missing, say exactly what is missing.
+Before calling a port done, compare old/new behavior with the same small inputs,
+run the shared entrypoint, and rebuild the report where the needed data exists.
+Keep a Git commit and source hash for clean old source. Store copied source only
+when Git cannot recover its exact bytes.

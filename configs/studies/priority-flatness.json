@@ -1,8 +1,0 @@
-{
-  "schema_version": 1,
-  "seed": 0,
-  "study": "priority_flatness",
-  "input": "studies/historical-analysis-migration/retained/hero-scores.json",
-  "input_evidence": "cached_checkpoint_scores_reanalysis_no_new_rollouts",
-  "data_root": "../.."
-}

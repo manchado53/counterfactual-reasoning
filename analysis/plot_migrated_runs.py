@@ -20,7 +20,7 @@ def read_runs(paths, bin_size=5000):
         cfg = json.loads((path/"config.json").read_text())
         attempt = json.loads((path/"attempt.json").read_text())
         axis = attempt.get("eval_axis", "episode")
-        if axis not in ("episode", "env_steps") or x_field is not None and axis != x_field:
+        if axis not in ("episode", "env_steps", "chunk") or x_field is not None and axis != x_field:
             raise ValueError("Different or unsupported training clocks")
         x_field = axis
         eval_signature = (attempt.get("eval_bank_hash"),
@@ -92,7 +92,9 @@ def main():
         label = f"{m['algorithm']} {m['priority_mixing']} mu={m['mu']} {m['collector_variant']} decay={m['decay_enabled']} n={curve['n_seeds']}"
         line, = ax.plot(curve["bin_lower_edges"],curve["mean"],label=label,marker=".")
         ax.plot(curve["bin_lower_edges"],curve["median"],color=line.get_color(),linestyle="--")
-    x_label = "Environment steps" if data["x_field"] == "env_steps" else "Training episode"
+    labels = {"env_steps": "Environment steps", "episode": "Training episode",
+              "chunk": "Training chunk"}
+    x_label = labels[data["x_field"]]
     ax.set(xlabel=x_label+" (bin lower edge)",ylabel="Goal reach rate",ylim=(0,1),
            title="Mean (solid), median (dashed); no filled tails")
     ax.legend(fontsize=7)

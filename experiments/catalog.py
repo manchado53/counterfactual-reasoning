@@ -39,7 +39,7 @@ def catalog(root):
             error = str(exc)
         analyses.append(dict(path=str(path.relative_to(root)), study=config.get('study'), invalid=error))
     return dict(schema_version=1, training=training, analyses=analyses,
-                warning='Validation is not execution, old-job completion, or parity. Read the study evidence.')
+                warning='Validation is not execution, job completion, or scientific evidence.')
 
 
 def main():

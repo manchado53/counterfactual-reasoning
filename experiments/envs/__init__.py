@@ -1,1 +1,1 @@
-"""Research migration module; see studies/jaxnav-migration."""
+"""Environment rules used by experiment learners."""

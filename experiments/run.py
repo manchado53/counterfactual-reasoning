@@ -41,7 +41,8 @@ def main():
     os.environ["CCE_RUN_DIR"] = str(out)
     os.environ["JAX_PLATFORMS"] = "cuda" if args.device == "gpu" else "cpu"
     if args.device == "cpu":
-        os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4])
+        if hasattr(os, "sched_getaffinity") and hasattr(os, "sched_setaffinity"):
+            os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4])
         for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
             os.environ[name] = "1"
     if args.vendor:

@@ -1,7 +1,6 @@
 {
   "schema_version": 1,
   "study_status": "generic recovered learner examples; not exact historical job recipes",
-  "source_manifest": "studies/legacy-environments-migration/source-manifest.json",
   "environment": "smax",
   "rows": [
     {

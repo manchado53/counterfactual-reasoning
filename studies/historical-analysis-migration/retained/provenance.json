@@ -1,8 +1,0 @@
-{
-  "log_source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/cce-rpdqn/src/counterfactual_rl/agents/cvrp_neural/runs/274714/metrics.log",
-  "log_sha256": "e8394d0835df181ac235872b354b8a22367b56c22b3db851dd35d44f9c69d0d7",
-  "hero_source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/docs/figures/theorem3_step1/hero_scores.npz",
-  "hero_sha256": "e5b23a42feeb93d4b79217aaa212e9d9d5517ef2b29180f985d90720d46885d3",
-  "hero_encoding": "base64 is lossless original NPZ; JSON preserves array values for portable analysis",
-  "scope": "Retained historical output, not newly collected scores or training."
-}

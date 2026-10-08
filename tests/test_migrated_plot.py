@@ -69,3 +69,15 @@ def test_frozenlake_uses_step_clock_and_generic_simulator_identity(tmp_path):
     assert data["x_field"] == "env_steps"
     assert data["curves"][0]["mean"] == [.25, .75]
     assert data["curves"][0]["bin_lower_edges"] == [8, 16]
+
+
+def test_chess_uses_chunk_clock(tmp_path):
+    a = make_run(tmp_path, "chess", 0, [(1, .25), (2, .75)])
+    (a/"attempt.json").write_text(json.dumps(dict(environment="chess",
+        eval_axis="chunk", eval_bank_hash="chess-bank",
+        simulator_source_hashes={"chess.py": "chess-source"})))
+    (a/"eval.jsonl").write_text('\n'.join(json.dumps(dict(chunk=x, win_rate=w))
+        for x, w in [(1, .25), (2, .75)]))
+    data = read_runs([a], 1)
+    assert data["x_field"] == "chunk"
+    assert data["curves"][0]["mean"] == [.25, .75]

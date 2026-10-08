@@ -1,9 +1,0 @@
-{
-  "254131": {
-    "n_episodes": 70,
-    "eval_interval": 25,
-    "eval_episodes": 10,
-    "algorithm": "dqn-uniform",
-    "seed": 0
-  }
-}

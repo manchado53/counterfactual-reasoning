@@ -1,1 +1,1 @@
-"""Research migration module; see studies/jaxnav-migration."""
+"""Shared experiment-runner helpers."""

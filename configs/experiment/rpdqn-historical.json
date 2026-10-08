@@ -208,5 +208,5 @@
     }
   ],
   "study_status": "generic frozen dirty-source learner examples; not upstream reproduction",
-  "source_manifest": "studies/legacy-environments-migration/rpdqn-source-manifest.json"
+  "description": "Runnable RP-DQN examples recovered from the final research implementation"
 }

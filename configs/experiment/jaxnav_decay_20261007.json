@@ -84,9 +84,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_10.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277765"
+      }
     },
     {
       "task": 3,
@@ -169,9 +167,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_11.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277766"
+      }
     },
     {
       "task": 5,
@@ -254,9 +250,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_12.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277767"
+      }
     },
     {
       "task": 7,
@@ -339,9 +333,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_10.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277765"
+      }
     },
     {
       "task": 9,
@@ -424,9 +416,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_11.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277766"
+      }
     },
     {
       "task": 11,
@@ -509,9 +499,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_12.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277767"
+      }
     },
     {
       "task": 13,
@@ -594,9 +582,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_10.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277765"
+      }
     },
     {
       "task": 15,
@@ -679,9 +665,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_11.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277766"
+      }
     },
     {
       "task": 17,
@@ -764,9 +748,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_12.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277767"
+      }
     },
     {
       "task": 18,
@@ -849,9 +831,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_5.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278041"
+      }
     },
     {
       "task": 19,
@@ -934,9 +914,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_6.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278042"
+      }
     },
     {
       "task": 20,
@@ -1019,9 +997,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_7.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278043"
+      }
     },
     {
       "task": 21,
@@ -1104,9 +1080,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_5.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278041"
+      }
     },
     {
       "task": 22,
@@ -1189,9 +1163,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_6.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278042"
+      }
     },
     {
       "task": 23,
@@ -1274,9 +1246,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_7.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278043"
+      }
     },
     {
       "task": 24,
@@ -1359,9 +1329,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_5.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278041"
+      }
     },
     {
       "task": 25,
@@ -1444,9 +1412,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_6.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278042"
+      }
     },
     {
       "task": 26,
@@ -1529,9 +1495,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_7.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278043"
+      }
     },
     {
       "task": 27,
@@ -1614,9 +1578,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_0.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278036"
+      }
     },
     {
       "task": 28,
@@ -1699,9 +1661,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_1.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278037"
+      }
     },
     {
       "task": 29,
@@ -1784,9 +1744,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_2.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278038"
+      }
     },
     {
       "task": 30,
@@ -1869,9 +1827,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_0.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278036"
+      }
     },
     {
       "task": 31,
@@ -1954,9 +1910,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_1.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278037"
+      }
     },
     {
       "task": 32,
@@ -2039,9 +1993,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_2.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278038"
+      }
     },
     {
       "task": 33,
@@ -2124,9 +2076,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_0.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278036"
+      }
     },
     {
       "task": 34,
@@ -2209,9 +2159,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_1.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278037"
+      }
     },
     {
       "task": 35,
@@ -2294,9 +2242,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_2.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278038"
+      }
     },
     {
       "task": 37,
@@ -2379,9 +2325,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_13.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277770"
+      }
     },
     {
       "task": 39,
@@ -2464,9 +2408,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_13.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277770"
+      }
     },
     {
       "task": 41,
@@ -2549,9 +2491,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_13.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277770"
+      }
     },
     {
       "task": 43,
@@ -2634,9 +2574,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_8.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278044"
+      }
     },
     {
       "task": 45,
@@ -2719,9 +2657,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_8.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278044"
+      }
     },
     {
       "task": 47,
@@ -2804,9 +2740,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_8.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278044"
+      }
     },
     {
       "task": 49,
@@ -2889,9 +2823,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_3.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278039"
+      }
     },
     {
       "task": 51,
@@ -2974,9 +2906,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_3.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278039"
+      }
     },
     {
       "task": 53,
@@ -3059,9 +2989,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_3.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278039"
+      }
     },
     {
       "task": 55,
@@ -3144,9 +3072,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_14.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277733"
+      }
     },
     {
       "task": 57,
@@ -3229,9 +3155,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_14.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277733"
+      }
     },
     {
       "task": 59,
@@ -3314,9 +3238,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/277733_14.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/277733"
+      }
     },
     {
       "task": 61,
@@ -3399,9 +3321,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_9.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278035"
+      }
     },
     {
       "task": 63,
@@ -3484,9 +3404,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_9.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278035"
+      }
     },
     {
       "task": 65,
@@ -3569,9 +3487,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_9.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278035"
+      }
     },
     {
       "task": 67,
@@ -3654,9 +3570,7 @@
         "decay_enabled": true,
         "collector_variant": "old",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_4.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278040"
+      }
     },
     {
       "task": 69,
@@ -3739,9 +3653,7 @@
         "decay_enabled": false,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_4.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278040"
+      }
     },
     {
       "task": 71,
@@ -3824,9 +3736,7 @@
         "decay_enabled": true,
         "collector_variant": "fixed",
         "experiment": "ranked_td_decay_20261007"
-      },
-      "parent_log": "/home/ad.msoe.edu/manchadoa/jaxnav_logs/278035_4.out",
-      "parent_run": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/research+cce-robotics-transfer/src/counterfactual_rl/agents/jax_nav/runs/278040"
+      }
     }
   ]
 }
