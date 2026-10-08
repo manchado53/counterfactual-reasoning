@@ -14,11 +14,18 @@ def read_runs(paths, bin_size=5000):
         raise ValueError("bin_size must be positive")
     groups, reference, seen, provenance = {}, None, set(), []
     eval_identity = None
+    x_field = None
     for path in paths:
         path = Path(path)
         cfg = json.loads((path/"config.json").read_text())
         attempt = json.loads((path/"attempt.json").read_text())
-        eval_signature = (attempt.get("eval_bank_hash"), attempt.get("jaxmarl_source_hashes"))
+        axis = attempt.get("eval_axis", "episode")
+        if axis not in ("episode", "env_steps") or x_field is not None and axis != x_field:
+            raise ValueError("Different or unsupported training clocks")
+        x_field = axis
+        eval_signature = (attempt.get("eval_bank_hash"),
+                          attempt.get("simulator_source_hashes", attempt.get("jaxmarl_source_hashes")),
+                          attempt.get("environment", "jaxnav"))
         if not eval_signature[0] or not eval_signature[1]:
             raise ValueError("Missing eval-bank or simulator source identity")
         if eval_identity is not None and eval_signature != eval_identity:
@@ -40,8 +47,8 @@ def read_runs(paths, bin_size=5000):
         last = -1
         bins = {}
         for row in rows:
-            episode, score = row["episode"], row["win_rate"]
-            if episode <= last or not isinstance(score, (int,float)) or not np.isfinite(score) or not 0 <= score <= 1:
+            episode, score = row[x_field], row["win_rate"]
+            if type(episode) is not int or episode < 0 or episode <= last or not isinstance(score, (int,float)) or not np.isfinite(score) or not 0 <= score <= 1:
                 raise ValueError(f"Invalid/repeated evaluation row: {path}")
             last = episode
             bins.setdefault(episode//bin_size, []).append(score)
@@ -62,7 +69,8 @@ def read_runs(paths, bin_size=5000):
         results.append(dict(method=dict(zip(METHOD_KEYS, method)), n_seeds=len(seeds),
             bin_lower_edges=[b*bin_size for b in shared], bin_width=bin_size,
             mean=values.mean(axis=0).tolist(), median=np.median(values,axis=0).tolist()))
-    return dict(aggregation="per-seed bin means, then equal-weight mean/median; shared bins only",
+    return dict(x_field=x_field,
+                aggregation="per-seed bin means, then equal-weight mean/median; shared bins only",
                 uncertainty="none", sources=provenance, curves=results)
 
 
@@ -84,7 +92,8 @@ def main():
         label = f"{m['algorithm']} {m['priority_mixing']} mu={m['mu']} {m['collector_variant']} decay={m['decay_enabled']} n={curve['n_seeds']}"
         line, = ax.plot(curve["bin_lower_edges"],curve["mean"],label=label,marker=".")
         ax.plot(curve["bin_lower_edges"],curve["median"],color=line.get_color(),linestyle="--")
-    ax.set(xlabel="Training episode (bin lower edge)",ylabel="Goal reach rate",ylim=(0,1),
+    x_label = "Environment steps" if data["x_field"] == "env_steps" else "Training episode"
+    ax.set(xlabel=x_label+" (bin lower edge)",ylabel="Goal reach rate",ylim=(0,1),
            title="Mean (solid), median (dashed); no filled tails")
     ax.legend(fontsize=7)
     fig.tight_layout()

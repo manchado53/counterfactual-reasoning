@@ -10,7 +10,7 @@ EXTRA_KEYS = {"decay_start", "decay_end", "decay_enabled", "collector_variant", 
 
 def load_recipe(path, task):
     manifest = json.loads(Path(path).read_text())
-    if manifest.get("schema_version") != 1 or manifest.get("environment") != "jaxnav":
+    if manifest.get("schema_version") != 1 or manifest.get("environment") not in ("jaxnav", "frozenlake"):
         raise ValueError("Unsupported recipe schema/environment")
     rows = manifest["rows"]
     if len({r["task"] for r in rows}) != len(rows):
@@ -20,6 +20,12 @@ def load_recipe(path, task):
         raise ValueError(f"No unique task {task}")
     row = selected[0]
     cfg = row["config"]
+    if manifest["environment"] == "frozenlake":
+        from experiments.learners.frozenlake.build import validate_config
+        validate_config(cfg)
+        if cfg["seed"] != row["seed"] or cfg["collector_variant"] != row["collector"]:
+            raise ValueError("Seed/collector mismatch")
+        return row
     unknown = set(cfg) - set(DEFAULT_CONFIG) - EXTRA_KEYS
     if unknown:
         raise ValueError(f"Unknown settings: {sorted(unknown)}")

@@ -9,6 +9,7 @@ import signal
 import sys
 import zipfile
 from experiments.recipes import load_recipe
+from experiments.common.provenance import project_sources
 
 
 def main():
@@ -23,10 +24,15 @@ def main():
     p.add_argument("--max-wall-seconds", type=int, default=600)
     args = p.parse_args()
     row = load_recipe(args.recipe, args.task)
+    environment = json.loads(args.recipe.read_text())["environment"]
     cfg = row["config"].copy()
     if args.smoke:
-        from experiments.smoke import JAXNAV_OVERRIDES
-        cfg.update(JAXNAV_OVERRIDES)
+        if environment == "jaxnav":
+            from experiments.smoke import JAXNAV_OVERRIDES
+            cfg.update(JAXNAV_OVERRIDES)
+        else:
+            from experiments.learners.frozenlake.build import smoke_overrides
+            cfg.update(smoke_overrides(cfg))
     if args.action == "validate":
         print(json.dumps(dict(row=row, resolved_config=cfg, smoke=args.smoke), indent=2))
         return
@@ -35,12 +41,14 @@ def main():
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     os.environ["CCE_RUN_DIR"] = str(out)
-    os.environ["JAX_PLATFORMS"] = args.device
+    os.environ["JAX_PLATFORMS"] = "cuda" if args.device == "gpu" else "cpu"
     if args.device == "cpu":
         os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4])
     if args.vendor:
         sys.path.insert(0, str(args.vendor.resolve()))
     record = dict(status="starting", recipe=row, smoke=args.smoke,
+                  environment=environment,
+                  eval_axis="env_steps" if environment == "frozenlake" and cfg["collector_variant"] == "fixed" else "episode",
                   resolved_config=cfg, recipe_sha256=hashlib.sha256(args.recipe.read_bytes()).hexdigest(),
                   python=sys.version, wall_limit=args.max_wall_seconds)
     def save():
@@ -51,24 +59,35 @@ def main():
     signal.alarm(args.max_wall_seconds)
     save()
     try:
-        from experiments.learners.jaxnav.build import build_agent
+        if environment == "jaxnav":
+            from experiments.learners.jaxnav.build import build_agent
+        else:
+            from experiments.learners.frozenlake.build import build_agent
         import jax
         if jax.default_backend() != args.device:
             raise RuntimeError("Requested backend is unavailable")
         record["packages"] = {k: importlib.metadata.version(k) for k in
             ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex")}
-        root = Path(__file__).resolve().parents[1]
-        record["source_hashes"] = {str(f.relative_to(root)): hashlib.sha256(f.read_bytes()).hexdigest()
-            for folder in ("experiments", "src") for f in (root/folder).rglob("*.py")}
-        import jaxmarl
-        vendor_root = Path(jaxmarl.__file__).resolve().parent
-        record["jaxmarl_source_hashes"] = {str(f.relative_to(vendor_root)): hashlib.sha256(f.read_bytes()).hexdigest()
-            for f in vendor_root.rglob("*.py")}
+        project_files = project_sources()
+        record["source_hashes"] = {name: hashlib.sha256(f.read_bytes()).hexdigest()
+            for name, f in project_files.items()}
+        if environment == "jaxnav":
+            import jaxmarl
+            vendor_root = Path(jaxmarl.__file__).resolve().parent
+            simulator_files = {str(f.relative_to(vendor_root)): f for f in vendor_root.rglob("*.py")}
+        else:
+            from experiments.envs import frozenlake
+            simulator_files = {"frozenlake.py": Path(frozenlake.__file__).resolve()}
+        simulator_hashes = {name: hashlib.sha256(f.read_bytes()).hexdigest()
+                            for name, f in simulator_files.items()}
+        record["simulator_source_hashes"] = simulator_hashes
+        if environment == "jaxnav":
+            record["jaxmarl_source_hashes"] = simulator_hashes
         # Hashes identify source; the bundle makes it recoverable after worktree cleanup.
-        sources = [(root / name, "project/" + name, expected)
+        sources = [(project_files[name], "project/" + name, expected)
                    for name, expected in record["source_hashes"].items()]
-        sources += [(vendor_root / name, "jaxmarl/" + name, expected)
-                    for name, expected in record["jaxmarl_source_hashes"].items()]
+        sources += [(simulator_files[name], "simulator/" + name, expected)
+                    for name, expected in simulator_hashes.items()]
         if sum(f.stat().st_size for f, _, _ in sources) > 100 * 1024**2:
             raise ValueError("Source bundle exceeds 100 MiB cap")
         with zipfile.ZipFile(out/"source.zip", "x", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -85,6 +104,10 @@ def main():
         if agent.config != cfg:
             raise ValueError("Resolved config drift")
         def record_bank():
+            if hasattr(agent, "evaluation_identity"):
+                record.update(agent.evaluation_identity())
+                save()
+                return
             if not hasattr(agent, "_fixed_eval_init_states"):
                 return
             import numpy as np

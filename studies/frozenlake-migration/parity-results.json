@@ -1,0 +1,509 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-08",
+  "status": "passed_bounded_checks",
+  "contract_test_result": {
+    "command": "timeout 180s env PYTHONNOUSERSITE=1 PYTHONPATH=.:src JAX_PLATFORMS=cpu /tmp/cce-clean-install-uudpga/venv/bin/python -c 'import os; os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4]); import pytest; raise SystemExit(pytest.main([\"-q\", \"tests/test_frozenlake_migration.py\"]))'",
+    "passed": 14,
+    "failed": 0,
+    "seconds": 23.75,
+    "shared_runner_validate": "passed: frozenlake-stochastic-transfer task 10 --smoke"
+  },
+  "scope": "Sealed fixed stochastic transfer code compared on reduced 4x4 CPU recipe. NOT full historical study parity. Legacy old collector is separate and is not this reference.",
+  "recipe": "configs/experiment/frozenlake-smoke.json",
+  "recipe_sha256": "4df483beb9e7b4fb3692c66b78c94e49450eb727daca88a8eedac094f674df5a",
+  "source_map": "source-map.json",
+  "tolerances": {
+    "all_compared_fields": "exact equality; no tolerance relaxation"
+  },
+  "resources": {
+    "cpu_affinity_cores": 4,
+    "per_process_timeout_seconds": 180,
+    "steps_per_run": 32,
+    "updates_per_run": 8,
+    "blocks": 4,
+    "buffer_capacity": 16,
+    "cf_horizon": 4,
+    "cf_n_rollouts": 4,
+    "eval_episodes": 4,
+    "eval_cutoff": 200
+  },
+  "runtime": {
+    "python": "3.12.12",
+    "device": "CPU",
+    "architecture": "x86_64",
+    "packages": {
+      "numpy": "2.4.0",
+      "jax": "0.9.1",
+      "jaxlib": "0.9.1",
+      "flax": "0.10.4",
+      "optax": "0.2.5",
+      "scipy": "1.16.3",
+      "chex": "0.1.91"
+    }
+  },
+  "output_root": "/tmp/fl-migration-check-CefB72",
+  "limitations": [
+    "Final-state fingerprints and one post-run sample, not every-step gradients/TD-target traces.",
+    "CCE additive mu=0.5 tested; multiplicative and CCE-only branches retained by source move but not included in this bounded comparison.",
+    "These tiny training traces contain no goal rewards; goal/hole/timeout behavior has separate contract tests.",
+    "No GPU comparison, long training run, 1000-episode bank check, historical paper curve reproduction, or exact resume.",
+    "Held-out final-test bank from original launcher is not accessed by the generic learn hook.",
+    "Old collector retains training/evaluation key coupling and historical chunk reset behavior; no fixed evaluation-bank identity is claimed."
+  ],
+  "comparisons": [
+    {
+      "task": 0,
+      "algorithm": "dqn-uniform",
+      "old_vs_old": "exact",
+      "old_vs_new": "exact",
+      "first_divergence": null,
+      "fields": [
+        "carry",
+        "epsilon",
+        "eval",
+        "key",
+        "lengths",
+        "optimizer",
+        "params",
+        "priorities",
+        "replay",
+        "returns",
+        "sample_indices",
+        "sample_weights",
+        "steps",
+        "target",
+        "updates"
+      ],
+      "reference": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "d86b94d6da67feb9ea9aaaca9f4dfb494a5955e3f7b8ab96bd934bf2b2f3140f",
+        "params": "631b1bdb19b1e241be5237950242d3b55baa2560db9b1ac6619d6833059f0ccf",
+        "priorities": "b9dcc7560977bba1520558dc984892c8aff8efed1b94adf2deb11cbe5edd8fce",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          3,
+          0,
+          3,
+          5
+        ],
+        "sample_weights": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "steps": 32,
+        "target": "dc13bb17bf4234310db0d19a9c9ad4dc6477f904c6c77f4370ac0552a619a5eb",
+        "updates": 8
+      },
+      "reference_repeat": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "d86b94d6da67feb9ea9aaaca9f4dfb494a5955e3f7b8ab96bd934bf2b2f3140f",
+        "params": "631b1bdb19b1e241be5237950242d3b55baa2560db9b1ac6619d6833059f0ccf",
+        "priorities": "b9dcc7560977bba1520558dc984892c8aff8efed1b94adf2deb11cbe5edd8fce",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          3,
+          0,
+          3,
+          5
+        ],
+        "sample_weights": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "steps": 32,
+        "target": "dc13bb17bf4234310db0d19a9c9ad4dc6477f904c6c77f4370ac0552a619a5eb",
+        "updates": 8
+      },
+      "migrated": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "d86b94d6da67feb9ea9aaaca9f4dfb494a5955e3f7b8ab96bd934bf2b2f3140f",
+        "params": "631b1bdb19b1e241be5237950242d3b55baa2560db9b1ac6619d6833059f0ccf",
+        "priorities": "b9dcc7560977bba1520558dc984892c8aff8efed1b94adf2deb11cbe5edd8fce",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          3,
+          0,
+          3,
+          5
+        ],
+        "sample_weights": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "steps": 32,
+        "target": "dc13bb17bf4234310db0d19a9c9ad4dc6477f904c6c77f4370ac0552a619a5eb",
+        "updates": 8
+      }
+    },
+    {
+      "task": 1,
+      "algorithm": "dqn",
+      "old_vs_old": "exact",
+      "old_vs_new": "exact",
+      "first_divergence": null,
+      "fields": [
+        "carry",
+        "epsilon",
+        "eval",
+        "key",
+        "lengths",
+        "optimizer",
+        "params",
+        "priorities",
+        "replay",
+        "returns",
+        "sample_indices",
+        "sample_weights",
+        "steps",
+        "target",
+        "updates"
+      ],
+      "reference": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "8fb450400bbb00c6a93c2836f23963981df4541969603c6ed69fc0043ca97546",
+        "params": "154ed6b24bc7eb59f8b58e07ca42a8c3f238c5bedb4442c66b63ccd3034dd806",
+        "priorities": "15b6603e50d99121a6edc74344868cd589302c8fa31085c155d97aecb68afea3",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          9,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.7859753378126283,
+          0.7859753378126283,
+          1.1687403118585178,
+          0.7859753378126283
+        ],
+        "steps": 32,
+        "target": "235861867cbfba6b2214f082105e489ec6e6246b67267381de76a18386218604",
+        "updates": 8
+      },
+      "reference_repeat": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "8fb450400bbb00c6a93c2836f23963981df4541969603c6ed69fc0043ca97546",
+        "params": "154ed6b24bc7eb59f8b58e07ca42a8c3f238c5bedb4442c66b63ccd3034dd806",
+        "priorities": "15b6603e50d99121a6edc74344868cd589302c8fa31085c155d97aecb68afea3",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          9,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.7859753378126283,
+          0.7859753378126283,
+          1.1687403118585178,
+          0.7859753378126283
+        ],
+        "steps": 32,
+        "target": "235861867cbfba6b2214f082105e489ec6e6246b67267381de76a18386218604",
+        "updates": 8
+      },
+      "migrated": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "8fb450400bbb00c6a93c2836f23963981df4541969603c6ed69fc0043ca97546",
+        "params": "154ed6b24bc7eb59f8b58e07ca42a8c3f238c5bedb4442c66b63ccd3034dd806",
+        "priorities": "15b6603e50d99121a6edc74344868cd589302c8fa31085c155d97aecb68afea3",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          9,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.7859753378126283,
+          0.7859753378126283,
+          1.1687403118585178,
+          0.7859753378126283
+        ],
+        "steps": 32,
+        "target": "235861867cbfba6b2214f082105e489ec6e6246b67267381de76a18386218604",
+        "updates": 8
+      }
+    },
+    {
+      "task": 2,
+      "algorithm": "consequence-dqn",
+      "old_vs_old": "exact",
+      "old_vs_new": "exact",
+      "first_divergence": null,
+      "fields": [
+        "carry",
+        "consequence_scores",
+        "epsilon",
+        "eval",
+        "key",
+        "lengths",
+        "optimizer",
+        "params",
+        "replay",
+        "returns",
+        "sample_indices",
+        "sample_weights",
+        "score_key",
+        "scored_arrivals",
+        "scored_at",
+        "steps",
+        "target",
+        "updates"
+      ],
+      "reference": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "consequence_scores": "2f5a1f339219f6864b58ae02f2426e99335a3166bd1a603b14f8fc25d707bdb3",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "07149b2c37701e91530f5525d4c704b717cbb6b5dc687d435a5d0fa825955e74",
+        "params": "f3b724e0f97c8b9364fa6e400d9b309347f3aeb662d53a3002619416e062e56e",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          8,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.9188955321149964,
+          1.0477054852678358,
+          1.0207526968149734,
+          0.9188955321149964
+        ],
+        "score_key": "490bcc37cebf60a9a2bb1ab4273798e860091d5d85f98608ebc21402011ff21d",
+        "scored_arrivals": 32,
+        "scored_at": "4bddb5339c3e5ddf7c9906579a22a2b81a00f002e67653bb5c11059f425ba98c",
+        "steps": 32,
+        "target": "feec3f9a90cb0d91fd8cb30e9830484f03087deef9510a9b43815bb8bd34699e",
+        "updates": 8
+      },
+      "reference_repeat": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "consequence_scores": "2f5a1f339219f6864b58ae02f2426e99335a3166bd1a603b14f8fc25d707bdb3",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "07149b2c37701e91530f5525d4c704b717cbb6b5dc687d435a5d0fa825955e74",
+        "params": "f3b724e0f97c8b9364fa6e400d9b309347f3aeb662d53a3002619416e062e56e",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          8,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.9188955321149964,
+          1.0477054852678358,
+          1.0207526968149734,
+          0.9188955321149964
+        ],
+        "score_key": "490bcc37cebf60a9a2bb1ab4273798e860091d5d85f98608ebc21402011ff21d",
+        "scored_arrivals": 32,
+        "scored_at": "4bddb5339c3e5ddf7c9906579a22a2b81a00f002e67653bb5c11059f425ba98c",
+        "steps": 32,
+        "target": "feec3f9a90cb0d91fd8cb30e9830484f03087deef9510a9b43815bb8bd34699e",
+        "updates": 8
+      },
+      "migrated": {
+        "carry": "61aedd3d7e7d5c1f598256a963e84714b45acea8ec42f0e07a85118eafdd944f",
+        "consequence_scores": "2f5a1f339219f6864b58ae02f2426e99335a3166bd1a603b14f8fc25d707bdb3",
+        "epsilon": 0.99962,
+        "eval": {
+          "avg_length": 5.75,
+          "avg_return": 0,
+          "win_rate": 0
+        },
+        "key": "417d23b5a76471dcab4314a3ceea5ac615c1b59bc2dd2d5a4fbd438deaea62e7",
+        "lengths": [
+          2,
+          7,
+          4,
+          14
+        ],
+        "optimizer": "07149b2c37701e91530f5525d4c704b717cbb6b5dc687d435a5d0fa825955e74",
+        "params": "f3b724e0f97c8b9364fa6e400d9b309347f3aeb662d53a3002619416e062e56e",
+        "replay": "c7d6e2d94203668b990ae741bbeda381a64785b22325dff9c201ac57f7f18510",
+        "returns": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "sample_indices": [
+          7,
+          8,
+          0,
+          9
+        ],
+        "sample_weights": [
+          0.9188955321149964,
+          1.0477054852678358,
+          1.0207526968149734,
+          0.9188955321149964
+        ],
+        "score_key": "490bcc37cebf60a9a2bb1ab4273798e860091d5d85f98608ebc21402011ff21d",
+        "scored_arrivals": 32,
+        "scored_at": "4bddb5339c3e5ddf7c9906579a22a2b81a00f002e67653bb5c11059f425ba98c",
+        "steps": 32,
+        "target": "feec3f9a90cb0d91fd8cb30e9830484f03087deef9510a9b43815bb8bd34699e",
+        "updates": 8
+      }
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 # Migration checks
 
+See [STATUS.md](STATUS.md) for the October 8 install, historical reporting,
+FrozenLake and GPU-gate updates. Counts below describe earlier checks.
+
 ## JaxNav training path
 
 - Nine bounded seed-0 cells passed exact old/old and old/new parity.

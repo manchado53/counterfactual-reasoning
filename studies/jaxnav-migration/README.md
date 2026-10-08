@@ -1,5 +1,8 @@
 # JaxNav migration: first parity gate
 
+Current work-block status: [STATUS.md](STATUS.md). The dated sections below
+describe earlier gates; they are not a claim that the whole migration is done.
+
 Status: JaxNav training path wired; bounded CPU parity and reporting checks added.
 Production-budget/GPU parity and whole-project migration are NOT done.
 

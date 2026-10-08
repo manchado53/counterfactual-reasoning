@@ -77,6 +77,9 @@ replays/
 # repro bundle: keep manifests/cache/scripts, ignore throwaway regenerated figs
 paper/repro/regen/
 
+# Regenerated historical figures/data. Frozen old references and logs stay tracked.
+analysis/historical_reproduction/*/verified/
+
 # Claim-1 analysis caches & checkpoints (regenerable outputs; the committed
 # copies live in paper/repro/cache/). Keeps ~206 MB of .pkl/.ckpt out of git.
 src/counterfactual_rl/analysis/claim1/**/*.pkl

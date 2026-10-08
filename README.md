@@ -1,5 +1,17 @@
 # Counterfactual Reasoning in Reinforcement Learning
 
+## Opt-in experiment migration
+
+The new JaxNav and FrozenLake recipe runner lives in `experiments/`; shared
+replay and scoring live in `src/counterfactual_rl/`. Existing production paths
+remain unchanged. This migration is not complete or merge-certified.
+
+- [Current checks and remaining gates](studies/jaxnav-migration/STATUS.md)
+- [Isolated install and smoke commands](docs/migration-install.md)
+- [Historical recipes and recovery](studies/jaxnav-migration/history.md)
+- [Exact historical figure checks](studies/jaxnav-migration/historical-reporting.md)
+- [FrozenLake source and parity scope](studies/frozenlake-migration/README.md)
+
 > **⚠ Parts of this README are stale (pre-SMAX-pivot architecture).** For current status,
 > claims, and dead ends see **`lab-notebook.md`**; the paper is **`paper/paper.tex`**;
 > reproduction lives in **`paper/repro/`**. Sections below mentioning SMAC, beam search, or

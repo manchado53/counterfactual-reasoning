@@ -44,3 +44,12 @@ def test_smoke_is_explicit_and_preserves_scoring_horizon():
     assert row["config"]["n_episodes"] == 200000
     assert cfg["n_episodes"] == 6
     assert cfg["cf_horizon"] == row["config"]["cf_horizon"] == 60
+
+
+def test_frozenlake_recipe_uses_its_own_defaults(tmp_path):
+    from experiments.learners.frozenlake.build import smoke_config
+    cfg = smoke_config()
+    row = dict(task=0, seed=cfg["seed"], collector="fixed", config=cfg)
+    path = tmp_path / "frozenlake.json"
+    path.write_text(json.dumps(dict(schema_version=1, environment="frozenlake", rows=[row])))
+    assert load_recipe(path, 0) == row

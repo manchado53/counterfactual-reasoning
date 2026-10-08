@@ -56,3 +56,16 @@ def test_same_seed_different_bank_rejected(tmp_path):
     (b/"attempt.json").write_text(json.dumps(metadata))
     with pytest.raises(ValueError,match="bank or simulator differs"):
         read_runs([a,b])
+
+
+def test_frozenlake_uses_step_clock_and_generic_simulator_identity(tmp_path):
+    a = make_run(tmp_path, "fl", 0, [(0, .25), (0, .75)])
+    (a/"attempt.json").write_text(json.dumps(dict(environment="frozenlake",
+        eval_axis="env_steps", eval_bank_hash="fl-bank",
+        simulator_source_hashes={"frozenlake.py": "fl-source"})))
+    (a/"eval.jsonl").write_text('\n'.join(json.dumps(dict(episode=0, env_steps=s, win_rate=w))
+        for s, w in [(8, .25), (16, .75)]))
+    data = read_runs([a], 8)
+    assert data["x_field"] == "env_steps"
+    assert data["curves"][0]["mean"] == [.25, .75]
+    assert data["curves"][0]["bin_lower_edges"] == [8, 16]

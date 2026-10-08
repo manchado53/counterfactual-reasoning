@@ -1,0 +1,3 @@
+# Frozen reporting fixtures must travel with their manifests and tests.
+!**/logs/
+!**/logs/*.gz
