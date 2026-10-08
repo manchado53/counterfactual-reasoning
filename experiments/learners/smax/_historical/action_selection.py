@@ -65,10 +65,10 @@ def beam_search_top_k_joint_actions(
         >>> print(probs[actions[0]])  # Probability of most likely action
     """
     n_agents = len(valid_actions)
-    
+
     if n_agents == 0:
         return []
-    
+
     # If no probs provided, use uniform distribution
     if action_probs is None:
         action_probs = [
@@ -76,44 +76,44 @@ def beam_search_top_k_joint_actions(
              for a in valid_actions[i]}
             for i in range(n_agents)
         ]
-    
+
     # Convert to log probs for numerical stability
     log_probs = [
         {a: np.log(p + 1e-10) for a, p in agent_probs.items()}
         for agent_probs in action_probs
     ]
-    
+
     # Handle edge case: first agent has no valid actions
     if len(valid_actions[0]) == 0:
         return []
-    
+
     # Initialize beams with agent 0's valid actions
     # Each beam is (joint_action_tuple, cumulative_log_prob)
     beams: List[Tuple[Tuple[int, ...], float]] = [
         ((action,), log_probs[0][action])
         for action in valid_actions[0]
     ]
-    
+
     # Prune to top-K
     beams.sort(key=lambda x: x[1], reverse=True)
     beams = beams[:k]
-    
+
     # Extend beams for each subsequent agent
     for agent_id in range(1, n_agents):
         agent_valid_actions = valid_actions[agent_id]
         agent_log_probs = log_probs[agent_id]
-        
+
         # Handle edge case: no valid actions for this agent
         if len(agent_valid_actions) == 0:
             continue
-        
+
         new_beams = []
         for joint_action, cum_log_prob in beams:
             for action in agent_valid_actions:
                 new_joint = joint_action + (action,)
                 new_log_prob = cum_log_prob + agent_log_probs[action]
                 new_beams.append((new_joint, new_log_prob))
-        
+
         # Prune to top-K
         new_beams.sort(key=lambda x: x[1], reverse=True)
         beams = new_beams[:k]
@@ -131,5 +131,3 @@ def beam_search_top_k_joint_actions(
         return actions, normalized_probs
 
     return [beam[0] for beam in beams]
-
-

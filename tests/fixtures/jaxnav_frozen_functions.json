@@ -13,7 +13,7 @@
     "reference": "fixed/src/counterfactual_rl/analysis/metrics.py",
     "source_sha256": "46ae844709d519c396110946769d9d5018647ac3b09125fba1a88b745b048e91",
     "functions": {
-      "compute_kl_divergence_kde": "b86e9eb1f2a62869fa967ecb939fb8a5ce7cc75bcc16ca92f85aaa1f277e57ba",
+        "compute_kl_divergence_kde": "c0ea069153d9e5a58a2c91e4f27b6b5157d9bef9087e3af3c18a878692729c2a",
       "compute_wasserstein_distance": "bf19469dff0edfb84d55753148fc1cf46865dcff1940ff6af15b629d01bcd0a8",
       "compute_total_variation": "d770dabb302c72a4083e0e44c9551e8381443aa7d6e4abe2c53754a63597fceb",
       "compute_jensen_shannon_divergence": "bfe04d01b051bf94e2162a42059c01cc37bb173cdfb2fd59592faa5457ceb3f3",

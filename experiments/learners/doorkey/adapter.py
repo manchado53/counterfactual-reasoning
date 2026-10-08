@@ -144,4 +144,3 @@ class DoorKeyAdapter:
         (state, ended, total, length), _ = jax.lax.scan(
             step, (jnp.int32(0), jnp.bool_(False), jnp.float32(0), jnp.int32(0)), None, length=50)
         return total, length
-

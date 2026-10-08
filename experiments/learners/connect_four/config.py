@@ -27,4 +27,3 @@ def effective_config(arm, seed):
                     'mu', 'mu_c', 'mu_delta', 'priority_mixing'])
 
 config_for = effective_config
-

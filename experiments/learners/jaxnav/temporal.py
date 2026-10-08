@@ -13,7 +13,7 @@ def temporal_class(Parent, cce):
     class TemporalAgent(Parent):
         def _build_collect_fn(self):
             env, net, seed, hold = self.env, self.network, self.config['seed'], self.config['explore_hold_steps']
-    
+
             def collect(params, epsilon, init_state, step_keys):
                 def step(carry, key):
                     state, obs, ended, total, length = carry
@@ -41,12 +41,12 @@ def temporal_class(Parent, cce):
                     if cce:
                         standard += (state,)  # Parent CCE consumes slot 8 unchanged.
                     return (ns, ob, done, total, length), standard + (explore, state.goal[0], state.step, draw)
-    
+
                 carry = (init_state, env.get_obs(init_state), jnp.bool_(False), jnp.float32(0), jnp.int32(0))
                 (state, _, _, _, _), outputs = jax.lax.scan(step, carry, step_keys)
                 return state, outputs
             self._collect_fn = jax.jit(jax.vmap(collect, in_axes=(None, None, 0, 0)))
-    
+
         def _add_chunk_to_buffer(self, outputs):
             start = time.monotonic()
             super()._add_chunk_to_buffer(outputs[:prefix])
