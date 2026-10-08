@@ -7,7 +7,8 @@ import shutil
 import subprocess
 import sys
 import importlib.metadata
-from experiments.parity.run import snapshot, digest, dump, first_difference, MAX_SOURCE_BYTES
+from experiments.parity.run import snapshot, digest, dump, MAX_SOURCE_BYTES
+from experiments.parity.numeric import compare_traces, CONTRACT
 
 
 def main():
@@ -18,6 +19,7 @@ def main():
     p.add_argument("--profile", choices=["smoke","full-size"], default="smoke")
     p.add_argument("--device", choices=["cpu","gpu"], default="cpu")
     p.add_argument("--gpu-type", choices=["h100","t4"], default="h100")
+    p.add_argument("--comparison", choices=["exact", "score-numeric-v1"], default="exact")
     args = p.parse_args()
     tasks = [int(t) for t in args.tasks.split(",")]
     if not tasks or len(tasks) > 9 or len(set(tasks)) != len(tasks):
@@ -25,6 +27,8 @@ def main():
     root = Path(__file__).resolve().parents[2]
     if args.profile == "full-size" and args.device != "gpu":
         p.error("Full-size gate requires a GPU allocation")
+    if args.comparison != "exact" and args.profile != "full-size":
+        p.error("Numeric score comparison requires full-size snapshots")
     timeout = (3600 if args.gpu_type == "t4" else 1200) if args.profile == "full-size" else 300
     out = args.output.resolve()
     if out.is_relative_to(args.reference.resolve()):
@@ -32,6 +36,8 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     report = dict(scope=args.profile+"-real-jaxnav-learn-loop", status="running", checks=[],
                   gpu_type=args.gpu_type if args.device == "gpu" else None,
+                  comparison=args.comparison,
+                  comparison_contract=CONTRACT if args.comparison != "exact" else "all fields bit-exact",
                   production_budget_parity="NOT_TESTED",
                   gradient_capture="first-batch diagnostic" if args.profile=="full-size" else "NOT_TESTED",
                   limits=dict(worker_wall_seconds=timeout, workers=1, prefix_chunks=3,max_tasks=9))
@@ -78,14 +84,20 @@ def main():
                     raise RuntimeError(f"task={task}/{name}: {proc.stderr[-2500:]}")
                 traces[name] = json.loads((target/"trace.json").read_text())
                 if name == "old_b":
-                    difference = first_difference(traces["old_a"],traces["old_b"])
+                    repeat_check = compare_traces(traces["old_a"],traces["old_b"],
+                        out/f"task-{task}-old_a", out/f"task-{task}-old_b", args.comparison)
+                    difference = repeat_check["difference"]
                     if difference:
-                        report["repeatability_failure"] = dict(task=task,first_difference=difference)
-                        raise ValueError("Old code is not bit-repeatable; no candidate equivalence claimed")
-            repeat = first_difference(traces["old_a"],traces["old_b"])
-            mismatch = first_difference(traces["old_a"],traces["new"])
+                        report["repeatability_failure"] = dict(task=task,first_difference=difference,
+                                                               comparison=repeat_check)
+                        raise ValueError("Old code fails the declared repeatability gate; no candidate equivalence claimed")
+            parity_check = compare_traces(traces["old_a"],traces["new"],
+                out/f"task-{task}-old_a",out/f"task-{task}-new",args.comparison)
+            repeat = repeat_check["difference"]
+            mismatch = parity_check["difference"]
             check = dict(task=task,repeat_difference=repeat,parity_difference=mismatch,
                          passed=repeat is None and mismatch is None,
+                         repeat_check=repeat_check, parity_check=parity_check,
                          events=len(traces["old_a"]["events"]),
                          smoke_overrides=traces["old_a"]["overrides"])
             report["checks"].append(check)

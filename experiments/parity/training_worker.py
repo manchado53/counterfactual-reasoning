@@ -148,6 +148,11 @@ def main():
     def traced_add(outputs):
         add(outputs)
         n = len(agent.buffer)
+        if args.profile == "full-size":
+            # Preserve the first divergent values for diagnosis, not only hashes.
+            # Three bounded chunks total < 0.5 MiB of float64 scores per worker.
+            np.save(args.output / f"scores-chunk-{chunks_seen}.npy",
+                    agent.buffer.consequence_scores[:n], allow_pickle=False)
         emit("insert", scores=agent.buffer.consequence_scores[:n],
              td=agent.buffer.td_magnitudes[:n], scored_at=agent.buffer.scored_at[:n],
              key=agent._key, rng=np.random.get_state()[1:])

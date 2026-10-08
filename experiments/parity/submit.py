@@ -40,6 +40,7 @@ def main():
     p.add_argument("--output", required=True,type=Path)
     p.add_argument("--after-job")
     p.add_argument("--gpu-type", choices=["h100", "t4"], default="h100")
+    p.add_argument("--comparison", choices=["exact", "score-numeric-v1"], default="exact")
     p.add_argument("--submit", action="store_true")
     p.add_argument("--watch")
     args = p.parse_args()
@@ -73,7 +74,7 @@ def main():
         "--cpus-per-task=8","--mem=60G","--time=10:00:00",
         *(["--dependency=afterany:"+args.after_job] if args.after_job else []),
         "--output="+str(out/"job.out"),"--error="+str(out/"job.err"),
-        str(out/"candidate/slurm/parity.sbatch"),str(out),sys.executable,args.gpu_type]
+        str(out/"candidate/slurm/parity.sbatch"),str(out),sys.executable,args.gpu_type,args.comparison]
     dry = subprocess.run(cmd[:1]+["--test-only"]+cmd[1:],capture_output=True,text=True,check=True)
     dump(out/"dry-run.json",dict(command=cmd,stdout=dry.stdout,stderr=dry.stderr))
     print(dry.stdout+dry.stderr,flush=True)
@@ -94,6 +95,7 @@ def main():
             env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
     dump(out/"job.json",dict(job=job,dependency=args.after_job,gpus=1,wall_hours=10,
         gpu_type=args.gpu_type,
+        comparison=args.comparison,
         monitor_pid=child.pid,source_commit=subprocess.check_output(["git","-C",str(root),"rev-parse","HEAD"],text=True).strip()))
     print("SUBMITTED "+job,flush=True)
 
