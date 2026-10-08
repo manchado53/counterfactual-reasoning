@@ -55,7 +55,7 @@ def main():
             hashes[str(rel)] = digest(dest)
         report["candidate_hashes"] = hashes
         worker = out/"candidate/experiments/parity/training_worker.py"
-        env = dict(os.environ, JAX_PLATFORMS=args.device, PYTHONNOUSERSITE="1", PYTHONPATH="",
+        env = dict(os.environ, JAX_PLATFORMS="cuda" if args.device == "gpu" else "cpu", PYTHONNOUSERSITE="1", PYTHONPATH="",
                    OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1",
                    JAX_COMPILATION_CACHE_DIR=str(out/"compile-cache"),
                    JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS="0")
