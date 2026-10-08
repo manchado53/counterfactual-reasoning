@@ -2,6 +2,27 @@
 
 
 def build_agent(config):
+    if config.get("learner_variant") == "carry-pilot-20260930":
+        if config["collector_variant"] == "fixed":
+            from .temporal_fixed import temporal_class
+            from .consequence_dqn_vectorized import JaxNavConsequenceDQNVectorized as CCE
+            from .dqn_vectorized import JaxNavDQNVectorized as DQN
+        else:
+            from .temporal import temporal_class
+            from .consequence_dqn_vectorized_legacy import JaxNavConsequenceDQNVectorized as CCE
+            from .dqn_vectorized_legacy import JaxNavDQNVectorized as DQN
+        from .carry_pilot import learn_pilot
+        cce = config["algorithm"] == "consequence-dqn"
+        class Pilot(temporal_class(CCE if cce else DQN, cce)):
+            learn = learn_pilot
+        return Pilot(config)
+    if config.get("learner_variant") == "temporal-20260930":
+        from .temporal import temporal_class
+        from .consequence_dqn_vectorized_legacy import JaxNavConsequenceDQNVectorized
+        from .dqn_vectorized_legacy import JaxNavDQNVectorized
+        cce = config["algorithm"] == "consequence-dqn"
+        Parent = JaxNavConsequenceDQNVectorized if cce else JaxNavDQNVectorized
+        return temporal_class(Parent, cce)(config)
     if config["collector_variant"] == "fixed":
         from .consequence_dqn_vectorized import JaxNavConsequenceDQNVectorized as CCE
         from .dqn_vectorized import JaxNavDQNVectorized as DQN

@@ -1,0 +1,128 @@
+{
+  "240838": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn-uniform",
+    "seed": 0
+  },
+  "240839": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn-uniform",
+    "seed": 1
+  },
+  "240840": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn-uniform",
+    "seed": 2
+  },
+  "240841": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn",
+    "seed": 0
+  },
+  "240842": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn",
+    "seed": 1
+  },
+  "240843": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "dqn",
+    "seed": 2
+  },
+  "240844": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "additive",
+    "seed": 0
+  },
+  "240845": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "additive",
+    "seed": 1
+  },
+  "240846": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "additive",
+    "seed": 2
+  },
+  "240847": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "multiplicative",
+    "seed": 0
+  },
+  "240848": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "multiplicative",
+    "seed": 1
+  },
+  "240849": {
+    "scenario": "3m",
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100,
+    "algorithm": "consequence-dqn",
+    "priority_mixing": "multiplicative",
+    "seed": 2
+  }
+}

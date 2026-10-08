@@ -9,6 +9,7 @@ import signal
 import sys
 import zipfile
 from experiments.recipes import load_recipe
+from experiments.registry import get_environment
 from experiments.common.provenance import project_sources
 
 
@@ -25,14 +26,11 @@ def main():
     args = p.parse_args()
     row = load_recipe(args.recipe, args.task)
     environment = json.loads(args.recipe.read_text())["environment"]
+    adapter = get_environment(environment)
     cfg = row["config"].copy()
     if args.smoke:
-        if environment == "jaxnav":
-            from experiments.smoke import JAXNAV_OVERRIDES
-            cfg.update(JAXNAV_OVERRIDES)
-        else:
-            from experiments.learners.frozenlake.build import smoke_overrides
-            cfg.update(smoke_overrides(cfg))
+        cfg.update(adapter.smoke_overrides(cfg))
+    adapter.validate_config(cfg)
     if args.action == "validate":
         print(json.dumps(dict(row=row, resolved_config=cfg, smoke=args.smoke), indent=2))
         return
@@ -44,11 +42,13 @@ def main():
     os.environ["JAX_PLATFORMS"] = "cuda" if args.device == "gpu" else "cpu"
     if args.device == "cpu":
         os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:4])
+        for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+            os.environ[name] = "1"
     if args.vendor:
         sys.path.insert(0, str(args.vendor.resolve()))
     record = dict(status="starting", recipe=row, smoke=args.smoke,
                   environment=environment,
-                  eval_axis="env_steps" if environment == "frozenlake" and cfg["collector_variant"] == "fixed" else "episode",
+                  eval_axis=adapter.evaluation_axis(cfg),
                   resolved_config=cfg, recipe_sha256=hashlib.sha256(args.recipe.read_bytes()).hexdigest(),
                   python=sys.version, wall_limit=args.max_wall_seconds)
     def save():
@@ -59,25 +59,20 @@ def main():
     signal.alarm(args.max_wall_seconds)
     save()
     try:
-        if environment == "jaxnav":
-            from experiments.learners.jaxnav.build import build_agent
-        else:
-            from experiments.learners.frozenlake.build import build_agent
         import jax
         if jax.default_backend() != args.device:
             raise RuntimeError("Requested backend is unavailable")
         record["packages"] = {k: importlib.metadata.version(k) for k in
             ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex")}
+        for package in ("jaxmarl", "pgx", "rliable"):
+            try:
+                record["packages"][package] = importlib.metadata.version(package)
+            except importlib.metadata.PackageNotFoundError:
+                record["packages"][package] = None
         project_files = project_sources()
         record["source_hashes"] = {name: hashlib.sha256(f.read_bytes()).hexdigest()
             for name, f in project_files.items()}
-        if environment == "jaxnav":
-            import jaxmarl
-            vendor_root = Path(jaxmarl.__file__).resolve().parent
-            simulator_files = {str(f.relative_to(vendor_root)): f for f in vendor_root.rglob("*.py")}
-        else:
-            from experiments.envs import frozenlake
-            simulator_files = {"frozenlake.py": Path(frozenlake.__file__).resolve()}
+        simulator_files = adapter.simulator_sources(cfg)
         simulator_hashes = {name: hashlib.sha256(f.read_bytes()).hexdigest()
                             for name, f in simulator_files.items()}
         record["simulator_source_hashes"] = simulator_hashes
@@ -100,7 +95,7 @@ def main():
         record["device"] = [str(d) for d in jax.devices()]
         (out/"config.json").write_text(json.dumps(cfg, indent=2))
         save()
-        agent = build_agent(cfg)
+        agent = adapter.build_agent(cfg)
         if agent.config != cfg:
             raise ValueError("Resolved config drift")
         def record_bank():

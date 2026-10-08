@@ -1,0 +1,78 @@
+[
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/src/counterfactual_rl/analysis/claim2/parse_logs.py",
+    "sha256": "eee38595377de41b4a5d8d9e5e2a35e9369cb51d17300335698bacc3ed3a0c21",
+    "snapshot": "studies/historical-analysis-migration/sources/eee38595377d/parse_logs.py",
+    "port": "experiments/studies/raw_logs.py",
+    "transforms": []
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/theorem3/predicate.py",
+    "sha256": "f42343afff46a17bdcb57ada76f49490b909bb008cb50bfd21ae0d19f6753849",
+    "snapshot": "studies/historical-analysis-migration/sources/f42343afff46/predicate.py",
+    "port": "experiments/studies/checkpoint_covariance.py",
+    "transforms": [
+      [
+        "from counterfactual_rl.analysis.theorem3.priority_flatness import (",
+        "from .checkpoint_rollout import ("
+      ]
+    ]
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/theorem3/priority_flatness.py",
+    "sha256": "c4e902d586630be58eec475077db658f4e97b372947f81d8b4c63d03e5444319",
+    "snapshot": "studies/historical-analysis-migration/sources/c4e902d58663/priority_flatness.py",
+    "port": "experiments/studies/checkpoint_rollout.py",
+    "transforms": []
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/suitability/envs.py",
+    "sha256": "2a81ab7986961e4a989ad6e033318747729df4d34047971b0aa74c4394ffe6ee",
+    "snapshot": "studies/historical-analysis-migration/sources/2a81ab798696/envs.py",
+    "port": "experiments/studies/suitability_envs.py",
+    "transforms": []
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/suitability/rollout_sweep.py",
+    "sha256": "795bf07c17f53de249554cca66389109e20a97b2f7b5f7b9eb01569e227aed1b",
+    "snapshot": "studies/historical-analysis-migration/sources/795bf07c17f5/rollout_sweep.py",
+    "port": "experiments/studies/suitability_rollouts.py",
+    "transforms": [
+      [
+        "from counterfactual_rl.analysis.suitability.envs import outcome_probs",
+        "from .suitability_envs import outcome_probs"
+      ]
+    ]
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/suitability/run_suitability.py",
+    "sha256": "1b9b445611313dbf0f581c4ee0fb2225d08bb6d704603447b39b214862d095c2",
+    "snapshot": "studies/historical-analysis-migration/sources/1b9b44561131/run_suitability.py",
+    "port": "experiments/studies/suitability_driver.py",
+    "transforms": [
+      [
+        "from counterfactual_rl.analysis.suitability.envs import",
+        "from .suitability_envs import"
+      ],
+      [
+        "from counterfactual_rl.analysis.suitability import metrics as M",
+        "from . import suitability as M"
+      ],
+      [
+        "from counterfactual_rl.analysis.suitability import scorecard as SC",
+        "from . import suitability_scorecard as SC"
+      ],
+      [
+        "from counterfactual_rl.analysis.suitability.rollout_sweep import (",
+        "from .suitability_rollouts import ("
+      ]
+    ]
+  },
+  {
+    "source": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/src/counterfactual_rl/analysis/suitability/scorecard.py",
+    "sha256": "ffc01e195487efc085615b64d7ba5347d2ad9dc763f5d45cd74a42aa9797683d",
+    "snapshot": "studies/historical-analysis-migration/sources/ffc01e195487/scorecard.py",
+    "port": "experiments/studies/suitability_scorecard.py",
+    "transforms": []
+  }
+]

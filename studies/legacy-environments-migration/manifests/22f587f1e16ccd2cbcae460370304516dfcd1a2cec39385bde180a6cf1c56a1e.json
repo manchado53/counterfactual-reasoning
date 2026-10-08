@@ -1,0 +1,9 @@
+{
+  "255481": {
+    "n_chunks": 70,
+    "eval_interval": 25,
+    "eval_episodes": 10,
+    "algorithm": "dqn-uniform",
+    "seed": 0
+  }
+}

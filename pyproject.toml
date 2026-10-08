@@ -33,6 +33,7 @@ dependencies = [
 
 [project.scripts]
 cce-run = "experiments.run:main"
+cce-study = "experiments.studies.run:main"
 
 [project.optional-dependencies]
 research = [

@@ -1,0 +1,112 @@
+{
+  "variant": "budget",
+  "commit": "14cb90fb6dceec838da6f62966e4befd391a2747",
+  "source_worktree": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/cce-cvrp-logistics",
+  "dirty_status": "",
+  "capture": "git objects at pinned commit; source worktree clean in scoped src paths",
+  "sources": {
+    "src/counterfactual_rl/agents/cvrp/__init__.py": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/__init__.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/__init__.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/cvrp/config.py": {
+      "sha256": "4548051cd7ab911a889b53e4d7697bbc4a5bb137f39bd0ee75ab3aaf354d8a13",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/config.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/config.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/cvrp/dqn.py": {
+      "sha256": "ef48caf6eab24e06a590ddf2ebf39a2a0743cda57c612220fe97c7d04a64bebf",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/dqn.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/dqn.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/cvrp/consequence_dqn.py": {
+      "sha256": "236af54dbb29912a105bb5e5bf55f9ae1eeb34b7b6d2c35d8db8de1765020c92",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/consequence_dqn.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/consequence_dqn.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/cvrp/train.py": {
+      "sha256": "885ca18265f06a8ba5e2af186fc5ec158990d260c7f55920c59c9fb287209cc7",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/train.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/cvrp/train.py.bytes.json"
+    },
+    "src/counterfactual_rl/envs/cvrp.py": {
+      "sha256": "799e7b8c6f62e1c1bddabc3cd5168e379202830cf27b100c2764ccb7d6534eac",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/envs/cvrp.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/envs/cvrp.py.bytes.json"
+    },
+    "src/counterfactual_rl/envs/routing_budget.py": {
+      "sha256": "d12841ad8d333ebdb1a5c1b824f354a18407fe6f0657bdc94be434fcede02e85",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/envs/routing_budget.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/envs/routing_budget.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/__init__.py": {
+      "sha256": "102c7e52fe124c058073e7e9965ff3b1be44092d771cc9a66634bfa06593c5cb",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/__init__.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/__init__.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/buffers.py": {
+      "sha256": "ae8663916bfe696b21609930f75906f8812eb14e4b40ad1d19949602f0fb3a68",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/buffers.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/buffers.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/consequence_buffers.py": {
+      "sha256": "cfeebc46f245fda1a8ed96340adc07d3a3b343ce77d8b0852ac88ca8c16ba958",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/consequence_buffers.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/consequence_buffers.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/timing/__init__.py": {
+      "sha256": "1d991bffb701c881519e275fbfd529cd1720604b047191ac7789c312a0fe1381",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/__init__.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/__init__.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/timing/timer.py": {
+      "sha256": "d4dff698222552172d8e9284b8cdd3003c837ca688f0ca63d8be11687704b988",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/timer.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/timer.py.bytes.json"
+    },
+    "src/counterfactual_rl/agents/shared/timing/plot.py": {
+      "sha256": "84652d1437005b32d8f5f660db6b4eed76e5734606e8e4bd73e9959d9a0e39fe",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/plot.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/agents/shared/timing/plot.py.bytes.json"
+    },
+    "src/counterfactual_rl/analysis/claim1/cvrp/oracle.py": {
+      "sha256": "8af7babf037fd4ea473a72ea0bd51f2d45b36cf34a2ea482444e52a5b8b73cdf",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/claim1/cvrp/oracle.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/claim1/cvrp/oracle.py.bytes.json"
+    },
+    "src/counterfactual_rl/analysis/claim1/cvrp/budget_oracle.py": {
+      "sha256": "27cbdb01b3fbc39fdfcce1d5c0b66bfcc0c9cfde69dc15e19a7ef35322430f44",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/claim1/cvrp/budget_oracle.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/claim1/cvrp/budget_oracle.py.bytes.json"
+    },
+    "src/counterfactual_rl/analysis/metrics.py": {
+      "sha256": "46ae844709d519c396110946769d9d5018647ac3b09125fba1a88b745b048e91",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/metrics.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/src/counterfactual_rl/analysis/metrics.py.bytes.json"
+    },
+    "tests/test_routing_budget.py": {
+      "sha256": "19c50e4c568afbf6af2a2a451ff096fac8aec3f9cea781ecb9496c9410106113",
+      "archive": "studies/legacy-environments-migration/budget-sources/budget/tests/test_routing_budget.py",
+      "exact_bytes": "studies/legacy-environments-migration/budget-sources/budget/tests/test_routing_budget.py.bytes.json"
+    }
+  },
+  "ports": {
+    "experiments/learners/cvrp_budget/budget/__init__.py": "src/counterfactual_rl/agents/cvrp/__init__.py",
+    "experiments/learners/cvrp_budget/budget/config.py": "src/counterfactual_rl/agents/cvrp/config.py",
+    "experiments/learners/cvrp_budget/budget/dqn.py": "src/counterfactual_rl/agents/cvrp/dqn.py",
+    "experiments/learners/cvrp_budget/budget/consequence_dqn.py": "src/counterfactual_rl/agents/cvrp/consequence_dqn.py",
+    "experiments/learners/cvrp_budget/budget/train.py": "src/counterfactual_rl/agents/cvrp/train.py",
+    "experiments/envs/cvrp_budget/budget/cvrp.py": "src/counterfactual_rl/envs/cvrp.py",
+    "experiments/envs/cvrp_budget/budget/routing_budget.py": "src/counterfactual_rl/envs/routing_budget.py",
+    "experiments/learners/cvrp_budget/budget/_historical/__init__.py": "src/counterfactual_rl/agents/shared/__init__.py",
+    "experiments/learners/cvrp_budget/budget/_historical/buffers.py": "src/counterfactual_rl/agents/shared/buffers.py",
+    "experiments/learners/cvrp_budget/budget/_historical/consequence_buffers.py": "src/counterfactual_rl/agents/shared/consequence_buffers.py",
+    "experiments/learners/cvrp_budget/budget/_historical/timing/__init__.py": "src/counterfactual_rl/agents/shared/timing/__init__.py",
+    "experiments/learners/cvrp_budget/budget/_historical/timing/timer.py": "src/counterfactual_rl/agents/shared/timing/timer.py",
+    "experiments/learners/cvrp_budget/budget/_historical/timing/plot.py": "src/counterfactual_rl/agents/shared/timing/plot.py",
+    "experiments/learners/cvrp_budget/budget/_historical/oracle.py": "src/counterfactual_rl/analysis/claim1/cvrp/oracle.py",
+    "experiments/learners/cvrp_budget/budget/_historical/budget_oracle.py": "src/counterfactual_rl/analysis/claim1/cvrp/budget_oracle.py",
+    "experiments/learners/cvrp_budget/budget/_historical/score_metrics.py": "src/counterfactual_rl/analysis/metrics.py"
+  }
+}

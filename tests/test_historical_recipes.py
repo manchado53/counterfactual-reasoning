@@ -195,3 +195,8 @@ def test_bundle_export_fails_before_creating_output(tmp_path, fault):
     with pytest.raises(ValueError):
         export_legacy_bundle(entry, record, target, **kwargs)
     assert not target.exists()
+def test_numeric_map_name_header_is_a_string(tmp_path):
+    from experiments.history import read_metrics_config
+    path = tmp_path / 'metrics.log'
+    path.write_text('# map_name: 8x8\n# seed: 0\n episode win_rate\n')
+    assert read_metrics_config(path) == {'map_name': '8x8', 'seed': 0}

@@ -1,0 +1,80 @@
+{
+  "239362": {
+    "priority_mixing": "additive",
+    "seed": 0,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  },
+  "239363": {
+    "priority_mixing": "additive",
+    "seed": 1,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  },
+  "239364": {
+    "priority_mixing": "additive",
+    "seed": 2,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  },
+  "239365": {
+    "priority_mixing": "multiplicative",
+    "seed": 0,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  },
+  "239366": {
+    "priority_mixing": "multiplicative",
+    "seed": 1,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  },
+  "239367": {
+    "priority_mixing": "multiplicative",
+    "seed": 2,
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "mu": 0.25,
+    "mu_c": 1.0,
+    "mu_delta": 1.0,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 25000,
+    "epsilon_decay_episodes": 10000,
+    "score_interval": 100
+  }
+}

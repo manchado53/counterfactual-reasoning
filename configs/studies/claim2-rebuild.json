@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "data_root": "../..",
+  "study": "claim2_rebuild",
+  "manifest": "paper/repro/manifests/claim2_no_slip_2026-05-09.json",
+  "runs_roots": [
+    "src/counterfactual_rl/agents/frozen_lake/runs"
+  ],
+  "smoke_jobs": [
+    "257499"
+  ],
+  "env": "frozen_lake_no_slip",
+  "threshold": 0.75,
+  "completion_policy": "historical_all"
+}

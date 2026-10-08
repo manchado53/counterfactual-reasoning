@@ -1,0 +1,35 @@
+{
+  "230883": {
+    "algorithm": "dqn-uniform",
+    "scenario": "3m",
+    "seed": 0,
+    "mu": 0.25,
+    "consequence_metric": "kl_divergence",
+    "n_episodes": 500,
+    "epsilon_decay_episodes": 200,
+    "eval_interval": 100,
+    "score_interval": 50
+  },
+  "230884": {
+    "algorithm": "dqn",
+    "scenario": "3m",
+    "seed": 0,
+    "mu": 0.25,
+    "consequence_metric": "kl_divergence",
+    "n_episodes": 500,
+    "epsilon_decay_episodes": 200,
+    "eval_interval": 100,
+    "score_interval": 50
+  },
+  "230885": {
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "seed": 0,
+    "mu": 0.25,
+    "consequence_metric": "kl_divergence",
+    "n_episodes": 500,
+    "epsilon_decay_episodes": 200,
+    "eval_interval": 100,
+    "score_interval": 50
+  }
+}

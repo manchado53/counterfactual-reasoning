@@ -13,12 +13,14 @@ def validate_config(config):
     missing = set(DEFAULT_CONFIG) - set(config)
     if unknown or missing:
         raise ValueError(f'Unknown settings: {sorted(unknown)}; unresolved: {sorted(missing)}')
-    if config.get('collector_variant') not in ('old', 'fixed'):
-        raise ValueError('collector_variant must be old or fixed')
+    if config.get('collector_variant') not in ('old', 'fixed', 'sequential'):
+        raise ValueError('collector_variant must be old, fixed, or sequential')
     if config['algorithm'] not in ('dqn-uniform', 'dqn', 'consequence-dqn'):
         raise ValueError('Unsupported FrozenLake learner')
-    if config['map_name'] not in ('4x4', '8x8') or config['vectorized'] is not True:
-        raise ValueError('Only built-in maps and vectorized learners are migrated')
+    if config['map_name'] not in ('4x4', '8x8') or type(config['vectorized']) is not bool:
+        raise ValueError('Built-in map and explicit collector required')
+    if config['vectorized'] != (config['collector_variant'] != 'sequential'):
+        raise ValueError('Collector/vectorized mismatch')
     if not isinstance(config['is_slippery'], bool):
         raise ValueError('is_slippery must be boolean')
     p = config['slip_prob']
@@ -80,6 +82,11 @@ def build_agent(config):
     if config['collector_variant'] == 'fixed':
         from .runner import FixedCCE, FixedDQN
         return (FixedCCE if config['algorithm'] == 'consequence-dqn' else FixedDQN)(config)
+    if config['collector_variant'] == 'sequential':
+        from .legacy.dqn import FrozenLakeDQN
+        from .legacy.consequence_dqn import FrozenLakeConsequenceDQN
+        return (FrozenLakeConsequenceDQN if config['algorithm'] == 'consequence-dqn'
+                else FrozenLakeDQN)(config)
     from .legacy.dqn_vectorized import FrozenLakeDQNVectorized
     from .legacy.consequence_dqn_vectorized import FrozenLakeConsequenceDQNVectorized
     return (FrozenLakeConsequenceDQNVectorized if config['algorithm'] == 'consequence-dqn'
@@ -108,7 +115,7 @@ def smoke_overrides(config):
                  'n_score_sample': 4, 'score_interval': 1}
     if config['collector_variant'] == 'fixed':
         overrides.update(blocks=4, eval_every_blocks=2)
-    elif config['collector_variant'] == 'old':
+    elif config['collector_variant'] in ('old', 'sequential'):
         overrides.update(n_episodes=6, eval_interval=2, save_every=6)
     else:
         raise ValueError('Unknown collector variant')

@@ -1,0 +1,15 @@
+{
+  "253122": {
+    "algorithm": "consequence-dqn",
+    "scenario": "3m",
+    "seed": 0,
+    "mu": 0.25,
+    "consequence_metric": "wasserstein",
+    "n_episodes": 200,
+    "epsilon_decay_episodes": 150,
+    "score_interval": 10,
+    "diagnostics_enabled": true,
+    "diagnostics_n_scatter_snapshots": 20,
+    "priority_mixing": "additive"
+  }
+}

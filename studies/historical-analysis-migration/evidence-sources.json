@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/replot.py",
+    "sha256": "4eee90684da99be86c59d2a05d3eb2226c63fac2dcb684809b2efd29dae6dec9",
+    "snapshot": "studies/historical-analysis-migration/sources/4eee90684da9/replot.py"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/build_cache.py",
+    "sha256": "36a59b469abcd2fb90412a0f66e060a7b1e10b70318054e50db751f296fe9c17",
+    "snapshot": "studies/historical-analysis-migration/sources/36a59b469abc/build_cache.py"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/build_graded_slip_cache.py",
+    "sha256": "4a43a042af43947dc9d05be1d4555039bb63115efd77c53eedc0b04036c79d5d",
+    "snapshot": "studies/historical-analysis-migration/sources/4a43a042af43/build_graded_slip_cache.py"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/figures/FIGURE_PROVENANCE.md",
+    "sha256": "c00b1f48fe3ccbeaab6854e9d1c3225c273411f1f50d3332ab42d18140254588",
+    "snapshot": "studies/historical-analysis-migration/sources/c00b1f48fe3c/FIGURE_PROVENANCE.md"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/README.md",
+    "sha256": "f383f0a2e0fb3b47f7b5baee09eddb1d3d9acc211d9ec7bcadc95db8154e098b",
+    "snapshot": "studies/historical-analysis-migration/sources/f383f0a2e0fb/README.md"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/pyproject.toml",
+    "sha256": "b5bbdbd0c480158084f425cf7083673d974af20e3ed8dbe15fab305a99462a8b",
+    "snapshot": "studies/historical-analysis-migration/sources/b5bbdbd0c480/pyproject.toml"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/requirements.txt",
+    "sha256": "f1bef06c7fcba84c5e1238827e2b0e142c8ead2b987338c6ce22ab8c5fd9c3b9",
+    "snapshot": "studies/historical-analysis-migration/sources/f1bef06c7fcb/requirements.txt"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/src/counterfactual_rl/analysis/claim2/parse_logs.py",
+    "sha256": "eee38595377de41b4a5d8d9e5e2a35e9369cb51d17300335698bacc3ed3a0c21",
+    "snapshot": "studies/historical-analysis-migration/sources/eee38595377d/parse_logs.py"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/docs/figures/theorem3_step1/PROVENANCE.md",
+    "sha256": "e7041303a871d2b571019428d8822a397ec5a21ccb9daf64de7345f5620f0f9e",
+    "snapshot": "studies/historical-analysis-migration/sources/e7041303a871/PROVENANCE.md"
+  },
+  {
+    "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/theorem3-covariance/plans/cce-theorem3-covariance.md",
+    "sha256": "1dc2981dd0ef8d606f2fbd640021496ae944078422b7cc3df7374e8b46463bba",
+    "snapshot": "studies/historical-analysis-migration/sources/1dc2981dd0ef/cce-theorem3-covariance.md"
+  }
+]

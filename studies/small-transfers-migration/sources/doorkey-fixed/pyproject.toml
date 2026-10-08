@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "counterfactual-reasoning"
+version = "0.1.0"
+description = "A framework for analyzing consequential states in RL using counterfactual reasoning"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "RL Research Team", email = "research@example.com" },
+]
+keywords = [
+    "reinforcement-learning",
+    "counterfactual-reasoning",
+    "state-analysis",
+    "policy-analysis",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "gymnasium>=0.27.0",
+    "stable-baselines3>=1.6.0",
+    "matplotlib>=3.5.0",
+    "scipy>=1.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=3.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "mypy>=0.950",
+]
+docs = [
+    "sphinx>=4.5",
+    "sphinx-rtd-theme>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/counterfactual-reasoning"
+Documentation = "https://counterfactual-reasoning.readthedocs.io"
+Repository = "https://github.com/yourusername/counterfactual-reasoning.git"
+Issues = "https://github.com/yourusername/counterfactual-reasoning/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

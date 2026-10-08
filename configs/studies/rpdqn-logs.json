@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "rpdqn_logs",
+  "input": "studies/historical-analysis-migration/fixtures/rpdqn",
+  "jobs": [
+    "fixture"
+  ],
+  "input_evidence": "synthetic_parser_check_not_rpdqn_training",
+  "data_root": "../.."
+}

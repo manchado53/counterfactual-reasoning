@@ -1,0 +1,1957 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-08",
+  "python": "/home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python",
+  "limits": {
+    "cpus": 4,
+    "subprocess_timeout_seconds": 180,
+    "PYTHONNOUSERSITE": "1",
+    "JAX_PLATFORMS": "cpu"
+  },
+  "pytest": {
+    "command": "timeout 180 env PYTHONNOUSERSITE=1 PYTHONPATH=.:src JAX_PLATFORMS=cpu OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 /home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python -m pytest -q tests/test_historical_study_ports.py",
+    "passed": 24,
+    "failed": 0,
+    "seconds": 10.7
+  },
+  "runs": [
+    {
+      "name": "claim1-cvrp",
+      "report": {
+        "schema_version": 1,
+        "study": "claim1_cvrp",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "claim1_cvrp",
+          "oracle": {
+            "gamma": 0.99,
+            "min_legal": 2
+          }
+        },
+        "evidence_status": "fresh_analysis_no_training",
+        "inputs": [],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "n_states": 31345,
+          "q_shape": [
+            37918,
+            11
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-cvrp/oracle.npz",
+          "bytes": 1194239,
+          "sha256": "e8748cc5a5ca7da80f7803784e6d7bdeedf3082141a2df388a78676220bb16bf"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-cvrp/oracle.png",
+          "bytes": 63661,
+          "sha256": "af1c74846a5763fdc59b5df8570a45e1c79eae2ec166bc132f52d0fe0056bbdc"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-cvrp/report.json",
+          "bytes": 592,
+          "sha256": "7a0b85beb2908a6f900ba38c292e45ef7edab1467af9a597c98d52c6602978a9"
+        }
+      ]
+    },
+    {
+      "name": "claim1-frozen-lake",
+      "report": {
+        "schema_version": 1,
+        "study": "claim1_frozen_lake",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "claim1_frozen_lake",
+          "oracle": {
+            "map_name": "8x8",
+            "is_slippery": true,
+            "gamma": 0.99,
+            "tol": 1e-10
+          },
+          "cache": "paper/repro/cache/claim1_frozen_lake_oracle.npz"
+        },
+        "evidence_status": "fresh_analysis_no_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/cache/claim1_frozen_lake_oracle.npz",
+            "sha256": "0a3d9795ab954d5386ecd5fd3cbcb8100de4456a70a46ef2dfc791c1a3527bde"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "n_states": 53,
+          "q_shape": [
+            64,
+            4
+          ],
+          "cache_max_abs_q_error": 1.6653345369377348e-15,
+          "cache_state_order_equal": true
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-frozen-lake/oracle.npz",
+          "bytes": 2705,
+          "sha256": "4b59791c9ae59bc7a36a0721a6347d48120609109e8e1f128d68a0630f698e21"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-frozen-lake/oracle.png",
+          "bytes": 18864,
+          "sha256": "a9372c5a55ad7e9be1f2585274f534e34b9f16a6c0b963bfee042af10358436a"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim1-frozen-lake/report.json",
+          "bytes": 1067,
+          "sha256": "1bef94b80f7174baf4fb85b99fdf079fc5ecfc841c3826a15f286beb6ffca1b3"
+        }
+      ]
+    },
+    {
+      "name": "claim2",
+      "report": {
+        "schema_version": 1,
+        "study": "claim2",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "claim2",
+          "cache": "paper/repro/cache/claim2_frozen_lake_no_slip.npz",
+          "reps": 32,
+          "curves": true
+        },
+        "evidence_status": "cached_reanalysis_no_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/cache/claim2_frozen_lake_no_slip.npz",
+            "sha256": "2728406b4e045b55be3f0f48ae3d4c5621b27803aa59ddb126ea3d31b446cef0"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "cache_metadata": {
+            "manifest": "claim2_no_slip_2026-05-09.json",
+            "env": "frozen_lake_no_slip",
+            "threshold": 0.75,
+            "env_type": "frozen_lake",
+            "labels": [
+              "DQN-Uniform",
+              "DQN+PER",
+              "DQN+CCE-only",
+              "CCE+TD (add)",
+              "CCE+TD (mul)"
+            ],
+            "n_seeds": {
+              "DQN-Uniform": 25,
+              "DQN+PER": 25,
+              "DQN+CCE-only": 25,
+              "CCE+TD (add)": 24,
+              "CCE+TD (mul)": 25
+            },
+            "n_checkpoints": {
+              "DQN-Uniform": 30,
+              "DQN+PER": 31,
+              "DQN+CCE-only": 32,
+              "CCE+TD (add)": 30,
+              "CCE+TD (mul)": 29
+            }
+          },
+          "groups": {
+            "frozen_lake_no_slip": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.3076923076923077,
+                  0,
+                  0.6153846153846154
+                ],
+                "DQN+PER": [
+                  0.46153846153846156,
+                  0.15384615384615385,
+                  0.7096153846153844
+                ],
+                "DQN+CCE-only": [
+                  0.6153846153846154,
+                  0.21346153846153854,
+                  0.9230769230769231
+                ],
+                "CCE+TD (add)": [
+                  0.8333333333333334,
+                  0.39791666666666675,
+                  1
+                ],
+                "CCE+TD (mul)": [
+                  1,
+                  0.7346153846153848,
+                  1
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  458752,
+                  155648,
+                  15
+                ],
+                "DQN+PER": [
+                  327680,
+                  98304,
+                  13
+                ],
+                "DQN+CCE-only": [
+                  458752,
+                  507904,
+                  11
+                ],
+                "CCE+TD (add)": [
+                  376832,
+                  180224,
+                  8
+                ],
+                "CCE+TD (mul)": [
+                  360448,
+                  294912,
+                  5
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  25,
+                  1,
+                  30
+                ],
+                "DQN+PER": [
+                  25,
+                  1,
+                  31
+                ],
+                "DQN+CCE-only": [
+                  25,
+                  1,
+                  32
+                ],
+                "CCE+TD (add)": [
+                  24,
+                  1,
+                  30
+                ],
+                "CCE+TD (mul)": [
+                  25,
+                  1,
+                  29
+                ]
+              }
+            }
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2/final_frozen_lake_no_slip.png",
+          "bytes": 30641,
+          "sha256": "74b1e48d6a9fa92a7aeee6b7e915013d508a9cb443022dc5026dbc478c32e0a6"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2/iqm_frozen_lake_no_slip.png",
+          "bytes": 109681,
+          "sha256": "8a3d5a73be46c72adaca1dca0c2d91a4c8034009b508c72f137b82bc113cfb06"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2/prob_frozen_lake_no_slip.png",
+          "bytes": 76477,
+          "sha256": "523f9e8f632d00faeb435b677fd469f28716a2c9f1c4aefe6faf35642a86ec0e"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2/report.json",
+          "bytes": 3165,
+          "sha256": "64be042bd6aa44eba149d4c76c703747cfd818c8dbb2bf23ff7bcd1fffaaba8d"
+        }
+      ]
+    },
+    {
+      "name": "claim2-smax",
+      "report": {
+        "schema_version": 1,
+        "study": "claim2",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "claim2",
+          "cache": "paper/repro/cache/claim2_smax_3m.npz",
+          "reps": 32,
+          "curves": true
+        },
+        "evidence_status": "cached_reanalysis_no_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/cache/claim2_smax_3m.npz",
+            "sha256": "de6c59d5272360b308310f1711b75a55f7838fd94c7b73bf3ca72c37d233739a"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "cache_metadata": {
+            "manifest": "claim2_main_3m_2026-05-07.json",
+            "env": "smax_3m",
+            "threshold": 0.6,
+            "env_type": "smax",
+            "labels": [
+              "DQN-Uniform",
+              "DQN+PER",
+              "DQN+CCE-only",
+              "CCE+TD (add)",
+              "CCE+TD (mul)"
+            ],
+            "n_seeds": {
+              "DQN-Uniform": 10,
+              "DQN+PER": 10,
+              "DQN+CCE-only": 10,
+              "CCE+TD (add)": 10,
+              "CCE+TD (mul)": 10
+            },
+            "n_checkpoints": {
+              "DQN-Uniform": 250,
+              "DQN+PER": 250,
+              "DQN+CCE-only": 250,
+              "CCE+TD (add)": 250,
+              "CCE+TD (mul)": 250
+            }
+          },
+          "groups": {
+            "smax_3m": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.6865333333333332,
+                  0.6768200000000001,
+                  0.6955216666666666
+                ],
+                "DQN+PER": [
+                  0.7095333333333332,
+                  0.6834500000000001,
+                  0.735665
+                ],
+                "DQN+CCE-only": [
+                  0.6733333333333332,
+                  0.642775,
+                  0.6878133333333332
+                ],
+                "CCE+TD (add)": [
+                  0.6867333333333333,
+                  0.6650483333333335,
+                  0.7275816666666667
+                ],
+                "CCE+TD (mul)": [
+                  0.722,
+                  0.6931366666666666,
+                  0.7380233333333334
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  190472,
+                  31173,
+                  0
+                ],
+                "DQN+PER": [
+                  221342,
+                  28665,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  246274,
+                  40700,
+                  0
+                ],
+                "CCE+TD (add)": [
+                  198306,
+                  21678,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  203808,
+                  11433,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  250
+                ],
+                "DQN+PER": [
+                  10,
+                  1,
+                  250
+                ],
+                "DQN+CCE-only": [
+                  10,
+                  1,
+                  250
+                ],
+                "CCE+TD (add)": [
+                  10,
+                  1,
+                  250
+                ],
+                "CCE+TD (mul)": [
+                  10,
+                  1,
+                  250
+                ]
+              }
+            }
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-smax/final_smax_3m.png",
+          "bytes": 28535,
+          "sha256": "d31c6adfc088aea7b8911d23408f324ce4e511523a113536f548f1cc23fd89be"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-smax/iqm_smax_3m.png",
+          "bytes": 132567,
+          "sha256": "ecc7256e78128f0ff7c50988ea72d2b987350e2bef439b390d7f78aa1baa3787"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-smax/prob_smax_3m.png",
+          "bytes": 182935,
+          "sha256": "4f950e74e8156238512fc40cd39da1083035f33f3edc353e4d5581d87843a1b5"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-smax/report.json",
+          "bytes": 3135,
+          "sha256": "3d090f339ea48abbed1769db6e54fbef4ad52c3c2e85ea9aae6b7c2c0c7fa4a4"
+        }
+      ]
+    },
+    {
+      "name": "claim2-stochastic",
+      "report": {
+        "schema_version": 1,
+        "study": "claim2",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "claim2",
+          "cache": "paper/repro/cache/claim2_frozen_lake.npz",
+          "reps": 32,
+          "curves": true
+        },
+        "evidence_status": "cached_reanalysis_no_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/cache/claim2_frozen_lake.npz",
+            "sha256": "e057bef0fda2540cf54fa728aef7e052c69ea1ae38c38286f0615cd340e2e5d3"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "cache_metadata": {
+            "manifest": "claim2_main_merged.json",
+            "env": "frozen_lake",
+            "threshold": 0.75,
+            "env_type": "frozen_lake",
+            "labels": [
+              "DQN-Uniform",
+              "DQN+PER",
+              "DQN+CCE-only",
+              "CCE+TD (add)",
+              "CCE+TD (mul)"
+            ],
+            "n_seeds": {
+              "DQN-Uniform": 10,
+              "DQN+PER": 10,
+              "DQN+CCE-only": 10,
+              "CCE+TD (add)": 10,
+              "CCE+TD (mul)": 10
+            },
+            "n_checkpoints": {
+              "DQN-Uniform": 38,
+              "DQN+PER": 38,
+              "DQN+CCE-only": 37,
+              "CCE+TD (add)": 37,
+              "CCE+TD (mul)": 37
+            }
+          },
+          "groups": {
+            "frozen_lake": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.6991666666666666,
+                  0.5359270833333334,
+                  0.7534270833333332
+                ],
+                "DQN+PER": [
+                  0.7487499999999999,
+                  0.5820520833333335,
+                  0.8204270833333333
+                ],
+                "DQN+CCE-only": [
+                  0.685,
+                  0.5803125000000001,
+                  0.8254166666666666
+                ],
+                "CCE+TD (add)": [
+                  0.6679166666666667,
+                  0.46830208333333334,
+                  0.73340625
+                ],
+                "CCE+TD (mul)": [
+                  0.7483333333333334,
+                  0.6862187500000001,
+                  0.8001354166666667
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  131072,
+                  106496,
+                  0
+                ],
+                "DQN+PER": [
+                  131072,
+                  57344,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  131072,
+                  32768,
+                  0
+                ],
+                "CCE+TD (add)": [
+                  131072,
+                  32768,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  131072,
+                  57344,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  38
+                ],
+                "DQN+PER": [
+                  10,
+                  1,
+                  38
+                ],
+                "DQN+CCE-only": [
+                  10,
+                  1,
+                  37
+                ],
+                "CCE+TD (add)": [
+                  10,
+                  1,
+                  37
+                ],
+                "CCE+TD (mul)": [
+                  10,
+                  1,
+                  37
+                ]
+              }
+            }
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-stochastic/final_frozen_lake.png",
+          "bytes": 29186,
+          "sha256": "db65191fad42ed5cdac8404760111fa31845d5e8946adf00ed3b8810276dedc8"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-stochastic/iqm_frozen_lake.png",
+          "bytes": 205362,
+          "sha256": "9fd1a67b550a979fb0eec557738ab34650e68f2f36b7ab6b557895bde05e163e"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-stochastic/prob_frozen_lake.png",
+          "bytes": 182551,
+          "sha256": "36747c6fa73a813d5304c03355a22ccc6c1cc1e2618830a6722fb3f0afe405de"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/claim2-stochastic/report.json",
+          "bytes": 3156,
+          "sha256": "59ddac77d88034ab70579fe2fefce5fa1268b812ec94f65bb4bc81986211b21f"
+        }
+      ]
+    },
+    {
+      "name": "covariance",
+      "report": {
+        "schema_version": 1,
+        "study": "covariance",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "covariance",
+          "input": "studies/historical-analysis-migration/fixtures/covariance.json",
+          "input_evidence": "synthetic_identity_check_not_empirical_theorem_evidence"
+        },
+        "evidence_status": "synthetic_identity_check_not_empirical_theorem_evidence",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/studies/historical-analysis-migration/fixtures/covariance.json",
+            "sha256": "bc55167715d39e5af89b5d0a1bdab19b861e87fb9f994dad01ec2bcc8fff7977"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "linear": {
+            "E_c": 0.48,
+            "E_d": 0.4,
+            "E_u": 0.18000000000000002,
+            "cov_cu": 0.0216,
+            "cov_du": 0.062,
+            "lhs": 0.045000000000000005,
+            "rhs": 0.155,
+            "cce_wins": false,
+            "E_pc_u": 0.22500000000000003,
+            "E_pd_u": 0.33499999999999996
+          },
+          "deployed": {
+            "E_c": 0.7343026494242298,
+            "E_d": 0.7709481440292292,
+            "E_u": 0.18000000000000002,
+            "cov_cu": 0.035341158531363506,
+            "cov_du": 0.031138309299259516,
+            "lhs": 0.04812887241939638,
+            "rhs": 0.04038962871941094,
+            "cce_wins": true,
+            "E_pc_u": 0.22812887241939636,
+            "E_pd_u": 0.22038962871941095
+          },
+          "identities": {
+            "thm3_residual": 5.551115123125783e-17,
+            "thm4_residual": 1.3877787807814457e-17,
+            "thm4_lhs": 0.06601010101010102,
+            "thm4_rhs": 0.06601010101010103,
+            "ok": true
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/covariance/report.json",
+          "bytes": 1799,
+          "sha256": "3f27a4feaecaf81485a44902facc80f7efeebcaee7fdd6a46de6b28960db4cbd"
+        }
+      ]
+    },
+    {
+      "name": "graded-slip",
+      "report": {
+        "schema_version": 1,
+        "study": "graded_slip",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "graded_slip",
+          "cache": "paper/repro/cache/claim2_graded_slip.npz",
+          "reps": 32,
+          "threshold": 0.5,
+          "curves": false
+        },
+        "evidence_status": "cached_reanalysis_no_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/paper/repro/cache/claim2_graded_slip.npz",
+            "sha256": "890aa3522777758edc0dce852ceb8797c9f37f7fa6eabceddb92925ab826a235"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "cache_metadata": {
+            "n_submitted": 200,
+            "dropped_runs": [
+              {
+                "job_id": "269951",
+                "reason": "died mid-training",
+                "last_episode": 9356,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "269980",
+                "reason": "died mid-training",
+                "last_episode": 5899,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "269997",
+                "reason": "died mid-training",
+                "last_episode": 2414,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "269998",
+                "reason": "died mid-training",
+                "last_episode": 2579,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "270036",
+                "reason": "died mid-training",
+                "last_episode": 1774,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "270041",
+                "reason": "died mid-training",
+                "last_episode": 3164,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "270045",
+                "reason": "died mid-training",
+                "last_episode": 4496,
+                "n_episodes": 15000,
+                "last_win_rate": 0.86
+              },
+              {
+                "job_id": "270055",
+                "reason": "died mid-training",
+                "last_episode": 4184,
+                "n_episodes": 15000,
+                "last_win_rate": 0.65
+              },
+              {
+                "job_id": "270066",
+                "reason": "died mid-training",
+                "last_episode": 2615,
+                "n_episodes": 15000,
+                "last_win_rate": 0.93
+              },
+              {
+                "job_id": "270075",
+                "reason": "died mid-training",
+                "last_episode": 4753,
+                "n_episodes": 15000,
+                "last_win_rate": 0.92
+              },
+              {
+                "job_id": "270090",
+                "reason": "died mid-training",
+                "last_episode": 6351,
+                "n_episodes": 15000,
+                "last_win_rate": 0.8
+              },
+              {
+                "job_id": "270107",
+                "reason": "died mid-training",
+                "last_episode": 1904,
+                "n_episodes": 15000,
+                "last_win_rate": 0.6
+              },
+              {
+                "job_id": "270108",
+                "reason": "died mid-training",
+                "last_episode": 1805,
+                "n_episodes": 15000,
+                "last_win_rate": 0
+              },
+              {
+                "job_id": "270139",
+                "reason": "died mid-training",
+                "last_episode": 14496,
+                "n_episodes": 15000,
+                "last_win_rate": 0.74
+              }
+            ],
+            "entropy": {
+              "0.0": 0,
+              "0.166": 0.5645490805207071,
+              "0.333": 0.86710088031939,
+              "0.5": 1.0397207708399179,
+              "0.666": 1.0986112890009436
+            }
+          },
+          "groups": {
+            "0.0": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.3333333333333333,
+                  0,
+                  0.7041666666666663
+                ],
+                "DQN+PER": [
+                  0.6666666666666666,
+                  0.29583333333333345,
+                  1
+                ],
+                "DQN+CCE-only": [
+                  0.8,
+                  0.15500000000000014,
+                  1
+                ],
+                "CCE+TD (mul)": [
+                  1,
+                  0.6666666666666666,
+                  1
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  278528,
+                  57344,
+                  6
+                ],
+                "DQN+PER": [
+                  311296,
+                  81920,
+                  4
+                ],
+                "DQN+CCE-only": [
+                  376832,
+                  172032,
+                  3
+                ],
+                "CCE+TD (mul)": [
+                  327680,
+                  163840,
+                  1
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  31
+                ],
+                "DQN+PER": [
+                  10,
+                  1,
+                  30
+                ],
+                "DQN+CCE-only": [
+                  9,
+                  1,
+                  32
+                ],
+                "CCE+TD (mul)": [
+                  10,
+                  1,
+                  27
+                ]
+              }
+            },
+            "0.166": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.14625000000000002,
+                  0,
+                  0.6313749999999999
+                ],
+                "DQN+PER": [
+                  0.986,
+                  0.74145,
+                  0.9949
+                ],
+                "DQN+CCE-only": [
+                  0.4825,
+                  0,
+                  0.9755625000000001
+                ],
+                "CCE+TD (mul)": [
+                  0.982,
+                  0.7806499999999998,
+                  0.9924499999999997
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  344064,
+                  360448,
+                  0
+                ],
+                "DQN+PER": [
+                  196608,
+                  98304,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  262144,
+                  122880,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  163840,
+                  98304,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  33
+                ],
+                "DQN+PER": [
+                  9,
+                  1,
+                  24
+                ],
+                "DQN+CCE-only": [
+                  8,
+                  1,
+                  34
+                ],
+                "CCE+TD (mul)": [
+                  9,
+                  1,
+                  25
+                ]
+              }
+            },
+            "0.333": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.9650000000000001,
+                  0.96,
+                  0.9725
+                ],
+                "DQN+PER": [
+                  0.966,
+                  0.9009999999999999,
+                  0.9744499999999999
+                ],
+                "DQN+CCE-only": [
+                  0.9579999999999999,
+                  0.9375499999999999,
+                  0.97845
+                ],
+                "CCE+TD (mul)": [
+                  0.958,
+                  0.8198500000000001,
+                  0.9728999999999999
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  196608,
+                  98304,
+                  0
+                ],
+                "DQN+PER": [
+                  131072,
+                  65536,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  196608,
+                  98304,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  98304,
+                  32768,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  8,
+                  1,
+                  27
+                ],
+                "DQN+PER": [
+                  9,
+                  1,
+                  13
+                ],
+                "DQN+CCE-only": [
+                  9,
+                  1,
+                  27
+                ],
+                "CCE+TD (mul)": [
+                  9,
+                  1,
+                  18
+                ]
+              }
+            },
+            "0.5": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.9191666666666668,
+                  0.7017083333333336,
+                  0.9544583333333333
+                ],
+                "DQN+PER": [
+                  0.932,
+                  0.7455250000000001,
+                  0.9659999999999999
+                ],
+                "DQN+CCE-only": [
+                  0.9559999999999998,
+                  0.8395500000000001,
+                  0.9649000000000001
+                ],
+                "CCE+TD (mul)": [
+                  0.875,
+                  0.643984375,
+                  0.9516874999999999
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  131072,
+                  90112,
+                  0
+                ],
+                "DQN+PER": [
+                  131072,
+                  32768,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  163840,
+                  65536,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  147456,
+                  65536,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  35
+                ],
+                "DQN+PER": [
+                  9,
+                  1,
+                  34
+                ],
+                "DQN+CCE-only": [
+                  9,
+                  1,
+                  34
+                ],
+                "CCE+TD (mul)": [
+                  8,
+                  1,
+                  33
+                ]
+              }
+            },
+            "0.666": {
+              "final_iqm": {
+                "DQN-Uniform": [
+                  0.6616666666666666,
+                  0.5190729166666667,
+                  0.7543749999999999
+                ],
+                "DQN+PER": [
+                  0.66375,
+                  0.5423645833333334,
+                  0.8011354166666667
+                ],
+                "DQN+CCE-only": [
+                  0.7312499999999998,
+                  0.5596979166666667,
+                  0.8164895833333333
+                ],
+                "CCE+TD (mul)": [
+                  0.7058333333333334,
+                  0.5721458333333334,
+                  0.7673020833333333
+                ]
+              },
+              "steps_to_threshold": {
+                "DQN-Uniform": [
+                  98304,
+                  32768,
+                  0
+                ],
+                "DQN+PER": [
+                  81920,
+                  57344,
+                  0
+                ],
+                "DQN+CCE-only": [
+                  114688,
+                  57344,
+                  0
+                ],
+                "CCE+TD (mul)": [
+                  65536,
+                  57344,
+                  0
+                ]
+              },
+              "shapes": {
+                "DQN-Uniform": [
+                  10,
+                  1,
+                  37
+                ],
+                "DQN+PER": [
+                  10,
+                  1,
+                  37
+                ],
+                "DQN+CCE-only": [
+                  10,
+                  1,
+                  38
+                ],
+                "CCE+TD (mul)": [
+                  10,
+                  1,
+                  37
+                ]
+              }
+            }
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/final_0.0.png",
+          "bytes": 24830,
+          "sha256": "13016d99e9bd5f6b7d4c7a09bec7d969410cf9e59eb0649fb61ea6304be77ab8"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/final_0.166.png",
+          "bytes": 24688,
+          "sha256": "5d880ed43e745307a1a8ebb2b73f07d47e77196066cf19458674bb7ffefe7881"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/final_0.333.png",
+          "bytes": 25150,
+          "sha256": "622720af176e43a0702d3d79d93d62e20ecd792fba976096a6320c03af40871f"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/final_0.5.png",
+          "bytes": 24468,
+          "sha256": "44fa362e3929f1beba64abfa351415f07814288b1500f8284e7b843777868080"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/final_0.666.png",
+          "bytes": 24895,
+          "sha256": "95925c231e0db151dd4582a5db62fb21f459626d01b18eae052deb78703ba05c"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/graded-slip/report.json",
+          "bytes": 10426,
+          "sha256": "9180b30ee8195028348437b5e3b224781465c04c9472a62227a4a2f1df1ad185"
+        }
+      ]
+    },
+    {
+      "name": "priority-flatness",
+      "report": {
+        "schema_version": 1,
+        "study": "priority_flatness",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "priority_flatness",
+          "input": "studies/historical-analysis-migration/retained/hero-scores.json",
+          "input_evidence": "cached_checkpoint_scores_reanalysis_no_new_rollouts"
+        },
+        "evidence_status": "cached_checkpoint_scores_reanalysis_no_new_rollouts",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/studies/historical-analysis-migration/retained/hero-scores.json",
+            "sha256": "2eeff1fc340740805b0fb50a38943587a147905732369f66eb650f643a341c07"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "det": {
+            "n": 53,
+            "c_mean": 0.8113207547169812,
+            "c_std": 0.39125361044014567,
+            "c_unique": 2,
+            "c_frac_at_1": 0.8113207547169812,
+            "p_ratio": 3.1701538797227005,
+            "ess": 48.41979265677744,
+            "ess_pct": 91.35809935241025,
+            "gini": 0.12033430800395283
+          },
+          "full": {
+            "n": 53,
+            "c_mean": 0.5764151059703618,
+            "c_std": 0.21293187936095087,
+            "c_unique": 53,
+            "c_frac_at_1": 0,
+            "p_ratio": 1.9457490654720784,
+            "ess": 52.16020032705629,
+            "ess_pct": 98.41547231520055,
+            "gini": 0.06258690223660072
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/priority-flatness/report.json",
+          "bytes": 1535,
+          "sha256": "2a5b0b191c03cbe0ac1e5889c19c2bbf42aeb9fae0155b2138cec7d6d7ae0190"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/priority-flatness/scores.png",
+          "bytes": 11932,
+          "sha256": "e2b838b6742a4bfd490e58ccccb9381c827f067c5ea5de280f47092830302032"
+        }
+      ]
+    },
+    {
+      "name": "rpdqn-logs",
+      "report": {
+        "schema_version": 1,
+        "study": "rpdqn_logs",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "rpdqn_logs",
+          "input": "studies/historical-analysis-migration/fixtures/rpdqn",
+          "jobs": [
+            "fixture"
+          ],
+          "input_evidence": "synthetic_parser_check_not_rpdqn_training"
+        },
+        "evidence_status": "synthetic_parser_check_not_rpdqn_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/studies/historical-analysis-migration/fixtures/rpdqn/fixture/metrics.log",
+            "sha256": "eac264bd52290015a403e9ee6150a555591777885843c986a3567699a321f7a0"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "fixture": {
+            "cfg": {
+              "n_steps_per_update": "512"
+            },
+            "ep": [
+              0,
+              64,
+              128
+            ],
+            "gs": [
+              0,
+              3,
+              6
+            ],
+            "wr": [
+              0.8,
+              0.9,
+              0.95
+            ],
+            "ret": [
+              -7.625,
+              -6.77777778,
+              -6.42105263
+            ],
+            "nspu": 512
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/rpdqn-logs/report.json",
+          "bytes": 1297,
+          "sha256": "e32317a33795df2574f0b2cf87e7cb1175371630d04ca659f36460d4f96e584b"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/rpdqn-logs/rpdqn.png",
+          "bytes": 26185,
+          "sha256": "cb30fef9c30cf7f603bdcaa6c2b7101ab9f3a4eb420a3156d91189d5f11add8b"
+        }
+      ]
+    },
+    {
+      "name": "rpdqn-retained",
+      "report": {
+        "schema_version": 1,
+        "study": "rpdqn_logs",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "rpdqn_logs",
+          "input": "studies/historical-analysis-migration/retained/rpdqn",
+          "jobs": [
+            "274714"
+          ],
+          "input_evidence": "retained_training_log_reanalysis_no_new_training"
+        },
+        "evidence_status": "retained_training_log_reanalysis_no_new_training",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/studies/historical-analysis-migration/retained/rpdqn/274714/metrics.log",
+            "sha256": "e8394d0835df181ac235872b354b8a22367b56c22b3db851dd35d44f9c69d0d7"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "274714": {
+            "cfg": {
+              "CVRP (neural, RP-DQN) DQN — 2026-09-03 04": "28:29.961967",
+              "Scenario": "cvrp_neural n=20 cap=30.0  Algorithm: dqn",
+              "Episodes": "250000  Eval interval: 2500  Eval episodes: 512",
+              "n_customers": "20",
+              "capacity": "30.0",
+              "max_steps": "42",
+              "optimal_ref": "6.1",
+              "algorithm": "dqn",
+              "gamma": "1.0",
+              "alpha": "0.0001",
+              "batch_size": "1024",
+              "buffer_capacity": "16384",
+              "buffer_min_samples": "8192",
+              "double_dqn": "True",
+              "n_step": "1",
+              "target_tau": "0.999",
+              "target_update_freq": "2000",
+              "exploration": "boltzmann",
+              "temp_start": "1.0",
+              "temp_end": "0.02",
+              "epsilon_start": "1.0",
+              "epsilon_end": "0.02",
+              "exploration_fraction": "0.5",
+              "embed_dim": "128",
+              "n_layers": "3",
+              "n_heads": "8",
+              "ff_dim": "512",
+              "use_layer_norm": "False",
+              "n_episodes": "250000",
+              "n_envs": "64",
+              "collect_steps": "32",
+              "n_steps_per_update": "512",
+              "vectorized": "True",
+              "eval_interval": "2500",
+              "eval_episodes": "512",
+              "save_every": "25000",
+              "n_checkpoints": "10",
+              "seed": "0",
+              "PER_parameters": "{'eps': 0.01, 'beta': 0.4, 'maximum_priority': 1.0}",
+              "early_stop_win_rate": "None",
+              "early_stop_patience": "None",
+              "early_stop_min_delta": "0.0",
+              "early_stop_smooth_window": "5",
+              "early_stop_min_episodes": "None",
+              "consequence_metric": "wasserstein",
+              "consequence_aggregation": "weighted_mean",
+              "priority_mixing": "multiplicative",
+              "mu": "0.5",
+              "mu_c": "1.0",
+              "mu_delta": "1.0",
+              "cf_n_rollouts": "1",
+              "cf_rollout_temperature": "0.0",
+              "cf_horizon": "10",
+              "cf_gamma": "1.0",
+              "cf_bootstrap": "True",
+              "score_interval": "4",
+              "n_score_sample": "512",
+              "diagnostics_enabled": "False"
+            },
+            "ep": [
+              2550,
+              5075,
+              7584,
+              10002,
+              12574,
+              15027,
+              17549,
+              20057,
+              22553,
+              25048,
+              27537,
+              30060,
+              32579,
+              35009,
+              37540,
+              40072,
+              42584,
+              45032,
+              47564,
+              50086,
+              52511,
+              55019,
+              57556,
+              60000,
+              62516,
+              65029,
+              67541,
+              70059,
+              72567,
+              75079,
+              77512,
+              80019,
+              82531,
+              85038,
+              87557,
+              90077,
+              92501,
+              95006,
+              97507,
+              100021,
+              102526,
+              105041,
+              107541,
+              110036,
+              112549,
+              115052,
+              117543,
+              120050,
+              122547,
+              125030,
+              127511,
+              130015,
+              132508,
+              135077,
+              137570,
+              140055,
+              142552,
+              145060,
+              147553,
+              150054,
+              152546,
+              155051,
+              157550,
+              160031,
+              162515,
+              165020,
+              167500,
+              170058,
+              172540,
+              175037,
+              177516,
+              180014,
+              182578,
+              185066,
+              187546,
+              190028,
+              192514,
+              195080,
+              197544,
+              200035,
+              202523,
+              205090,
+              207567,
+              210060,
+              212546,
+              215006,
+              217578,
+              220073,
+              222559,
+              225053,
+              227555,
+              230047,
+              232540,
+              235036,
+              237534,
+              240026,
+              242514,
+              245007,
+              247508,
+              250001
+            ],
+            "gs": [
+              119.53125,
+              237.890625,
+              355.5,
+              468.84375,
+              589.40625,
+              704.390625,
+              822.609375,
+              940.171875,
+              1057.171875,
+              1174.125,
+              1290.796875,
+              1409.0625,
+              1527.140625,
+              1641.046875,
+              1759.6875,
+              1878.375,
+              1996.125,
+              2110.875,
+              2229.5625,
+              2347.78125,
+              2461.453125,
+              2579.015625,
+              2697.9375,
+              2812.5,
+              2930.4375,
+              3048.234375,
+              3165.984375,
+              3284.015625,
+              3401.578125,
+              3519.328125,
+              3633.375,
+              3750.890625,
+              3868.640625,
+              3986.15625,
+              4104.234375,
+              4222.359375,
+              4335.984375,
+              4453.40625,
+              4570.640625,
+              4688.484375,
+              4805.90625,
+              4923.796875,
+              5040.984375,
+              5157.9375,
+              5275.734375,
+              5393.0625,
+              5509.828125,
+              5627.34375,
+              5744.390625,
+              5860.78125,
+              5977.078125,
+              6094.453125,
+              6211.3125,
+              6331.734375,
+              6448.59375,
+              6565.078125,
+              6682.125,
+              6799.6875,
+              6916.546875,
+              7033.78125,
+              7150.59375,
+              7268.015625,
+              7385.15625,
+              7501.453125,
+              7617.890625,
+              7735.3125,
+              7851.5625,
+              7971.46875,
+              8087.8125,
+              8204.859375,
+              8321.0625,
+              8438.15625,
+              8558.34375,
+              8674.96875,
+              8791.21875,
+              8907.5625,
+              9024.09375,
+              9144.375,
+              9259.875,
+              9376.640625,
+              9493.265625,
+              9613.59375,
+              9729.703125,
+              9846.5625,
+              9963.09375,
+              10078.40625,
+              10198.96875,
+              10315.921875,
+              10432.453125,
+              10549.359375,
+              10666.640625,
+              10783.453125,
+              10900.3125,
+              11017.3125,
+              11134.40625,
+              11251.21875,
+              11367.84375,
+              11484.703125,
+              11601.9375,
+              11718.796875
+            ],
+            "wr": [
+              0.56,
+              0.606,
+              0.65,
+              0.6629999999999999,
+              0.6509999999999999,
+              0.654,
+              0.624,
+              0.5539999999999999,
+              0.5660000000000001,
+              0.684,
+              0.691,
+              0.6609999999999999,
+              0.64,
+              0.6809999999999999,
+              0.682,
+              0.6779999999999999,
+              0.677,
+              0.66,
+              0.682,
+              0.675,
+              0.6779999999999999,
+              0.665,
+              0.6509999999999999,
+              0.6809999999999999,
+              0.657,
+              0.664,
+              0.688,
+              0.6609999999999999,
+              0.687,
+              0.655,
+              0.701,
+              0.701,
+              0.703,
+              0.675,
+              0.7140000000000001,
+              0.6940000000000001,
+              0.736,
+              0.7340000000000001,
+              0.748,
+              0.735,
+              0.7390000000000001,
+              0.743,
+              0.743,
+              0.746,
+              0.757,
+              0.773,
+              0.765,
+              0.7809999999999999,
+              0.763,
+              0.785,
+              0.778,
+              0.779,
+              0.778,
+              0.777,
+              0.787,
+              0.807,
+              0.7959999999999999,
+              0.807,
+              0.805,
+              0.804,
+              0.81,
+              0.8059999999999999,
+              0.823,
+              0.807,
+              0.816,
+              0.7929999999999999,
+              0.818,
+              0.8109999999999999,
+              0.804,
+              0.8170000000000001,
+              0.7979999999999999,
+              0.8029999999999999,
+              0.8170000000000001,
+              0.797,
+              0.8029999999999999,
+              0.8079999999999999,
+              0.8170000000000001,
+              0.813,
+              0.8220000000000001,
+              0.821,
+              0.828,
+              0.8320000000000001,
+              0.8220000000000001,
+              0.8109999999999999,
+              0.823,
+              0.8270000000000001,
+              0.821,
+              0.823,
+              0.821,
+              0.838,
+              0.8320000000000001,
+              0.83,
+              0.8240000000000001,
+              0.825,
+              0.833,
+              0.8270000000000001,
+              0.828,
+              0.826,
+              0.83,
+              0.8240000000000001
+            ],
+            "ret": [
+              -10.9,
+              -10.073,
+              -9.387,
+              -9.194,
+              -9.373,
+              -9.321,
+              -9.769,
+              -11.02,
+              -10.779,
+              -8.914,
+              -8.833,
+              -9.225,
+              -9.53,
+              -8.951,
+              -8.949,
+              -9.001,
+              -9.013,
+              -9.241,
+              -8.942,
+              -9.036,
+              -8.998,
+              -9.166,
+              -9.372,
+              -8.955,
+              -9.291,
+              -9.184,
+              -8.872,
+              -9.231,
+              -8.873,
+              -9.307,
+              -8.698,
+              -8.7,
+              -8.676,
+              -9.04,
+              -8.541,
+              -8.785,
+              -8.287,
+              -8.316,
+              -8.159,
+              -8.295,
+              -8.257,
+              -8.212,
+              -8.21,
+              -8.176,
+              -8.057,
+              -7.887,
+              -7.97,
+              -7.813,
+              -7.997,
+              -7.768,
+              -7.846,
+              -7.834,
+              -7.842,
+              -7.852,
+              -7.754,
+              -7.558,
+              -7.661,
+              -7.558,
+              -7.581,
+              -7.586,
+              -7.534,
+              -7.57,
+              -7.409,
+              -7.56,
+              -7.472,
+              -7.688,
+              -7.454,
+              -7.518,
+              -7.583,
+              -7.463,
+              -7.647,
+              -7.6,
+              -7.469,
+              -7.654,
+              -7.6,
+              -7.549,
+              -7.471,
+              -7.506,
+              -7.425,
+              -7.434,
+              -7.369,
+              -7.328,
+              -7.42,
+              -7.519,
+              -7.413,
+              -7.375,
+              -7.428,
+              -7.413,
+              -7.426,
+              -7.275,
+              -7.332,
+              -7.35,
+              -7.4,
+              -7.396,
+              -7.324,
+              -7.372,
+              -7.363,
+              -7.386,
+              -7.353,
+              -7.4
+            ],
+            "nspu": 512
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/rpdqn-retained/report.json",
+          "bytes": 10231,
+          "sha256": "b2406a4ac8672b9077acd76d2cf92f5311c5c5ff2eec64a48abf53b0a18b1d71"
+        },
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/rpdqn-retained/rpdqn.png",
+          "bytes": 26746,
+          "sha256": "c2e68f724be926c60b7ad9ea1ff11c60b9d55495b630dc3d0acc5af610af90dc"
+        }
+      ]
+    },
+    {
+      "name": "suitability-precision",
+      "report": {
+        "schema_version": 1,
+        "study": "suitability_precision",
+        "config": {
+          "schema_version": 1,
+          "seed": 0,
+          "study": "suitability_precision",
+          "input": "studies/historical-analysis-migration/fixtures/suitability.json",
+          "input_evidence": "synthetic_metric_check_not_empirical_suitability"
+        },
+        "evidence_status": "synthetic_metric_check_not_empirical_suitability",
+        "inputs": [
+          {
+            "path": "/home/ad.msoe.edu/manchadoa/UR-RL/counterfactual-reasoning/.claude/worktrees/jaxnav-parity-migration/studies/historical-analysis-migration/fixtures/suitability.json",
+            "sha256": "216edcc5516a8a4352c9b24087ff32cf13985aab8f8a348b4582cf350467ab75"
+          }
+        ],
+        "python": "3.12.12 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 20:16:04) [GCC 11.2.0]",
+        "versions": {
+          "numpy": "2.4.0",
+          "scipy": "1.16.3",
+          "jax": "0.9.1",
+          "matplotlib": "3.10.7",
+          "rliable": "1.2.0"
+        },
+        "results": {
+          "stakes": [
+            1,
+            0.6000000000000001,
+            0,
+            0.8
+          ],
+          "concentration": {
+            "gini": 0.33333333333333337,
+            "topk_mass": 0.416666666666493,
+            "entropy": 0.7772925846688764,
+            "k_frac": 0.1
+          },
+          "snr": {
+            "value": 24.999995000000993,
+            "agg_between": 0.125,
+            "agg_within": 0.005000000000000001,
+            "within_zero_frac": 0.5,
+            "median_ratio": 15.37499794687529
+          },
+          "distinct_td": {
+            "value": 0.6000000000000001,
+            "spearman_cce_td": -0.39999999999999997
+          },
+          "need": {
+            "value": 0.7999999999999999,
+            "coverage": 1,
+            "mode": "tabular"
+          },
+          "horizon_fit": {
+            "value": 1,
+            "eff_horizon_proxy": 10,
+            "is_proxy": true,
+            "means_by_h": {
+              "5": 0.5,
+              "10": 0.6,
+              "20": 0.61
+            }
+          },
+          "precision": {
+            "0.05": 1,
+            "0.1": 1,
+            "0.2": 1,
+            "0.5": 1
+          }
+        }
+      },
+      "artifacts": [
+        {
+          "path": "/tmp/historical-study-ports-287hk90x/suitability-precision/report.json",
+          "bytes": 1872,
+          "sha256": "afac3e53842f3ea5678d82fe6b80be9fa4348d71a296c20099719e0263de3c75"
+        }
+      ]
+    }
+  ],
+  "limits_of_evidence": [
+    "No fresh learner training.",
+    "Bootstrap resamples=32 for smoke plots, not paper's 50000.",
+    "Point estimates and function bodies checked exactly; bootstrap CI endpoints and figure pixels not asserted identical.",
+    "Historical bootstrap library does not receive an explicit RNG object; global numpy seed is recorded but bitwise bootstrap reproducibility is not established.",
+    "CPU conda JAX prints CUDA plugin discovery warning, then CPU analysis succeeds.",
+    "Full theorem checkpoint utility collection and real suitability rollouts not ported."
+  ]
+}

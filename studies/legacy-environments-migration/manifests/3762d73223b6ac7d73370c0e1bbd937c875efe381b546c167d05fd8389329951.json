@@ -1,0 +1,34 @@
+{
+  "274699": {
+    "n_customers": 20,
+    "n_envs": 64,
+    "collect_steps": 32,
+    "batch_size": 1024,
+    "n_steps_per_update": 512,
+    "buffer_capacity": 16384,
+    "eval_interval": 2500,
+    "eval_episodes": 512,
+    "n_checkpoints": 50,
+    "save_every": 10000,
+    "algorithm": "dqn",
+    "n_episodes": 250000,
+    "seed": 0,
+    "_arm": "per"
+  },
+  "274700": {
+    "n_customers": 20,
+    "n_envs": 64,
+    "collect_steps": 32,
+    "batch_size": 1024,
+    "n_steps_per_update": 512,
+    "buffer_capacity": 16384,
+    "eval_interval": 2500,
+    "eval_episodes": 512,
+    "n_checkpoints": 50,
+    "save_every": 10000,
+    "algorithm": "dqn-uniform",
+    "n_episodes": 250000,
+    "seed": 0,
+    "_arm": "uniform"
+  }
+}

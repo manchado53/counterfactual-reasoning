@@ -1,0 +1,1 @@
+"""Pinned budget environment variant."""

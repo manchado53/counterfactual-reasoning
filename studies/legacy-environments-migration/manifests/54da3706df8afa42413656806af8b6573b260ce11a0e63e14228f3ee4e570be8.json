@@ -1,0 +1,53 @@
+{
+  "274726": {
+    "n_customers": 20,
+    "n_envs": 64,
+    "collect_steps": 32,
+    "batch_size": 1024,
+    "buffer_capacity": 16384,
+    "n_steps_per_update": 32,
+    "algorithm": "dqn",
+    "eval_episodes": 512,
+    "n_checkpoints": 0,
+    "save_every": 100000,
+    "seed": 0,
+    "n_episodes": 50000,
+    "exploration_fraction": 0.15,
+    "eval_interval": 500,
+    "_arm": "expl_frac0.15"
+  },
+  "274727": {
+    "n_customers": 20,
+    "n_envs": 64,
+    "collect_steps": 32,
+    "batch_size": 1024,
+    "buffer_capacity": 16384,
+    "n_steps_per_update": 32,
+    "algorithm": "dqn",
+    "eval_episodes": 512,
+    "n_checkpoints": 0,
+    "save_every": 100000,
+    "seed": 0,
+    "n_episodes": 50000,
+    "exploration_fraction": 0.9,
+    "eval_interval": 500,
+    "_arm": "expl_frac0.9"
+  },
+  "274728": {
+    "n_customers": 20,
+    "n_envs": 64,
+    "collect_steps": 32,
+    "batch_size": 1024,
+    "buffer_capacity": 16384,
+    "n_steps_per_update": 32,
+    "algorithm": "dqn",
+    "eval_episodes": 512,
+    "n_checkpoints": 0,
+    "save_every": 100000,
+    "seed": 0,
+    "n_episodes": 125000,
+    "exploration_fraction": 0.5,
+    "eval_interval": 1250,
+    "_arm": "expl_len125k"
+  }
+}

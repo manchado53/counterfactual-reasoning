@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "covariance",
+  "input": "studies/historical-analysis-migration/fixtures/covariance.json",
+  "input_evidence": "synthetic_identity_check_not_empirical_theorem_evidence",
+  "data_root": "../.."
+}

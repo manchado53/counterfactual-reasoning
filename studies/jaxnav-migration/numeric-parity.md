@@ -35,6 +35,18 @@ It retains the full production batch sizes and 1,000-map bank, but only a
 three-chunk training prefix and controlled decay-clock checks. The nine seed-0
 cells are not a full five-seed study or a 200k-episode replay.
 
+## Final job result
+
+281087 **failed** after 20m16s. Tasks 1 and 7 passed old/old and old/new,
+3,122 events per comparison. Task 13 stopped on old/old:
+`$.events[8].outputs.leaves[0].sha256`. The raw-score maximum difference
+was 5.090493640567788e-08, within the declared score limit, but the output
+hash difference is a separate field that must remain exact. The candidate
+was not run for that cell. Six later cells were not tested. The tolerance
+has not been widened. This is not a passing full-size GPU gate.
+
+Evidence: `runs/parity/full-size-t4-numeric-v1-20261008/results/report.json`.
+
 H100 job 281077 was cancelled while still pending: its sealed snapshot had the
 old broken GPU backend setting. Source and output records were retained. No
 training job was cancelled. No H100 pass is claimed.

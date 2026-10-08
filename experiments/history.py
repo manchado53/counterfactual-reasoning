@@ -33,7 +33,7 @@ def read_metrics_config(path):
             value = ast.literal_eval(raw)
         except (ValueError, SyntaxError):
             # Historical string enums were emitted without quotes.
-            if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9.-]*", raw):
+            if not re.fullmatch(r"[A-Za-z_0-9][A-Za-z_0-9.-]*", raw):
                 raise ValueError(f"Unsupported historical value for {key}") from None
             value = raw
         config[key] = value

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "data_root": "../..",
+  "study": "claim2_rebuild",
+  "manifest": "paper/repro/manifests/claim2_graded_slip_2026-08-03.json",
+  "runs_roots": ["src/counterfactual_rl/agents/frozen_lake/runs"],
+  "smoke_jobs": ["269926"],
+  "env": "frozen_lake_graded",
+  "threshold": 0.5,
+  "completion_policy": "complete_only",
+  "group_by_slip": true
+}

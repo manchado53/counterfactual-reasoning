@@ -142,7 +142,8 @@ def test_all_saved_recipes_are_resolved():
     from experiments.learners.frozenlake.build import validate_config
     root = Path(__file__).resolve().parents[1]
     paths = list((root/'configs/experiment').glob('frozenlake*.json'))
-    assert len(paths) == 3
+    assert {'frozenlake-smoke.json', 'frozenlake-stochastic-transfer.json',
+            'frozenlake-deterministic-old.json'} <= {p.name for p in paths}
     for path in paths:
         for row in json.loads(path.read_text())['rows']:
             assert validate_config(row['config']) == row['config']

@@ -1,0 +1,16 @@
+{
+  "225637": {
+    "seed": 0,
+    "algorithm": "dqn-uniform",
+    "scenario": "3m",
+    "n_episodes": 200,
+    "eval_interval": 50
+  },
+  "225638": {
+    "seed": 1,
+    "algorithm": "dqn-uniform",
+    "scenario": "3m",
+    "n_episodes": 200,
+    "eval_interval": 50
+  }
+}

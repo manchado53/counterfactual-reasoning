@@ -9,7 +9,7 @@ migration test set, not a whole-repository certification.
 
 | Requested step | Current evidence | Remaining gate |
 |---|---|---|
-| 1. JaxNav parity | CPU checks passed. T4 exact old/old exposed raw score drift; all other 3,122-event fields matched in the measured pair. First numeric old/new case passed all 3,122 events with no config overrides. | Separate user-approved numeric gate 281087 is running: 1/9 cases passed at this snapshot. No full GPU pass yet. |
+| 1. JaxNav parity | CPU checks passed. T4 numeric old/new tasks 1 and 7 passed 3,122 events each with no config overrides. | Gate 281087 failed at task 13: old/old differs at event 8 outputs leaf 0, beyond the permitted raw-score tolerance field. Two of nine cells passed; no full GPU pass. |
 | 2. Clean installation | Fresh isolated CPU venv installed the wheel; JaxNav and FrozenLake each ran twice, captured sources, and rebuilt identical plot data. | Historical JaxMARL dependency metadata conflicts remain explicitly accepted exceptions, not a resolver-clean install. Fresh GPU install untested. |
 | 3. Historical figures | Exact plotted-data checks pass for the saved three-panel decay plot and the five-arm mean/median/SEM audit. All 77 bundled logs are hashed and self-contained. | Other historical figure families are not yet ported; no training parity inferred from plot reproduction. |
 | 4. JaxNav studies | Existing 45 CCE decay rows plus 20 exact-header sparse/dense baseline rows validate. 377 raw historical rows preserved; 1,107 sealed source files verified. | Coverage/rarity, fresh-eval, hold wrappers and carry-pilot variants still have distinct protocols or source gaps; see history.md. This step is partial. |

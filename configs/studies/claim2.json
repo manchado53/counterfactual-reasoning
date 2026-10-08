@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "claim2",
+  "cache": "paper/repro/cache/claim2_frozen_lake_no_slip.npz",
+  "reps": 32,
+  "curves": true,
+  "data_root": "../.."
+}
