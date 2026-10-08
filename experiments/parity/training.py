@@ -15,19 +15,24 @@ def main():
     p.add_argument("--reference", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--tasks", default="1,7,13,18,21,24,27,30,33")
+    p.add_argument("--profile", choices=["smoke","full-size"], default="smoke")
+    p.add_argument("--device", choices=["cpu","gpu"], default="cpu")
     args = p.parse_args()
     tasks = [int(t) for t in args.tasks.split(",")]
     if not tasks or len(tasks) > 9 or len(set(tasks)) != len(tasks):
         p.error("Choose 1..9 distinct tasks")
     root = Path(__file__).resolve().parents[2]
+    if args.profile == "full-size" and args.device != "gpu":
+        p.error("Full-size gate requires a GPU allocation")
+    timeout = 1200 if args.profile == "full-size" else 300
     out = args.output.resolve()
     if out.is_relative_to(args.reference.resolve()):
         p.error("Output must not be inside reference")
     out.mkdir(parents=True, exist_ok=False)
-    report = dict(scope="bounded-real-jaxnav-learn-loop", status="running", checks=[],
-                  production_budget_parity="NOT_TESTED", direct_gradient_capture="NOT_TESTED",
-                  limits=dict(worker_wall_seconds=300, cpu_affinity=4, workers=1,
-                              worker_address_bytes=16*1024**3, max_tasks=9))
+    report = dict(scope=args.profile+"-real-jaxnav-learn-loop", status="running", checks=[],
+                  production_budget_parity="NOT_TESTED",
+                  gradient_capture="first-batch diagnostic" if args.profile=="full-size" else "NOT_TESTED",
+                  limits=dict(worker_wall_seconds=timeout, workers=1, prefix_chunks=3,max_tasks=9))
     try:
         report["reference_snapshot"] = snapshot(args.reference.resolve(), out/"reference")
         pinned = json.loads((out/"reference/versions.json").read_text())
@@ -48,10 +53,12 @@ def main():
             hashes[str(rel)] = digest(dest)
         report["candidate_hashes"] = hashes
         worker = out/"candidate/experiments/parity/training_worker.py"
-        env = dict(os.environ, JAX_PLATFORMS="cpu", PYTHONNOUSERSITE="1", PYTHONPATH="",
+        env = dict(os.environ, JAX_PLATFORMS=args.device, PYTHONNOUSERSITE="1", PYTHONPATH="",
                    OMP_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1",
                    JAX_COMPILATION_CACHE_DIR=str(out/"compile-cache"),
                    JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS="0")
+        if args.profile == "full-size":
+            env["JAX_ENABLE_COMPILATION_CACHE"] = "false"
         for task in tasks:
             traces = {}
             for name, source, kind in (("old_a",out/"reference","reference"),
@@ -61,12 +68,17 @@ def main():
                 print(f"START task={task} copy={name}", flush=True)
                 proc = subprocess.run([sys.executable,str(worker), "--source",str(source),
                     "--reference",str(out/"reference"),"--kind",kind,"--task",str(task),
-                    "--output",str(target)], cwd=out, env=env, capture_output=True,
-                    text=True, timeout=300)
+                    "--output",str(target),"--profile",args.profile,"--device",args.device],
+                    cwd=out, env=env, capture_output=True,text=True,timeout=timeout)
                 (out/f"task-{task}-{name}.log").write_text(proc.stdout + proc.stderr)
                 if proc.returncode:
                     raise RuntimeError(f"task={task}/{name}: {proc.stderr[-2500:]}")
                 traces[name] = json.loads((target/"trace.json").read_text())
+                if name == "old_b":
+                    difference = first_difference(traces["old_a"],traces["old_b"])
+                    if difference:
+                        report["repeatability_failure"] = dict(task=task,first_difference=difference)
+                        raise ValueError("Old code is not bit-repeatable; no candidate equivalence claimed")
             repeat = first_difference(traces["old_a"],traces["old_b"])
             mismatch = first_difference(traces["old_a"],traces["new"])
             check = dict(task=task,repeat_difference=repeat,parity_difference=mismatch,

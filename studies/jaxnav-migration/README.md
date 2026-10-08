@@ -128,7 +128,43 @@ The JaxMARL vendor is still an explicit input; no clean-room install is claimed.
 CPU tests may emit CUDA-plugin warnings from the existing GPU-enabled environment,
 and persistent compilation cache warnings; they do not certify runtime portability.
 
-## Other research
+## Full-size H100 gate
+
+Requested after the bounded checks. No full 200k-episode rerun is approved.
+The gate leaves every production config field unchanged: 256 environments,
+32-step chunks, batch 128, capacity 100,000, h60 and 1,000 evaluation maps.
+It intercepts collection after three completed chunks (24,576 collected steps),
+then explicitly evaluates the full bank and probes the original decay clock at
+99,999 / 100,000 / 125,000 / 150,000 / 150,001 on that prefix's replay state.
+These are controlled state probes, NOT evidence of 150k episodes of learning.
+
+The first actual update batch also gets an independent loss/target/gradient
+diagnostic; it does not perform an extra optimizer update. The normal update
+function remains unchanged. Gradients are reconstructed from the same batch,
+not returned directly by the original update function.
+
+Each of the same nine seed-0 cells runs old/old/new on one H100 sequentially.
+Old/old mismatch stops the gate before claiming candidate equivalence. No
+post-hoc tolerances are selected. H100 nonrepeatability is a possible result,
+not evidence that migration changed behavior.
+
+Submission always performs SLURM test-only first. One H100, eight CPUs, 60 GiB
+host memory, ten-hour total limit; each subprocess has a 20-minute wall limit.
+The job waits for the existing H100 array to finish to preserve the six-GPU cap.
+Reference and candidate sources are sealed before submission. Persistent JAX
+compilation caching is disabled for the full-size gate.
+
+```bash
+PYTHONPATH=src:. python -m experiments.parity.submit \
+  --reference /path/to/sealed/decay_20261007_v1 \
+  --output /new/full-size-gate --after-job EXISTING_ARRAY_ID --submit
+```
+
+The local watcher records scheduler state changes in `monitor.json`; it is not
+a promise of push notifications. Results go in `results/report.json`.
+GPU results are pending until that file reports completion.
+
+## Other research inventory
 
 Use `python -m experiments.inventory --repo /path/to/repo --output /new/index.json`
 to list branch tips, dirty files and tracked entrypoints without changing them.

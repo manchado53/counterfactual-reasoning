@@ -15,13 +15,19 @@ def main():
     p.add_argument("--kind", choices=["reference", "candidate"], required=True)
     p.add_argument("--task", type=int, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--profile", choices=["smoke", "full-size"], default="smoke")
+    p.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
+    p.add_argument("--chunks", type=int, default=3)
     args = p.parse_args()
-    # Limit CPU use before JAX import; no GPU or scheduler allocations.
+    if not 1 <= args.chunks <= 3:
+        p.error("Gate is limited to 1..3 collection chunks")
+    # GPU memory mappings need a large address range; SLURM bounds physical RAM.
     available = sorted(os.sched_getaffinity(0))
-    os.sched_setaffinity(0, available[:4])
-    resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, 16 * 1024**3))
-    resource.setrlimit(resource.RLIMIT_FSIZE, (64 * 1024**2, 64 * 1024**2))
-    resource.setrlimit(resource.RLIMIT_CPU, (480, 480))
+    os.sched_setaffinity(0, available[:8 if args.device == "gpu" else 4])
+    if args.device == "cpu":
+        resource.setrlimit(resource.RLIMIT_AS, (16 * 1024**3, 16 * 1024**3))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (256 * 1024**2, 256 * 1024**2))
+    resource.setrlimit(resource.RLIMIT_CPU, (14400, 14400))
     args.output.mkdir()
     rows = json.loads((args.reference/"manifest.json").read_text())["rows"]
     row = next(r for r in rows if r["task"] == args.task and r["mode"] == "train")
@@ -30,6 +36,8 @@ def main():
         max_steps=8, n_episodes=6, eval_episodes=2, eval_interval=2,
         n_steps_per_update=4, target_update_freq=8, n_checkpoints=0, n_buffer_snapshots=0,
         decay_start=2, decay_end=4, qdiag_every=1, cf_score_chunk=8)
+    if args.profile == "full-size":
+        overrides = {}
     cfg.update(overrides)
     sys.path.insert(0, str(args.reference/"vendor"))
     os.environ["SLURM_JOB_ID"] = "parity-" + args.output.name
@@ -57,11 +65,18 @@ def main():
         agent = build_agent(cfg)
     import jax
     import numpy as np
-    if jax.default_backend() != "cpu":
-        raise RuntimeError("Parity smoke must use CPU")
+    if jax.default_backend() != args.device:
+        raise RuntimeError("Requested parity device is unavailable")
+    if args.device == "gpu" and not all("H100" in d.device_kind for d in jax.devices()):
+        raise RuntimeError("Full-size GPU gate requires an H100")
     if agent.config != cfg:
         raise ValueError("Resolved config drift")
     events = []
+    chunks_seen = 0
+    updates_seen = 0
+
+    class PrefixComplete(Exception):
+        pass
 
     def tree(value):
         leaves = []
@@ -81,8 +96,27 @@ def main():
     # Instrument existing compiled functions, with no extra random draws.
     update = agent._update_step
     def traced_update(*values):
+        nonlocal updates_seen
+        if args.profile == "full-size" and updates_seen == 0:
+            # Independent diagnostic from the actual batch; not a second optimizer step.
+            params, target, _, states, actions, rewards, nexts, dones, weights = values
+            def diagnostic_loss(params):
+                q = jax.vmap(agent.network.apply, in_axes=(None,0))(params,states)
+                next_target = jax.vmap(agent.network.apply,in_axes=(None,0))(target,nexts)
+                if cfg["double_dqn"]:
+                    next_online = jax.vmap(agent.network.apply,in_axes=(None,0))(params,nexts)
+                    choice = jax.numpy.argmax(jax.lax.stop_gradient(next_online),axis=-1)
+                    best = next_target[jax.numpy.arange(next_target.shape[0]),choice]
+                else:
+                    best = next_target.max(axis=-1)
+                targets = rewards + agent.gamma * best * (1-dones)
+                td = targets - q[jax.numpy.arange(q.shape[0]),actions]
+                return jax.numpy.mean(weights*td**2), (targets,td)
+            diagnostic, gradients = jax.value_and_grad(diagnostic_loss,has_aux=True)(params)
+            emit("gradient-diagnostic", loss_targets_td=diagnostic, gradients=gradients)
         result = update(*values)
         emit("update", inputs=values, outputs=result)
+        updates_seen += 1
         return result
     agent._update_step = traced_update
     build_collect = agent._build_collect_fn
@@ -90,7 +124,11 @@ def main():
         build_collect()
         collect = agent._collect_fn
         def traced_collect(*values):
+            nonlocal chunks_seen
+            if args.profile == "full-size" and chunks_seen >= args.chunks:
+                raise PrefixComplete()
             result = collect(*values)
+            chunks_seen += 1
             emit("collect", inputs=values, outputs=result)
             return result
         agent._collect_fn = traced_collect
@@ -127,17 +165,33 @@ def main():
         return result
     agent.buffer.sample = traced_sample
     emit("initial", params=agent.params, target=agent.target_params, optimizer=agent.opt_state, key=agent._key)
-    agent.learn(verbose=False)
+    try:
+        agent.learn(verbose=False)
+    except PrefixComplete:
+        # Stop only at a collection boundary, after the last chunk's real updates.
+        agent.evaluate(cfg["eval_episodes"])
+        agent._write_qdiag(agent._current_episode,agent.q_update_count)
+        # Exercise original decay clocks on the captured state, not 150k fake episodes.
+        saved_episode = agent._current_episode
+        for episode in (cfg["decay_start"]-1,cfg["decay_start"],
+                        (cfg["decay_start"]+cfg["decay_end"])//2,
+                        cfg["decay_end"],cfg["decay_end"]+1):
+            agent._current_episode = episode
+            emit("controlled-clock",episode=episode)
+            agent._update()
+        agent._current_episode = saved_episode
+        agent.metrics_logger.close()
     emit("final", params=agent.params, target=agent.target_params, optimizer=agent.opt_state,
          key=agent._key, rng=np.random.get_state()[1:], lengths=agent.episode_lengths,
          returns=agent.episode_returns, steps=agent.total_steps)
     # Logs contain wall times and paths. Compare only scientific log streams.
     logdir = Path(agent.metrics_logger.dir)
     for name in ("eval.jsonl", "qdiag.jsonl"):
-        records = [json.loads(line) for line in (logdir/name).read_text().splitlines()]
+        records = [json.loads(line) for line in (logdir/name).read_text().splitlines()] if (logdir/name).exists() else []
         emit(name, records=records)
     result = dict(task=row["task"], overrides=overrides, config=cfg, events=events,
-                  device=str(jax.devices()), full_production_budget=False)
+                  device=[d.device_kind for d in jax.devices()], full_production_budget=False,
+                  profile=args.profile,chunks_seen=chunks_seen)
     (args.output/"trace.json").write_text(json.dumps(result, sort_keys=True, allow_nan=False))
 
 
