@@ -3,14 +3,12 @@
 One place for each kind of work.
 
 ```text
-src/counterfactual_rl/    shared CCE and replay math
-experiments/envs/        task rules and state
-experiments/learners/    training loops, split by task and old protocol
-configs/experiment/     runnable training recipes
-configs/studies/        analysis settings; not training jobs
-experiments/studies/    paper and diagnostic analysis
-docs/migration-audit.md recovery pointer for old migration proof
-runs/                   new outputs; not source code
+src/counterfactual_rl/   shared CCE and replay math
+training/                reusable training engine and environment learners
+analysis/                reusable plots and result-reading studies
+experiments/             research bundles with training and analysis recipes
+docs/migration-audit.md  recovery pointer for old migration proof
+runs/                    new outputs; not source code
 ```
 
 Old `src` paths stay for now. Old jobs still use them. This move does not switch
@@ -21,7 +19,7 @@ silently replaced with the latest ranked CCE.
 ## Find a study
 
 ```bash
-python -m experiments.catalog --root /path/to/checkout
+python -m training.catalog --root /path/to/checkout
 ```
 
 This lists training recipes and analysis configs. Valid settings do not mean
@@ -34,8 +32,8 @@ commit named in `docs/migration-audit.md`.
 Use the pinned runtime in `docs/migration-install.md`. Keep outputs fresh.
 
 ```bash
-cce-run validate --recipe configs/experiment/jaxnav-temporal-20260930.json --task 0
-cce-run train --recipe configs/experiment/jaxnav-temporal-20260930.json --task 0 \
+cce-run validate --recipe experiments/jaxnav/temporal-20260930/training.json --task 0
+cce-run train --recipe experiments/jaxnav/temporal-20260930/training.json --task 0 \
   --smoke --device cpu --max-wall-seconds 180 --output /tmp/new-hold-check
 ```
 
@@ -50,7 +48,7 @@ that learner really has one. Old fresh-eval learners do not get a fake bank.
 ## Rebuild an analysis
 
 ```bash
-cce-study --config configs/studies/claim2.json --out /tmp/new-paper-check
+cce-study --config experiments/frozenlake/claim2-deterministic/analysis.json --out /tmp/new-paper-check
 ```
 
 Read the config first. A saved-cache plot is not new training. A small synthetic
@@ -59,7 +57,7 @@ documented with the saved study; they are not silently imposed on new plots.
 
 ## Add a task
 
-Keep its reset, step, legal-action and terminal rules in `experiments/envs`.
+Keep its reset, step, legal-action and terminal rules in `training/envs`.
 Keep its learner behind the small `build.py` interface. Validation must not load
 JAX or a simulator. Register its name only once the adapter exists.
 

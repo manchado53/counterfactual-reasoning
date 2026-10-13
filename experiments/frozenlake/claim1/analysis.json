@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "claim1_frozen_lake",
+  "oracle": {
+    "map_name": "8x8",
+    "is_slippery": true,
+    "gamma": 0.99,
+    "tol": 1e-10
+  },
+  "cache": "paper/repro/cache/claim1_frozen_lake_oracle.npz",
+  "data_root": "../../.."
+}

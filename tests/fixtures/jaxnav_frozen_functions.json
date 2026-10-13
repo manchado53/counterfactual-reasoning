@@ -1,5 +1,5 @@
 {
-  "experiments/envs/jaxnav.py": {
+  "training/envs/jaxnav.py": {
     "reference": "fixed/src/counterfactual_rl/envs/jax_nav.py",
     "source_sha256": "72a5e047bc856f439d769549377004cce5e3924042b41a2855b0db471a7e4f00",
     "functions": {
@@ -36,7 +36,7 @@
       "PrioritizedReplayBuffer.can_sample": "b7c0768a59d473e5e80063ab4ce4f921faab53c7779fd12d88a6a5a3e6517ee3"
     }
   },
-  "experiments/common/early_stopping.py": {
+  "training/common/early_stopping.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/early_stopping.py",
     "source_sha256": "21ed2f86bb10068d6fa38657884913dcda369c12768d6a1007f8d0ab870f501a",
     "functions": {
@@ -45,12 +45,12 @@
       "PlateauEarlyStopper.status": "c2259a1c79cfd1b17aa4055b9befba64e114283981ffec07465a0bca2bbd6ff0"
     }
   },
-  "experiments/common/timing/__init__.py": {
+  "training/common/timing/__init__.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/timing/__init__.py",
     "source_sha256": "1d991bffb701c881519e275fbfd529cd1720604b047191ac7789c312a0fe1381",
     "functions": {}
   },
-  "experiments/common/timing/timer.py": {
+  "training/common/timing/timer.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/timing/timer.py",
     "source_sha256": "d4dff698222552172d8e9284b8cdd3003c837ca688f0ca63d8be11687704b988",
     "functions": {
@@ -69,7 +69,7 @@
       "TrainingTimer.close": "03839d9b8b906a916ff0c1f855aee2c6b9effcd7ac157b808c22bf9676e431aa"
     }
   },
-  "experiments/common/timing/plot.py": {
+  "training/common/timing/plot.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/timing/plot.py",
     "source_sha256": "84652d1437005b32d8f5f660db6b4eed76e5734606e8e4bd73e9959d9a0e39fe",
     "functions": {
@@ -81,12 +81,12 @@
       "main": "df0b10224db11d0ba56d757d2be24e49988f67883e9075b0b64b850aee0bbe21"
     }
   },
-  "experiments/learners/jaxnav/config.py": {
+  "training/learners/jaxnav/config.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/config.py",
     "source_sha256": "5e55bde6b5b7095e0411c876f61edd4edacf42e97a5b5c3b50bd399fae38e522",
     "functions": {}
   },
-  "experiments/learners/jaxnav/qdiag.py": {
+  "training/learners/jaxnav/qdiag.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/qdiag.py",
     "source_sha256": "f2024477131b72c810809af06cc92be9f28b57469ad490ec09ae1d2eac5baa13",
     "functions": {
@@ -96,7 +96,7 @@
       "QDiagRecorder.drain": "7c3351d85aed6bb429a92e956ae6f504a7482c0535dcdd99258bb7116a387eb8"
     }
   },
-  "experiments/learners/jaxnav/dqn.py": {
+  "training/learners/jaxnav/dqn.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn.py",
     "source_sha256": "f9e780a618fc0ecabcbddd8bd37c04c1ee26289c53e4c59d10867615992ccc31",
     "functions": {
@@ -118,7 +118,7 @@
       "JaxNavDQN.load": "56904bcfb337ed2b710996e88ee9228abf32042536ec99bfff55f19798345f91"
     }
   },
-  "experiments/learners/jaxnav/consequence_dqn.py": {
+  "training/learners/jaxnav/consequence_dqn.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn.py",
     "source_sha256": "dcaa2fdfa0ae20f0637e433cd38bfafd4b8fa79638bc5f9e1e8958d1e5d54872",
     "functions": {
@@ -134,7 +134,7 @@
       "JaxNavConsequenceDQN.learn": "79b669a1799b40f16b62af7a3a58a312c2265008b24e7d27901aeebbe8f21ee4"
     }
   },
-  "experiments/learners/jaxnav/dqn_vectorized.py": {
+  "training/learners/jaxnav/dqn_vectorized.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
     "source_sha256": "2ba2bda15f9a429ecfb6e6df11908d82b8ac1ee051d0d4532fe8f9351a76e8e5",
     "functions": {
@@ -147,7 +147,7 @@
       "JaxNavDQNVectorized.learn": "046a8f7231de5fa2aee90ed98078fa5efa88ba07293c5f24a9a0a949169d26a0"
     }
   },
-  "experiments/learners/jaxnav/consequence_dqn_vectorized.py": {
+  "training/learners/jaxnav/consequence_dqn_vectorized.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
     "source_sha256": "7e136b6bf07807f244ca5cba5a7c99ac872822a73a54f769180e5365e3295e61",
     "functions": {
@@ -159,7 +159,7 @@
       "_log_priority_diagnostics": "fe2d5ac7f8b1eecdecb9cce6cf99e6d076faf1b5c32bb71064c62079cecd88e4"
     }
   },
-  "experiments/learners/jaxnav/dqn_vectorized_legacy.py": {
+  "training/learners/jaxnav/dqn_vectorized_legacy.py": {
     "reference": "old/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
     "source_sha256": "6801fc3cab22f590a9af065a2bfacd4772271c7aadc217dded2c5f6cdbeb706d",
     "functions": {
@@ -171,7 +171,7 @@
       "JaxNavDQNVectorized.learn": "9eb3753e0cb434e0b97323318c91e0a73c1a99e28f1fd45b0d5502ebb852a9cf"
     }
   },
-  "experiments/learners/jaxnav/consequence_dqn_vectorized_legacy.py": {
+  "training/learners/jaxnav/consequence_dqn_vectorized_legacy.py": {
     "reference": "old/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
     "source_sha256": "70f209ded23778e133c3a2f1b6ff523029fb6c458387bbdcd28549916613ff0b",
     "functions": {

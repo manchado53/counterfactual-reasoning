@@ -1,8 +1,8 @@
 """Quantitative analysis of experiment results: ranking, statistical tests, recommendation.
 
 Usage:
-    python analyze_experiment.py experiments/mu_sweep_2026-03-02.json
-    python analyze_experiment.py experiments/mu_sweep_2026-03-02.json --last-n 50
+    python analyze_experiment.py training/mu_sweep_2026-03-02.json
+    python analyze_experiment.py training/mu_sweep_2026-03-02.json --last-n 50
 """
 
 import argparse

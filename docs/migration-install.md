@@ -27,11 +27,11 @@ python3.12 -m venv /path/to/new-venv
 /path/to/new-venv/bin/python -m pip install --no-deps -r requirements/migration-cpu.lock
 /path/to/new-venv/bin/python -m pip install --no-deps --no-build-isolation .
 /path/to/new-venv/bin/cce-run validate \
-  --recipe configs/experiment/jaxnav_decay_20261007.json --task 13
+  --recipe experiments/jaxnav/ranked-td-decay/training.json --task 13
 /path/to/new-venv/bin/cce-run train \
-  --recipe configs/experiment/jaxnav_decay_20261007.json --task 13 \
+  --recipe experiments/jaxnav/ranked-td-decay/training.json --task 13 \
   --smoke --device cpu --max-wall-seconds 180 --output /path/to/new-attempt
-/path/to/new-venv/bin/python analysis/plot_migrated_runs.py \
+/path/to/new-venv/bin/python -m analysis.plotting.learning_curves \
   --runs /path/to/new-attempt --bin-size 1 --output /path/to/new-figure.png
 ```
 
@@ -47,9 +47,9 @@ the lock above because of the declared JaxMARL conflict.
 For a repeatable installed-package check, run the probe from outside the checkout:
 
 ```bash
-PYTHONPATH= PYTHONNOUSERSITE=1 /path/to/new-venv/bin/python -m experiments.install_probe \
-  --recipe /path/to/checkout/configs/experiment/jaxnav_decay_20261007.json --task 13 \
-  --plot-script /path/to/checkout/analysis/plot_migrated_runs.py \
+PYTHONPATH= PYTHONNOUSERSITE=1 /path/to/new-venv/bin/python -m training.install_probe \
+  --recipe /path/to/checkout/experiments/jaxnav/ranked-td-decay/training.json --task 13 \
+  --plot-script /path/to/checkout/analysis/plotting/learning_curves.py \
   --output /path/to/new-probe
 ```
 
@@ -57,7 +57,7 @@ It rejects source-checkout imports and system-site packages, runs two bounded
 smokes, checks complete source bundles, rebuilds figures, and compares scientific
 data. Each training subprocess has a hard 180-second timeout. It expects exactly
 the two known JaxMARL metadata conflicts and fails on any changed exception list.
-For FrozenLake use `configs/experiment/frozenlake-smoke.json`, task 2.
+For FrozenLake use `experiments/frozenlake/smoke/training.json`, task 2.
 
 ## GPU record
 

@@ -55,7 +55,7 @@ COLORS = {
     "DQN+CCE-only": "#ff7f0e",
     "CCE+TD (mul)": "#d62728",
 }
-EXP = "src/counterfactual_rl/agents/frozen_lake/experiments/2026-08"
+EXP = "src/counterfactual_rl/agents/frozen_lake/training/2026-08"
 SWEEPS = {
     "dense": f"{EXP}/claim2_graded_slip_dense_2026-08-04/RECOVERED_partial.json",
     "coarse": f"{EXP}/claim2_graded_slip_2026-08-03/claim2_graded_slip_2026-08-03.json",

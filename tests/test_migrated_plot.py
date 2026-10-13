@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pytest
-from analysis.plot_migrated_runs import read_runs
+from analysis.plotting.learning_curves import read_runs
 
 
 def make_run(root, name, seed, rows, **changes):

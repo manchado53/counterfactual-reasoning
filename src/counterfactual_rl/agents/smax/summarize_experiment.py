@@ -1,8 +1,8 @@
 """Summarize experiment results: print table + generate learning curve plots.
 
 Usage:
-    python summarize_experiment.py experiments/metric_sweep_2026-02-24.json
-    python summarize_experiment.py experiments/uniform_dqn_*.json experiments/metric_sweep_*.json
+    python summarize_experiment.py training/metric_sweep_2026-02-24.json
+    python summarize_experiment.py training/uniform_dqn_*.json training/metric_sweep_*.json
 """
 
 import argparse

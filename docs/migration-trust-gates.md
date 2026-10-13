@@ -13,26 +13,29 @@ Checked on 2026-10-12 before merging PR #30.
 | JaxNav frozen-function and recipe tests | PASS | 24 passed |
 | JaxNav replay and decay parity | PASS | 45 cases, 144 exact comparisons each, 6,480 total |
 | Full-size JaxNav GPU parity | NUMERIC MATCH; INCOMPLETE | Two candidate tasks matched; a third stopped at tiny old-versus-old float noise before its candidate ran |
+| Experiment-bundle structure | PASS | Clean install, catalog, 116 tests, and all 9 environment smokes rerun after the move |
 
 ## Environment smokes
 
-Each row used the normal `python -m experiments.run train` entry point with
+Each row used the normal training entry point, now `python -m training.run train`, with
 `--smoke`, a CPU device, and a four-minute wall limit.
 
 | Environment | Recipe | Task | Result |
 | --- | --- | ---: | --- |
-| JaxNav | `jaxnav_decay_20261007.json` | 13 | completed |
-| FrozenLake | `frozenlake-smoke.json` | 2 | completed |
-| DoorKey | `doorkey-fixed-transfer.json` | 4 | completed |
-| Connect Four | `connect_four-fixed-transfer.json` | 4 | completed |
-| SMAX | `smax-historical.json` | 3 | completed |
-| Chess | `chess-historical.json` | 3 | completed |
-| CVRP | `cvrp-historical.json` | 3 | completed |
-| RP-DQN | `rpdqn-historical.json` | 3 | completed |
-| CVRP budget | `cvrp-budget.json` | 0 | completed |
+| JaxNav | `jaxnav/ranked-td-decay/training.json` | 13 | completed |
+| FrozenLake | `frozenlake/smoke/training.json` | 2 | completed |
+| DoorKey | `doorkey/fixed-transfer/training.json` | 4 | completed |
+| Connect Four | `connect_four/fixed-transfer/training.json` | 4 | completed |
+| SMAX | `smax/historical/training.json` | 3 | completed |
+| Chess | `chess/historical/training.json` | 3 | completed |
+| CVRP | `cvrp/historical/training.json` | 3 | completed |
+| RP-DQN | `rpdqn/historical/training.json` | 3 | completed |
+| CVRP budget | `cvrp_budget/budget/training.json` | 0 | completed |
 
-The run manifests are under `runs/trust-gates/20261012/`. Run data is ignored
-by Git. This page is the tracked result.
+The original run manifests are under `runs/trust-gates/20261012/`. The same nine
+smokes were rerun after the structure move under
+`runs/trust-gates/20261012-structure/`. Run data is ignored by Git. This page is
+the tracked result.
 
 ## Parity boundary
 

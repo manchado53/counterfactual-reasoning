@@ -1,13 +1,13 @@
-"""Bootstrap sample efficiency analysis for SMAX experiments.
+"""Bootstrap sample efficiency analysis for SMAX training.
 
 Reads completed training runs from metrics.log files and uses bootstrapping
 to compute P(consequence-DQN > baseline) at each training checkpoint.
 Produces one 3-panel figure per metric (win_rate, avg_return by default).
 
 Usage:
-    python bootstrap_analysis.py experiments/full_algorithm_comparison_2026-04-07.json
-    python bootstrap_analysis.py experiments/my_exp.json --scenario 3m --focus-checkpoint 10000
-    python bootstrap_analysis.py experiments/my_exp.json --metrics win_rate
+    python bootstrap_analysis.py training/full_algorithm_comparison_2026-04-07.json
+    python bootstrap_analysis.py training/my_exp.json --scenario 3m --focus-checkpoint 10000
+    python bootstrap_analysis.py training/my_exp.json --metrics win_rate
 """
 
 import argparse
@@ -372,7 +372,7 @@ def make_figure(groups, scenario, metric, focus_checkpoint,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Bootstrap sample efficiency analysis for SMAX experiments.'
+        description='Bootstrap sample efficiency analysis for SMAX training.'
     )
     parser.add_argument('manifests', nargs='+', help='Manifest JSON files')
     parser.add_argument('--focus-checkpoint', type=int, default=10000,

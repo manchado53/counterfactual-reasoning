@@ -6,11 +6,11 @@ import sys
 def test_registry_validation_needs_no_simulator():
     code = '''
 import sys
-from experiments.registry import get_environment
-from experiments.recipes import load_recipe
-row = load_recipe('configs/experiment/jaxnav_decay_20261007.json', 1)
+from training.registry import get_environment
+from training.recipes import load_recipe
+row = load_recipe('experiments/jaxnav/ranked-td-decay/training.json', 1)
 assert get_environment('jaxnav').evaluation_axis(row['config']) == 'episode'
-row = load_recipe('configs/experiment/frozenlake-stochastic-transfer.json', 0)
+row = load_recipe('experiments/frozenlake/stochastic-transfer/training.json', 0)
 assert get_environment('frozenlake').evaluation_axis(row['config']) == 'env_steps'
 assert not {'jax', 'jaxmarl', 'pgx', 'torch'} & set(sys.modules)
 try:

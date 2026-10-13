@@ -5,8 +5,8 @@ This repository studies one question:
 > Can counterfactual consequence scores improve which transitions a replay
 > buffer samples?
 
-The package contains shared CCE scoring and replay math. The experiment layer
-contains environment rules, learners, recipes, and reporting tools.
+The package contains shared CCE scoring and replay math. Training and analysis
+are reusable engines. Actual research questions live in experiment bundles.
 
 ## Layout
 
@@ -15,18 +15,19 @@ src/counterfactual_rl/
   replay/                 replay buffers and priority schedules
   scoring/                consequence metrics
 
-experiments/
+training/
   envs/                   task state, actions, reset, and step rules
   learners/<environment>/ training implementations
-  studies/                analysis implementations
   run.py                  one training entry point
   catalog.py              recipe inventory and validation
 
-configs/
-  experiment/             complete training recipes
-  studies/                analysis recipes
+analysis/
+  plotting/               comparable learning curves
+  studies/                reusable result-reading code
 
-analysis/                 reusable plotting commands
+experiments/
+  <environment>/<name>/   README plus training and/or analysis recipe
+
 tests/                    fast merge gate
 paper/                    paper source and reproducibility cache
 ```
@@ -78,7 +79,7 @@ behavior matters.
 ## Find runnable recipes
 
 ```bash
-python -m experiments.catalog --root .
+python -m training.catalog --root .
 ```
 
 Recipe validation is lazy. It does not import JAX or a simulator.
@@ -87,7 +88,7 @@ Recipe validation is lazy. It does not import JAX or a simulator.
 
 ```bash
 cce-run validate \
-  --recipe configs/experiment/jaxnav_decay_20261007.json \
+  --recipe experiments/jaxnav/ranked-td-decay/training.json \
   --task 1
 ```
 
@@ -95,7 +96,7 @@ cce-run validate \
 
 ```bash
 cce-run train \
-  --recipe configs/experiment/frozenlake-smoke.json \
+  --recipe experiments/frozenlake/smoke/training.json \
   --task 0 \
   --smoke \
   --device cpu \
@@ -110,7 +111,7 @@ Normal runs keep the recipe unchanged.
 
 ```bash
 cce-run train \
-  --recipe configs/experiment/cvrp-budget.json \
+  --recipe experiments/cvrp_budget/budget/training.json \
   --task 0 \
   --device gpu \
   --max-wall-seconds 86400 \
@@ -129,7 +130,7 @@ The output folder must not already exist. Every attempt records:
 ## Plot comparable runs
 
 ```bash
-python analysis/plot_migrated_runs.py \
+python -m analysis.plotting.learning_curves \
   --runs /path/to/run-a /path/to/run-b \
   --bin-size 5000 \
   --output /tmp/learning-curves.png
@@ -142,7 +143,7 @@ duplicate seeds, and incompatible training clocks.
 
 ```bash
 cce-study \
-  --config configs/studies/claim2.json \
+  --config experiments/frozenlake/claim2-deterministic/analysis.json \
   --out /tmp/cce-claim2
 ```
 
@@ -160,10 +161,10 @@ live in Git history instead of the normal test suite.
 
 ## Research status
 
-The migration has strong CPU checks and a fresh-wheel validation path. The last
-full-size JaxNav GPU parity gate did not pass because two old-code runs diverged
-before the migrated candidate ran. Do not describe that gate as passed. See
-[docs/migration-audit.md](docs/migration-audit.md).
+The migration has strong CPU checks and a fresh-wheel validation path. Two
+full-size JaxNav GPU tasks matched numerically. A third stopped on tiny
+old-versus-old float noise before its candidate ran, so the full-budget gate is
+incomplete. See [docs/migration-audit.md](docs/migration-audit.md).
 
 The current paper source is [paper/paper.tex](paper/paper.tex). Research notes
 are in [lab-notebook.md](lab-notebook.md).

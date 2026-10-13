@@ -32,8 +32,8 @@ dependencies = [
 ]
 
 [project.scripts]
-cce-run = "experiments.run:main"
-cce-study = "experiments.studies.run:main"
+cce-run = "training.run:main"
+cce-study = "analysis.studies.run:main"
 
 [project.optional-dependencies]
 research = [
@@ -60,15 +60,15 @@ Repository = "https://github.com/manchado53/counterfactual-reasoning.git"
 Issues = "https://github.com/manchado53/counterfactual-reasoning/issues"
 
 [tool.setuptools]
-package-dir = { "counterfactual_rl" = "src/counterfactual_rl", "experiments" = "experiments" }
+package-dir = { "counterfactual_rl" = "src/counterfactual_rl", "training" = "training", "analysis" = "analysis" }
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["counterfactual_rl*", "experiments*"]
+include = ["counterfactual_rl*", "training*", "analysis*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-"experiments.learners.doorkey" = ["source_recipe.json"]
+"training.learners.doorkey" = ["source_recipe.json"]
 
 [tool.black]
 line-length = 100

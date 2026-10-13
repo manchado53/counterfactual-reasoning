@@ -1,10 +1,10 @@
 import json
 from pathlib import Path
 import pytest
-from experiments.recipes import load_recipe
-from experiments.smoke import JAXNAV_OVERRIDES
+from training.recipes import load_recipe
+from training.smoke import JAXNAV_OVERRIDES
 
-RECIPE = Path(__file__).resolve().parents[1] / "configs/experiment/jaxnav_decay_20261007.json"
+RECIPE = Path(__file__).resolve().parents[1] / "experiments/jaxnav/ranked-td-decay/training.json"
 
 
 def test_all_45_resolved_recipes():
@@ -47,7 +47,7 @@ def test_smoke_is_explicit_and_preserves_scoring_horizon():
 
 
 def test_frozenlake_recipe_uses_its_own_defaults(tmp_path):
-    from experiments.learners.frozenlake.build import smoke_config
+    from training.learners.frozenlake.build import smoke_config
     cfg = smoke_config()
     row = dict(task=0, seed=cfg["seed"], collector="fixed", config=cfg)
     path = tmp_path / "frozenlake.json"
