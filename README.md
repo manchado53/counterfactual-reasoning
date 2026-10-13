@@ -5,8 +5,68 @@ This repository studies one question:
 > Can counterfactual consequence scores improve which transitions a replay
 > buffer samples?
 
+CCE asks: **what would have happened if the agent had acted differently here?**
+Transitions with larger downstream differences receive more replay attention.
+
+```text
+new transition
+      |
+      v
+try other actions in the simulator
+      |
+      v
+measure how different their futures are
+      |
+      v
+large difference -> replay more often
+```
+
 The package contains shared CCE scoring and replay math. Training and analysis
 are reusable engines. Actual research questions live in experiment bundles.
+
+## Result snapshot
+
+| Environment | Uniform | PER | CCE | What the result says |
+|---|---:|---:|---:|---|
+| FrozenLake 8x8, deterministic | 10/25 seeds solved | 12/25 | **20/25** | CCE escapes the dead learning basin more often. |
+| JaxNav 8x8, fixed 1,000-map bank, 100k–150k window | 48.9% | 46.0% | **60.8%** | CCE learns earlier: +11.9 points over Uniform and +14.8 over PER. |
+
+The JaxNav numbers are means over matched seeds 0, 1, and 2. The lead is a
+mid-training sample-efficiency result. It is **not** a final-200k performance
+win; the curves later converge or collapse.
+
+## Policy demos
+
+### Deterministic FrozenLake
+
+Same map. Same training seed. Final checkpoints. CCE reaches the goal in this
+matched example; Uniform and PER time out.
+
+![Uniform, PER, and CCE on deterministic FrozenLake](docs/media/demos/frozenlake_comparison.gif)
+
+[MP4](docs/media/demos/frozenlake_comparison.mp4) ·
+[checkpoint hashes and outcomes](docs/media/demos/frozenlake_provenance.json)
+
+The animation is one matched seed. The result is the 25-seed count above, not
+the single rollout.
+
+### Fixed-map JaxNav
+
+This is the latest matched CCE-only experiment with the fixed collector and a
+shift to ranked TD from 100k to 150k episodes.
+
+![JaxNav fixed-map learning curves](docs/media/demos/jaxnav_learning_curve.png)
+
+The rollout below uses training seed 0, the checkpoint nearest 125k episodes,
+and **map 0** from the shared evaluation bank. Map 0 was fixed before outcomes
+were viewed. It was not selected to make CCE look good.
+
+![Uniform, PER, and CCE on the first fixed JaxNav map](docs/media/demos/jaxnav_comparison.gif)
+
+[MP4](docs/media/demos/jaxnav_comparison.mp4) ·
+[checkpoint hashes and rollout outcomes](docs/media/demos/jaxnav_provenance.json) ·
+[curve values and log hashes](docs/media/demos/jaxnav_learning_curve.json) ·
+[rebuild instructions](docs/media/demos/README.md)
 
 ## Layout
 
@@ -160,6 +220,10 @@ contracts, source capture, and plotting guards. Large one-time migration audits
 live in Git history instead of the normal test suite.
 
 ## Research status
+
+The strongest learning result is deterministic FrozenLake. The latest JaxNav
+study shows a clear mid-training lead on a fixed evaluation bank, followed by
+late instability. This repository keeps both the gain and that limit visible.
 
 The migration has strong CPU checks and a fresh-wheel validation path. Two
 full-size JaxNav GPU tasks matched numerically. A third stopped on tiny

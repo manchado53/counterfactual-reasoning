@@ -1,0 +1,41 @@
+{
+  "environment": "JaxNav Grid-Rand-Poly 8x8, fill 0.3, radius 0.8",
+  "selection_rule": "training seed 0; checkpoint nearest 125k; map 0 from the fixed evaluation bank",
+  "eval_seed": 20260923,
+  "eval_episodes": 1000,
+  "map_index": 0,
+  "checkpoints": {
+    "uniform": {
+      "reference": "277734/checkpoints/ckpt_0125000.pkl",
+      "sha256": "b016c09dd236d6e6fc0881fa3d185ae3cd92b4b72f5b30e766051c7749959e4c"
+    },
+    "per": {
+      "reference": "277751/checkpoints/ckpt_0125048.pkl",
+      "sha256": "1116f2cccf074cf8d66e754e42f1da35fc442a4a344e7ec30d2b090cb0529d6d"
+    },
+    "cce": {
+      "reference": "281092/checkpoints/ckpt_0124039.pkl",
+      "sha256": "4918d773b81d1f898672ffa2821a3f662789bd75fb216a3a9caa41d34659e6da"
+    }
+  },
+  "outcomes": {
+    "uniform": {
+      "outcome": "goal",
+      "steps": 95
+    },
+    "per": {
+      "outcome": "timeout",
+      "steps": 200
+    },
+    "cce": {
+      "outcome": "timeout",
+      "steps": 200
+    }
+  },
+  "media": {
+    "gif": "jaxnav_comparison.gif",
+    "mp4": "jaxnav_comparison.mp4",
+    "frames": 211,
+    "fps": 12
+  }
+}

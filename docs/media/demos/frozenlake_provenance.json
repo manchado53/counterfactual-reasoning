@@ -1,0 +1,39 @@
+{
+  "environment": "FrozenLake 8x8 deterministic",
+  "selection_rule": "same training seed; final checkpoint; one shared deterministic reset",
+  "reset_seed": 1,
+  "checkpoints": {
+    "uniform": {
+      "reference": "257500/last.pkl",
+      "sha256": "447e6235ea3ced827e0c5b05cdb21abf09f9fe0498069e7cb3d1e06d84b1f204"
+    },
+    "per": {
+      "reference": "257525/last.pkl",
+      "sha256": "8a7198002797e84ef0ce7a0e42ac0cf5d0668cb9143abb0e6fca73ea1a4c94c0"
+    },
+    "cce": {
+      "reference": "257600/last.pkl",
+      "sha256": "9bbf20cff74d1c33f2c116105ca5554c446ce1f946076c434a9bb13c850e77a3"
+    }
+  },
+  "outcomes": {
+    "uniform": {
+      "outcome": "timeout",
+      "steps": 200
+    },
+    "per": {
+      "outcome": "timeout",
+      "steps": 200
+    },
+    "cce": {
+      "outcome": "goal",
+      "steps": 14
+    }
+  },
+  "media": {
+    "gif": "frozenlake_comparison.gif",
+    "mp4": "frozenlake_comparison.mp4",
+    "frames": 211,
+    "fps": 8
+  }
+}
