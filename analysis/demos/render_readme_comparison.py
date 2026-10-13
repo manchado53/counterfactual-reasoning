@@ -1,8 +1,8 @@
 """Build the README policy-comparison media from saved checkpoints.
 
-The script never searches for a favorable episode. FrozenLake uses one shared
-deterministic reset. JaxNav uses map zero from the fixed 1,000-map evaluation
-bank. All three panels receive the same initial state and step keys.
+FrozenLake uses one shared deterministic reset. JaxNav can render a disclosed
+list of maps from the fixed 1,000-map evaluation bank. All three panels receive
+the same initial state and step keys on each map.
 """
 
 from __future__ import annotations
@@ -98,7 +98,9 @@ def _checkpoint_record(path: Path) -> dict:
     return {"reference": reference, "sha256": file_sha256(path)}
 
 
-def _pad_and_join(panel_frames: dict[str, list[Image.Image]]) -> list[Image.Image]:
+def _pad_and_join(
+    panel_frames: dict[str, list[Image.Image]], tail_frames: int = 10
+) -> list[Image.Image]:
     count = max(len(frames) for frames in panel_frames.values())
     padded = {
         arm: frames + [frames[-1]] * (count - len(frames))
@@ -115,7 +117,7 @@ def _pad_and_join(panel_frames: dict[str, list[Image.Image]]) -> list[Image.Imag
             canvas.paste(panel, (x, 0))
             x += panel.width
         result.append(canvas)
-    result.extend([result[-1]] * 10)
+    result.extend([result[-1]] * tail_frames)
     return result
 
 
@@ -263,12 +265,20 @@ def _jaxnav_rollout(env, network, params, init_state, step_keys):
 
 
 def _jaxnav_frames(
-    env, obs, states, rewards, arm: str, outcome: str, steps: int
+    env,
+    obs,
+    states,
+    rewards,
+    arm: str,
+    outcome: str,
+    steps: int,
+    map_index: int,
+    frame_stride: int,
 ) -> list[Image.Image]:
     from jaxmarl.environments.jaxnav import JaxNavVisualizer
 
     with tempfile.NamedTemporaryFile(suffix=".gif") as handle:
-        title = f"{LABELS[arm]} | {outcome.upper()} in {steps} steps"
+        title = f"Map {map_index} | {LABELS[arm]} | {outcome.upper()} in {steps} steps"
         visualizer = JaxNavVisualizer(
             env._env,
             obs,
@@ -280,12 +290,28 @@ def _jaxnav_frames(
         )
         visualizer.animate(save_fname=handle.name)
         image = Image.open(handle.name)
-        frames = [
+        all_frames = [
             frame.convert("RGB").resize((420, 420), Image.Resampling.LANCZOS)
             for frame in ImageSequence.Iterator(image)
         ]
         image.close()
+    frames = all_frames[::frame_stride]
+    if frames[-1] != all_frames[-1]:
+        frames.append(all_frames[-1])
     return frames
+
+
+def validate_map_indices(map_indices: list[int], eval_episodes: int) -> list[int]:
+    if not map_indices:
+        raise ValueError("at least one JaxNav map index is required")
+    if len(set(map_indices)) != len(map_indices):
+        raise ValueError("JaxNav map indices must be unique")
+    invalid = [index for index in map_indices if not 0 <= index < eval_episodes]
+    if invalid:
+        raise ValueError(
+            f"JaxNav map indices must be in [0, {eval_episodes}): {invalid}"
+        )
+    return map_indices
 
 
 def build_jaxnav(args) -> dict:
@@ -308,30 +334,45 @@ def build_jaxnav(args) -> dict:
     all_keys = jax.random.split(
         jax.random.PRNGKey(args.eval_seed), n_eval * (env.max_steps + 1)
     )
-    init_key = all_keys[args.map_index]
-    step_keys = all_keys[n_eval:].reshape(n_eval, env.max_steps, 2)[args.map_index]
-    _, init_state = env.reset(init_key)
-    panel_frames = {}
-    outcomes = {}
-    for arm, (network, params, _) in policies.items():
-        obs, states, rewards, outcome, steps = _jaxnav_rollout(
-            env, network, params, init_state, step_keys
-        )
-        panel_frames[arm] = _jaxnav_frames(env, obs, states, rewards, arm, outcome, steps)
-        outcomes[arm] = {"outcome": outcome, "steps": steps}
-    frames = _pad_and_join(panel_frames)
+    map_indices = validate_map_indices(args.map_indices, n_eval)
+    step_keys = all_keys[n_eval:].reshape(n_eval, env.max_steps, 2)
+    frames = []
+    maps = []
+    for map_index in map_indices:
+        _, init_state = env.reset(all_keys[map_index])
+        panel_frames = {}
+        outcomes = {}
+        for arm, (network, params, _) in policies.items():
+            obs, states, rewards, outcome, steps = _jaxnav_rollout(
+                env, network, params, init_state, step_keys[map_index]
+            )
+            panel_frames[arm] = _jaxnav_frames(
+                env,
+                obs,
+                states,
+                rewards,
+                arm,
+                outcome,
+                steps,
+                map_index,
+                args.frame_stride,
+            )
+            outcomes[arm] = {"outcome": outcome, "steps": steps}
+        frames.extend(_pad_and_join(panel_frames, tail_frames=args.fps))
+        maps.append({"map_index": map_index, "outcomes": outcomes})
     media = _save_media(frames, Path(args.output_dir) / "jaxnav_comparison", args.fps)
     return {
         "environment": "JaxNav Grid-Rand-Poly 8x8, fill 0.3, radius 0.8",
         "selection_rule": (
-            "training seed 0; checkpoint nearest 125k; "
-            "map 0 from the fixed evaluation bank"
+            "training seed 0; checkpoint nearest 125k; disclosed CCE-success "
+            "examples from the fixed evaluation bank; illustration only"
         ),
         "eval_seed": args.eval_seed,
         "eval_episodes": n_eval,
-        "map_index": args.map_index,
+        "map_indices": map_indices,
+        "frame_stride": args.frame_stride,
         "checkpoints": {arm: _checkpoint_record(path) for arm, path in checkpoints.items()},
-        "outcomes": outcomes,
+        "maps": maps,
         "media": media,
     }
 
@@ -347,7 +388,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--reset-seed", type=int, default=1)
     result.add_argument("--eval-seed", type=int, default=20260923)
     result.add_argument("--eval-episodes", type=int, default=1000)
-    result.add_argument("--map-index", type=int, default=0)
+    result.add_argument("--map-indices", type=int, nargs="+", default=[11, 12, 13, 17])
+    result.add_argument("--frame-stride", type=int, default=2)
     return result
 
 

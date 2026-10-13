@@ -57,11 +57,14 @@ shift to ranked TD from 100k to 150k episodes.
 
 ![JaxNav fixed-map learning curves](docs/media/demos/jaxnav_learning_curve.png)
 
-The rollout below uses training seed 0, the checkpoint nearest 125k episodes,
-and **map 0** from the shared evaluation bank. Map 0 was fixed before outcomes
-were viewed. It was not selected to make CCE look good.
+The montage below uses training seed 0 and the checkpoint nearest 125k
+episodes. It shows four maps from the shared evaluation bank where CCE reaches
+the goal. Every arm receives the same initial state and step keys on each map.
+These maps were selected to make CCE success visible; this montage is an
+illustration, not the statistical comparison. The fixed 1,000-map learning
+curve above is the fair comparison.
 
-![Uniform, PER, and CCE on the first fixed JaxNav map](docs/media/demos/jaxnav_comparison.gif)
+![Uniform, PER, and CCE on four fixed JaxNav maps](docs/media/demos/jaxnav_comparison.gif)
 
 [MP4](docs/media/demos/jaxnav_comparison.mp4) ·
 [checkpoint hashes and rollout outcomes](docs/media/demos/jaxnav_provenance.json) ·
