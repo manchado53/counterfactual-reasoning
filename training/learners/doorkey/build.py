@@ -2,7 +2,7 @@
 from copy import deepcopy
 import math
 from pathlib import Path
-from .config import ARMS, config_for
+from .config import ARMS, config_for, DECAY_TRANSFER_ARMS, decay_transfer_config
 
 
 def resolved_config(arm, seed):
@@ -12,6 +12,28 @@ def resolved_config(arm, seed):
 
 
 def validate_config(config):
+    if config.get('protocol') == 'jaxnav-ranked-td-decay-transfer':
+        if config.get('arm') not in DECAY_TRANSFER_ARMS:
+            raise ValueError('Unsupported DoorKey decay-transfer arm')
+        expected = decay_transfer_config(
+            config['arm'], config.get('seed'), config.get('layout_name'))
+        if config.get('_smoke_profile') is True:
+            expected.update(
+                n_envs=4,
+                collect_steps=32,
+                buffer_capacity=256,
+                n_episodes=8,
+                eval_interval=4,
+                save_every=8,
+                decay_start=2,
+                decay_end=4,
+                _smoke_profile=True,
+            )
+        if config != expected:
+            changed = sorted(key for key in set(config) | set(expected)
+                             if config.get(key) != expected.get(key))
+            raise ValueError(f'DoorKey JaxNav-transfer config drift: {changed}')
+        return config
     if config.get('protocol') == 'legacy-doorkey':
         from .legacy.config import DEFAULT_CONFIG
         required = set(DEFAULT_CONFIG) | {'protocol', 'collector_variant', 'training_budget_kind', 'early_stop_win_rate'}
@@ -72,6 +94,10 @@ def smoke_overrides(config):
                     n_episodes=2, hidden_dim=8, n_layers=1, eval_interval=1,
                     eval_episodes=2, n_checkpoints=0, save_every=2,
                     cf_horizon=4, cf_n_rollouts=2, score_interval=1, n_score_sample=4)
+    if config['protocol'] == 'jaxnav-ranked-td-decay-transfer':
+        return dict(n_envs=4, collect_steps=32, buffer_capacity=256,
+                    n_episodes=8, eval_interval=4, save_every=8,
+                    decay_start=2, decay_end=4, _smoke_profile=True)
     return dict(n_envs=4, collect_steps=32, buffer_capacity=256, blocks=2, eval_every_blocks=1)
 
 
