@@ -10,3 +10,15 @@ experiments/<environment>/<question>/
   training.json   optional
   analysis.json   optional
 ```
+
+Past work lives in `experiments/history/`.
+
+```text
+experiments/history/experiments.json   what we asked
+experiments/history/runs.jsonl         one row per recovered physical run
+experiments/history/sources.json       where each row came from
+experiments/history/scheduler-*.json   what Slurm reported on one date
+```
+
+The history files are pointers. They do not copy large logs or checkpoints.
+They also do not turn a submitted job into a good result.

@@ -10,6 +10,8 @@ def test_all_discovered_runnable_recipes_validate():
             'rpdqn','cvrp_budget'} <= {
         row['environment'] for row in result['training']}
     assert result['analyses']
+    assert result['history']['runs'] >= 5000
+    assert result['history']['experiments'] >= 40
     for row in result['training'] + result['analyses']:
         assert not row['invalid'], row
         assert (root / row['path']).with_name('README.md').is_file(), row

@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "audit_ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415",
+  "sources": [
+    {
+      "id": "fl-claim1-20260506",
+      "environment": "frozenlake",
+      "experiment_id": "frozenlake-claim1-oracle",
+      "location": {"kind": "repo", "path": "paper/repro/manifests/claim1_dqn_2026-05-06.json"},
+      "sha256": "d1dd22ebac309ffe00b007fe2b04f6a1be1a36040c73e4bc74352d1812cb35d4",
+      "parser": "json_map",
+      "expected_records": 3,
+      "run_kind": "submitted_manifest",
+      "execution_state": "completed",
+      "result_state": "included"
+    },
+    {
+      "id": "fl-stochastic-202605",
+      "environment": "frozenlake",
+      "experiment_id": "frozenlake-claim2-stochastic",
+      "location": {"kind": "repo", "path": "paper/repro/manifests/claim2_main_merged.json"},
+      "sha256": "f1f552bd1779901f98693a7a26d734beb6cf641a679807a689ea1ba62d8fc296",
+      "parser": "json_map",
+      "expected_records": 50,
+      "run_kind": "submitted_manifest",
+      "execution_state": "completed",
+      "result_state": "included"
+    },
+    {
+      "id": "fl-deterministic-20260509",
+      "environment": "frozenlake",
+      "experiment_id": "frozenlake-claim2-deterministic",
+      "location": {"kind": "repo", "path": "paper/repro/manifests/claim2_no_slip_2026-05-09.json"},
+      "sha256": "f51d2d13cc1c0d6d36aba317483f969c773a79e03cced63010e3cde8ba1b14ba",
+      "parser": "json_map",
+      "expected_records": 125,
+      "run_kind": "submitted_manifest",
+      "execution_state": "completed",
+      "result_state": "included",
+      "record_overrides": {
+        "257574": {"execution_state": "unknown", "result_state": "excluded"}
+      }
+    },
+    {
+      "id": "smax-3m-20260507",
+      "environment": "smax",
+      "experiment_id": "smax-claim2-3m",
+      "location": {"kind": "repo", "path": "paper/repro/manifests/claim2_main_3m_2026-05-07.json"},
+      "sha256": "0ec87383bf3c25e0e52e60b605e94c1e770bd6f86babc6810195484b5fa486b4",
+      "parser": "json_map",
+      "expected_records": 50,
+      "run_kind": "submitted_manifest",
+      "execution_state": "completed",
+      "result_state": "included"
+    },
+    {
+      "id": "fl-graded-coarse-20260803",
+      "environment": "frozenlake",
+      "experiment_id": "frozenlake-graded-slip-coarse",
+      "location": {"kind": "repo", "path": "paper/repro/manifests/claim2_graded_slip_2026-08-03.json"},
+      "sha256": "950d670247085c2c6ec02fcd431c35e28829303c10769e979ce452cec4817cc0",
+      "parser": "json_map",
+      "expected_records": 200,
+      "run_kind": "submitted_manifest",
+      "execution_state": "partial",
+      "result_state": "partial"
+    },
+    {
+      "id": "fl-graded-dense-logged",
+      "environment": "frozenlake",
+      "experiment_id": "frozenlake-graded-slip-dense",
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "configs/experiment/frozenlake-graded-dense-logged.json"},
+      "sha256": "cb73083d2b08af2dc66cf29c6ddc584cc1875196419fb2ace969f6f3cc256abb",
+      "parser": "recipe_rows",
+      "expected_records": 592,
+      "run_kind": "observed_log",
+      "execution_state": "unknown",
+      "result_state": "partial"
+    },
+    {
+      "id": "cvrp-logged",
+      "environment": "cvrp",
+      "experiment_id": "cvrp-historical-learning",
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "configs/experiment/cvrp-logged-settings.json"},
+      "sha256": "34d7791e27bc8033cf965b860623f554335e0629d5eacad65e75df298ba22a3f",
+      "parser": "recipe_rows",
+      "expected_records": 61,
+      "run_kind": "observed_log",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "cvrp-budget-logged",
+      "environment": "cvrp_budget",
+      "experiment_id": "cvrp-budget-sweeps",
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "configs/experiment/cvrp_budget-logged-settings.json"},
+      "sha256": "3e53a34cf6ecd63c1771c58eb9fdae52bedc2bc663058db605f6ad97457da252",
+      "parser": "recipe_rows",
+      "expected_records": 2624,
+      "run_kind": "observed_log",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "rpdqn-logged",
+      "environment": "cvrp_neural",
+      "experiment_id": "rpdqn-routing",
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "configs/experiment/rpdqn-logged-settings.json"},
+      "sha256": "0acfbda3e89a809c57249e6dbe975b30758151cc46b6d6d40301ce64c5b8b65b",
+      "parser": "recipe_rows",
+      "expected_records": 32,
+      "run_kind": "observed_log",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "jaxnav-migration-ledger",
+      "environment": "jaxnav",
+      "experiment_prefix": "jaxnav-",
+      "exclude_entries": ["coverage", "greedy_coverage", "score_on_insert", "paper_reward"],
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "studies/jaxnav-migration/history-ledger.json"},
+      "sha256": "1473b6e525686d0d1d0f155f052d3017d43ffc470c9b1cab615d24d6a3c9a85b",
+      "parser": "jaxnav_ledger",
+      "expected_records": 300,
+      "run_kind": "recovered_manifest",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "jaxnav-manifest-index",
+      "environment": "jaxnav",
+      "location": {"kind": "repo", "path": "experiments/history/jaxnav-manifests.json"},
+      "sha256": "d7dfb451013d307e6a62b17232f8b5842ccd5a8e31d9e1476b5432750177865e",
+      "parser": "manifest_list",
+      "expected_records": 801,
+      "run_kind": "recovered_manifest",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "legacy-manifest-catalog",
+      "environment": "mixed",
+      "experiment_ids": {
+        "smax": "smax-historical-sweeps",
+        "chess": "chess-historical",
+        "cvrp_neural": "rpdqn-routing"
+      },
+      "location": {"kind": "git", "ref": "d0c2945d5cd0d553972fde8216eaae2ce83cf415", "path": "studies/legacy-environments-migration/study-catalog.json"},
+      "sha256": "6fb73cce53ad9fe9d28bbb62fac45f624054505488bf31159a2fae08d69839a0",
+      "parser": "manifest_catalog",
+      "expected_records": 682,
+      "run_kind": "recovered_manifest",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    },
+    {
+      "id": "scheduler-snapshot-20261012",
+      "environment": "mixed",
+      "location": {"kind": "repo", "path": "experiments/history/scheduler-snapshot-20261012.json"},
+      "groups_path": "scheduler-extra-jobs.json",
+      "sha256": "89bf44fbb399063495b076c479713bbc38a5567315052e67a07b384381431744",
+      "parser": "scheduler_snapshot",
+      "expected_records": 579,
+      "run_kind": "scheduler_record",
+      "execution_state": "unknown",
+      "result_state": "unknown"
+    }
+  ]
+}

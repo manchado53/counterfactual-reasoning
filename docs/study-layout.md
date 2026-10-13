@@ -7,6 +7,7 @@ src/counterfactual_rl/   shared CCE and replay math
 training/                reusable training engine and environment learners
 analysis/                reusable plots and result-reading studies
 experiments/             research bundles with training and analysis recipes
+experiments/history/     compact index of old questions, runs, and proof
 docs/migration-audit.md  recovery pointer for old migration proof
 runs/                    new outputs; not source code
 ```
@@ -26,6 +27,15 @@ This lists training recipes and analysis configs. Valid settings do not mean
 that training finished or that a result was reproduced. Each new run writes its
 own status and source record. Old migration evidence is recoverable through the
 commit named in `docs/migration-audit.md`.
+
+It also prints the historical index count. Audit the old source bytes with:
+
+```bash
+python -m analysis.history_ledger audit --root /path/to/checkout
+```
+
+That deep audit needs the immutable Git audit ref. A shallow clone can still
+read and validate the committed index.
 
 ## Run a small check
 

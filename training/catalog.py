@@ -37,7 +37,12 @@ def catalog(root):
         except (ValueError, KeyError) as exc:
             error = str(exc)
         analyses.append(dict(path=str(path.relative_to(root)), study=config.get('study'), invalid=error))
-    return dict(schema_version=1, training=training, analyses=analyses,
+    history = None
+    history_path = root / 'experiments/history/runs.jsonl'
+    if history_path.is_file():
+        from analysis.history_ledger import validate as validate_history
+        history = validate_history(root, compare_generated=False)
+    return dict(schema_version=1, training=training, analyses=analyses, history=history,
                 warning='Validation is not execution, job completion, or scientific evidence.')
 
 
