@@ -13,11 +13,12 @@ JaxNav curve
   same seeds 0,1,2 -> same 1,000 maps -> 5k bins -> mean +/- SEM
 
 JaxNav rollout
-  same training seed -> checkpoint nearest 125k -> fixed map index 0
+  same training seed -> checkpoint nearest 125k -> fixed maps 11,12,13,17
 ```
 
-The JaxNav map is not searched for a favorable CCE outcome. A single rollout
-is an illustration. The learning curve is the comparison.
+The JaxNav maps are disclosed CCE-success examples. They show what successful
+CCE behavior looks like. They are not an unbiased sample and are not evidence
+that CCE wins more often. The fixed 1,000-map learning curve is the comparison.
 
 ## Source runs
 
@@ -57,6 +58,7 @@ python analysis/demos/render_readme_comparison.py jaxnav \
   --cce /path/to/runs/281092/checkpoints/ckpt_0124039.pkl \
   --eval-seed 20260923 \
   --eval-episodes 1000 \
-  --map-index 0 \
+  --map-indices 11 12 13 17 \
+  --frame-stride 2 \
   --output-dir docs/media/demos
 ```

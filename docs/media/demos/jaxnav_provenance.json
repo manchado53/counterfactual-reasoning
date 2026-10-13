@@ -1,9 +1,15 @@
 {
   "environment": "JaxNav Grid-Rand-Poly 8x8, fill 0.3, radius 0.8",
-  "selection_rule": "training seed 0; checkpoint nearest 125k; map 0 from the fixed evaluation bank",
+  "selection_rule": "training seed 0; checkpoint nearest 125k; disclosed CCE-success examples from the fixed evaluation bank; illustration only",
   "eval_seed": 20260923,
   "eval_episodes": 1000,
-  "map_index": 0,
+  "map_indices": [
+    11,
+    12,
+    13,
+    17
+  ],
+  "frame_stride": 2,
   "checkpoints": {
     "uniform": {
       "reference": "277734/checkpoints/ckpt_0125000.pkl",
@@ -18,24 +24,80 @@
       "sha256": "4918d773b81d1f898672ffa2821a3f662789bd75fb216a3a9caa41d34659e6da"
     }
   },
-  "outcomes": {
-    "uniform": {
-      "outcome": "goal",
-      "steps": 95
+  "maps": [
+    {
+      "map_index": 11,
+      "outcomes": {
+        "uniform": {
+          "outcome": "goal",
+          "steps": 83
+        },
+        "per": {
+          "outcome": "timeout",
+          "steps": 200
+        },
+        "cce": {
+          "outcome": "goal",
+          "steps": 65
+        }
+      }
     },
-    "per": {
-      "outcome": "timeout",
-      "steps": 200
+    {
+      "map_index": 12,
+      "outcomes": {
+        "uniform": {
+          "outcome": "goal",
+          "steps": 70
+        },
+        "per": {
+          "outcome": "goal",
+          "steps": 70
+        },
+        "cce": {
+          "outcome": "goal",
+          "steps": 61
+        }
+      }
     },
-    "cce": {
-      "outcome": "timeout",
-      "steps": 200
+    {
+      "map_index": 13,
+      "outcomes": {
+        "uniform": {
+          "outcome": "goal",
+          "steps": 80
+        },
+        "per": {
+          "outcome": "goal",
+          "steps": 53
+        },
+        "cce": {
+          "outcome": "goal",
+          "steps": 70
+        }
+      }
+    },
+    {
+      "map_index": 17,
+      "outcomes": {
+        "uniform": {
+          "outcome": "goal",
+          "steps": 66
+        },
+        "per": {
+          "outcome": "goal",
+          "steps": 67
+        },
+        "cce": {
+          "outcome": "goal",
+          "steps": 53
+        }
+      }
     }
-  },
+  ],
   "media": {
     "gif": "jaxnav_comparison.gif",
     "mp4": "jaxnav_comparison.mp4",
-    "frames": 211,
+    "frames": 261,
     "fps": 12
   }
 }
