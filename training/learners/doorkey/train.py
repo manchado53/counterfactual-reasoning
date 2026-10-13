@@ -18,8 +18,10 @@ import optax
 from .adapter import DoorKeyAdapter, initial_carry, ddqn_targets, weighted_scores
 from ._source_shared.buffers import PrioritizedReplayBuffer
 from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.replay.decay import DecayBuffer, blend_weight
 
 ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
+ALL_ARMS = ARMS + ('cce_decay',)
 HERE = Path(__file__).resolve().parent
 from .source_recipe import RECIPE
 
@@ -65,6 +67,8 @@ def source_hashes():
     files = list(HERE.glob('*.py')) + [root / 'training/envs/doorkey.py']
     files += [HERE / '_source_shared' / name for name in
               ('buffers.py', 'consequence_buffers.py', 'draw_log.py')]
+    files += [root / 'src/counterfactual_rl/replay' / name for name in
+              ('decay.py', 'consequence_buffers.py')]
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}
 
 
@@ -81,35 +85,74 @@ class Trainer:
     def __init__(self, arm, seed, *, config=None):
         self.arm, self.seed = arm, seed
         self.config = config_for(arm, seed) if config is None else config
-        self.task = DoorKeyAdapter()
+        self.task = DoorKeyAdapter(
+            layout_name=self.config['layout_name'],
+            slip_prob=self.config['slip_prob'],
+            random_start=self.config['random_start'],
+            max_episode_steps=self.config['max_episode_steps'],
+            eval_max_steps=self.config['eval_max_steps'],
+            cf_horizon=self.config['cf_horizon'] if self.config.get('cce_enabled') else 60,
+        )
         self.key, init = jax.random.split(jax.random.PRNGKey(seed))
         self.params = self.task.net.init(init, jnp.int32(0))
         self.target = jax.tree.map(jnp.copy, self.params)
-        self.optimizer = optax.chain(optax.clip_by_global_norm(10.), optax.adam(.0003))
+        self.optimizer = optax.chain(
+            optax.clip_by_global_norm(self.config['gradient_clip']),
+            optax.adam(self.config['alpha']),
+        )
         self.opt_state = self.optimizer.init(self.params)
         self.cce = arm.startswith('cce')
-        if self.cce:
-            self.buffer = ConsequenceReplayBuffer(capacity=self.config['buffer_capacity'], eps=.01, beta=.25,
-                max_priority=1., mu=1. if arm == 'cce_only' else .5,
+        replay = self.config['PER_parameters']
+        if arm == 'cce_decay':
+            self.buffer = DecayBuffer(
+                capacity=self.config['buffer_capacity'],
+                eps=replay['eps'],
+                beta=replay['beta'],
+                max_priority=replay['maximum_priority'],
+                mu=self.config['mu'],
+                priority_mixing=self.config['priority_mixing'],
+                mu_c=self.config['mu_c'],
+                mu_delta=self.config['mu_delta'],
+                normalise_priorities=self.config['normalise_priorities'],
+            )
+        elif self.cce:
+            self.buffer = ConsequenceReplayBuffer(capacity=self.config['buffer_capacity'],
+                eps=replay['eps'], beta=replay['beta'], max_priority=replay['maximum_priority'],
+                mu=1. if arm == 'cce_only' else .5,
                 priority_mixing='multiplicative' if arm == 'cce_mul' else 'additive',
                 mu_c=1., mu_delta=1., normalise_priorities='rank')
         else:
-            self.buffer = PrioritizedReplayBuffer(capacity=self.config['buffer_capacity'], eps=.01, beta=.25,
-                                                  max_priority=1., uniform=arm == 'uniform')
+            self.buffer = PrioritizedReplayBuffer(
+                capacity=self.config['buffer_capacity'],
+                eps=replay['eps'],
+                beta=replay['beta'],
+                max_priority=replay['maximum_priority'],
+                uniform=arm == 'uniform',
+            )
         self.carry = initial_carry(self.config['n_envs'])
         self.steps = self.episodes = self.updates = self.attempts = 0
         self.epsilon = 1.
         self.max_episode_length = 0
-        self.eval_keys = jax.random.split(jax.random.PRNGKey(20260923), 1000)
-        self.eval_bank_hash = hashlib.sha256(np.asarray(self.eval_keys).tobytes() +
-            b'doorkey-6x6-fixed-east-slip0-cap50-greedy-lowest-index').hexdigest()
+        self.eval_keys = jax.random.split(
+            jax.random.PRNGKey(self.config['fixed_eval_seed']),
+            self.config['eval_episodes'],
+        )
+        identity = (
+            f"doorkey-{self.config['layout_name']}-fixed-east-"
+            f"slip{self.config['slip_prob']}-cap{self.config['eval_max_steps']}-"
+            "greedy-lowest-index"
+        ).encode()
+        self.eval_bank_hash = hashlib.sha256(
+            np.asarray(self.eval_keys).tobytes() + identity
+        ).hexdigest()
         self.update_fn = jax.jit(self._update)
         self.q_fn = jax.jit(self.task.net.apply)
 
     def _update(self, params, target, opt_state, s, a, r, ns, done, weights):
         next_online = self.task.net.apply(params, ns)
         next_target = self.task.net.apply(target, ns)
-        targets = jax.lax.stop_gradient(ddqn_targets(next_online, next_target, r, done))
+        targets = jax.lax.stop_gradient(ddqn_targets(
+            next_online, next_target, r, done, gamma=self.config['gamma']))
         def loss_fn(p):
             q = self.task.net.apply(p, s)
             qa = jnp.take_along_axis(q, a[:, None], axis=1)[:, 0]
@@ -132,16 +175,19 @@ class Trainer:
             self.buffer.add_batch(data)
             return
         slots = self.buffer.add_batch(data, jax_states=data['s'])
-        for lo in range(0, len(slots), 1280):
-            selected = slots[lo:lo + 1280]
-            states = jnp.asarray(data['s'][lo:lo + 1280])
+        chunk = self.config['cf_score_chunk']
+        for lo in range(0, len(slots), chunk):
+            selected = slots[lo:lo + chunk]
+            states = jnp.asarray(data['s'][lo:lo + chunk])
             # Preserve source scoring's training-key consumption, even at slip=0.
             self.key, subkey = jax.random.split(self.key)
             keys = jax.random.split(subkey, len(selected) * 7).reshape(len(selected), 7, 1, 2)
             del keys  # Deterministic branches need no actuator noise.
             returns = np.asarray(self.task.branch_returns(self.params, self.target, states))
-            probs = np.asarray(jax.nn.softmax(self.q_fn(self.params, states) / .5, axis=-1))
-            scores = weighted_scores(returns, probs, data['a'][lo:lo + 1280])
+            probs = np.asarray(jax.nn.softmax(
+                self.q_fn(self.params, states) /
+                self.config['cf_action_prob_temperature'], axis=-1))
+            scores = weighted_scores(returns, probs, data['a'][lo:lo + chunk])
             assert np.isfinite(scores).all()
             self.buffer.update_consequence_scores(selected, scores, q_update_count=self.updates)
         assert np.all(self.buffer.scored_at[:len(self.buffer)] >= 0), 'incomplete score coverage'
@@ -162,10 +208,19 @@ class Trainer:
         if len(lengths):
             self.max_episode_length = max(self.max_episode_length, int(lengths.max()))
         stats = []
-        for attempt in range(self.steps // 16, (self.steps + count) // 16):
+        if self.arm == 'cce_decay':
+            self.buffer.blend = blend_weight(
+                self.episodes,
+                enabled=self.config['decay_enabled'],
+                start=self.config['decay_start'],
+                end=self.config['decay_end'],
+            )
+        update_stride = self.config['n_steps_per_update']
+        target_attempts = self.config['target_update_freq'] // update_stride
+        for attempt in range(self.steps // update_stride, (self.steps + count) // update_stride):
             self.attempts += 1
-            if self.buffer.can_sample(128):
-                batch, indices, weights = self.buffer.sample(128)
+            if self.buffer.can_sample(self.config['batch_size']):
+                batch, indices, weights = self.buffer.sample(self.config['batch_size'])
                 arrays = [jnp.asarray(np.array([t[k] for t in batch])) for k in ('s','a','r',"s'",'done')]
                 self.params, self.opt_state, td, diagnostic = self.update_fn(
                     self.params, self.target, self.opt_state, *arrays, jnp.asarray(weights, dtype=jnp.float32))
@@ -175,10 +230,12 @@ class Trainer:
                 self.updates += 1
                 stats.append(diagnostic)
             # Source phase: copy after zero-index update attempts 0,125,250,...
-            if attempt % 125 == 0:
+            if attempt % target_attempts == 0:
                 self.target = jax.tree.map(jnp.copy, self.params)
         self.steps += count
-        self.epsilon = 1. + (.05 - 1.) * min(1., self.episodes / 62500)
+        self.epsilon = self.config['epsilon_start'] + (
+            self.config['epsilon_end'] - self.config['epsilon_start']
+        ) * min(1., self.episodes / self.config['epsilon_decay_episodes'])
         values = np.mean(stats, axis=0)
         result = dict(zip(('loss','q_mean','q_abs_max_mean','target_mean','target_abs_max_mean',
                           'td_abs_mean','td_abs_max_mean'), map(float, values)))
@@ -192,6 +249,8 @@ class Trainer:
             update_seconds=time.monotonic()-scored)
         if self.cce:
             result.update(scored_frac=float(np.mean(self.buffer.scored_at[:len(self.buffer)] >= 0)))
+        if self.arm == 'cce_decay':
+            result['decay_blend'] = self.buffer.blend
         return result
 
     def rng_state(self):
@@ -202,7 +261,8 @@ class Trainer:
         returns, lengths = jax.device_get(self.task.eval_paths(self.params, self.eval_keys))
         assert self.rng_state() == before, 'evaluation changed training RNG'
         return dict(win_rate=float((returns > 0).mean()), avg_return=float(returns.mean()),
-                    avg_length=float(lengths.mean()), eval_episodes=1000, unique_tasks=1,
+                    avg_length=float(lengths.mean()),
+                    eval_episodes=self.config['eval_episodes'], unique_tasks=1,
                     eval_bank_hash=self.eval_bank_hash)
 
     def diagnostics(self):
@@ -257,7 +317,7 @@ def validate_gate(path):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--mode', choices=('smoke','train'), required=True)
-    p.add_argument('--arm', choices=ARMS, required=True)
+    p.add_argument('--arm', choices=ALL_ARMS, required=True)
     p.add_argument('--seed', type=int, choices=(0,1), required=True)
     p.add_argument('--output', '--out', dest='out', type=Path, required=True)
     p.add_argument('--require-gpu', action='store_true')

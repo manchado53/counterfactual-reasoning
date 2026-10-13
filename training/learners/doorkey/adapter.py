@@ -63,8 +63,16 @@ def weighted_scores(returns, probabilities, taken):
 
 
 class DoorKeyAdapter:
-    def __init__(self):
-        self.env = DoorKeyEnv(layout_name='6x6', slip_prob=0., random_start='fixed')
+    def __init__(self, *, layout_name='6x6', slip_prob=0., random_start='fixed',
+                 max_episode_steps=50, eval_max_steps=50, cf_horizon=60):
+        self.env = DoorKeyEnv(
+            layout_name=layout_name,
+            slip_prob=slip_prob,
+            random_start=random_start,
+        )
+        self.max_episode_steps = max_episode_steps
+        self.eval_max_steps = eval_max_steps
+        self.cf_horizon = cf_horizon
         self.net = QNetwork(self.env.n_states)
         self.next_state = self.env.next_states[:, :, 0]
         self.reward = self.env.rewards[:, :, 0]
@@ -83,7 +91,7 @@ class DoorKeyAdapter:
         reward = self.reward[state, action]
         terminated = self.terminal[state, action]
         total, length = total + reward, length + 1
-        truncated = (length >= 50) & ~terminated
+        truncated = (length >= self.max_episode_steps) & ~terminated
         ended = terminated | truncated
         row = dict(s=state, a=action, r=reward, next_s=ns, done=terminated,
                    truncated=truncated, ended=ended,
@@ -129,7 +137,11 @@ class DoorKeyAdapter:
             return (new_s, total + jnp.where(ended, 0., discount * r),
                     jnp.where(ended, discount, discount * .99), new_end), None
         (ns, total, discount, done), _ = jax.lax.scan(
-            step, (ns, rewards, jnp.full(states.shape, .99), done), None, length=59)
+            step,
+            (ns, rewards, jnp.full(states.shape, .99), done),
+            None,
+            length=self.cf_horizon - 1,
+        )
         return total + jnp.where(done, 0., discount * jnp.max(tq[ns], axis=-1))
 
     def _eval_path(self, params, key):
@@ -142,5 +154,9 @@ class DoorKeyAdapter:
             return (ns, ended | self.terminal[state, action],
                     total + jnp.where(ended, 0., reward), length + (~ended)), None
         (state, ended, total, length), _ = jax.lax.scan(
-            step, (jnp.int32(0), jnp.bool_(False), jnp.float32(0), jnp.int32(0)), None, length=50)
+            step,
+            (jnp.int32(0), jnp.bool_(False), jnp.float32(0), jnp.int32(0)),
+            None,
+            length=self.eval_max_steps,
+        )
         return total, length
