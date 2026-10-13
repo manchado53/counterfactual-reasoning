@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "claim1_cvrp",
+  "oracle": {
+    "gamma": 0.99,
+    "min_legal": 2
+  },
+  "data_root": "../../.."
+}

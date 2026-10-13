@@ -1,0 +1,186 @@
+{
+  "training/envs/jaxnav.py": {
+    "reference": "fixed/src/counterfactual_rl/envs/jax_nav.py",
+    "source_sha256": "72a5e047bc856f439d769549377004cce5e3924042b41a2855b0db471a7e4f00",
+    "functions": {
+      "JaxNavEnv.__init__": "b535595cdfc541d9c71918e7db9bd0f78a6e278b16a30c4954bbbfa0a95fa71e",
+      "JaxNavEnv.reset": "1b622ef6755a9827869a6f66ae919c3fda8b768325b919515c73123a4195b952",
+      "JaxNavEnv.step": "a8e9f55120a4ca7e035da067cf05e7a87ec2dabbe1a526241cd6e843324645a9",
+      "JaxNavEnv.get_obs": "00890c8f8df4cf9a66c09d33cea6bb513dd5806122ac7497a8aff9714e9a25a4"
+    }
+  },
+  "src/counterfactual_rl/scoring/metrics.py": {
+    "reference": "fixed/src/counterfactual_rl/analysis/metrics.py",
+    "source_sha256": "46ae844709d519c396110946769d9d5018647ac3b09125fba1a88b745b048e91",
+    "functions": {
+        "compute_kl_divergence_kde": "c0ea069153d9e5a58a2c91e4f27b6b5157d9bef9087e3af3c18a878692729c2a",
+      "compute_wasserstein_distance": "bf19469dff0edfb84d55753148fc1cf46865dcff1940ff6af15b629d01bcd0a8",
+      "compute_total_variation": "d770dabb302c72a4083e0e44c9551e8381443aa7d6e4abe2c53754a63597fceb",
+      "compute_jensen_shannon_divergence": "bfe04d01b051bf94e2162a42059c01cc37bb173cdfb2fd59592faa5457ceb3f3",
+      "compute_consequence_metric": "bde3fadc39cedd5cceb87b52397d657318b34455be315dec57d54650e84e6d74",
+      "compute_all_consequence_metrics": "bd10145f083e856b6116dcdc94e5b6ad10ef9ded3942f92754d3670aaba3d14e"
+    }
+  },
+  "src/counterfactual_rl/replay/buffers.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/buffers.py",
+    "source_sha256": "ae1ad983c71cf0d7b4a192422a552a98abe5d98d67881e09a07e6611350221e5",
+    "functions": {
+      "PrioritizedReplayBuffer.__init__": "06033b19baaa58bcd0bc47053f9a75f663f466be0958c6a820c94b94cf6d284c",
+      "PrioritizedReplayBuffer.__len__": "54263f662153f5432e63da0e4a4d0e6950f63dc2110bb04ecfe2e616e5f200db",
+      "PrioritizedReplayBuffer.reward_diagnostics": "4dd723b2370b33ab25e33d099d7ed5c9f5aa080d0a8dd33a41f23ef9bce60aef",
+      "PrioritizedReplayBuffer.add": "a3ae0c96963be2981305bb7a8dd6d57ac6094f8f77506ebab9d1a4bf57b476f4",
+      "PrioritizedReplayBuffer.sample": "1ca3498fa2905ba9f9bd5c096b9bb9b30838f3ca3837d46e2b25e7b8d4a7d70e",
+      "PrioritizedReplayBuffer.update_priority": "7c23834b26ffa206c2a0387ff244289edf6862f5064ef5b3bb3c7ea39e245dfa",
+      "PrioritizedReplayBuffer.update_priorities": "11b601e6109554539c874066c09cfaf312ff1d93158b12aae42457abd51f0f71",
+      "PrioritizedReplayBuffer.add_batch": "d4f4e18d48e4434738ae39d522fa649b6299f40781d03b473e20d8bc37d9ed7c",
+      "PrioritizedReplayBuffer.can_sample": "b7c0768a59d473e5e80063ab4ce4f921faab53c7779fd12d88a6a5a3e6517ee3"
+    }
+  },
+  "training/common/early_stopping.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/early_stopping.py",
+    "source_sha256": "21ed2f86bb10068d6fa38657884913dcda369c12768d6a1007f8d0ab870f501a",
+    "functions": {
+      "PlateauEarlyStopper.__init__": "879c4ff4f3aefd1b5a60cffc5062f9cb1148658a606f514a27c2229ab0c0750c",
+      "PlateauEarlyStopper.update": "d44b2016175e650bd992e92661ebf40c3dd541a0aacf7fe862cdb6697b9cf441",
+      "PlateauEarlyStopper.status": "c2259a1c79cfd1b17aa4055b9befba64e114283981ffec07465a0bca2bbd6ff0"
+    }
+  },
+  "training/common/timing/__init__.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/__init__.py",
+    "source_sha256": "1d991bffb701c881519e275fbfd529cd1720604b047191ac7789c312a0fe1381",
+    "functions": {}
+  },
+  "training/common/timing/timer.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/timer.py",
+    "source_sha256": "d4dff698222552172d8e9284b8cdd3003c837ca688f0ca63d8be11687704b988",
+    "functions": {
+      "_TimerContext.__init__": "1ef5c29942e147b4eb138ed0485619130c12344907e8a5dd29965c00dd001483",
+      "_TimerContext.__enter__": "c7073c5ba91dcfca0d40ca629bce32916f419dbabd84bcf69405ae991cec8118",
+      "_TimerContext.__exit__": "3ea97046daf3ebd172905559aad6a48bda715dae1b6bfd9a1400c77045fe0759",
+      "TrainingTimer.__init__": "665e346cae97bd473159d2d5acf82a69d8b748e95ee6f31f68d5d483613476f7",
+      "TrainingTimer.start": "62aa2f6dbbbbc697c1b1b7337d7a8c7e7d5b2fb8a449f1ddf3cd85c0214f8a6d",
+      "TrainingTimer.stop": "9400e9d5e17a3d84932f2e6f4284a67ed1f4e76b9a894add811bb3e4fbcc4348",
+      "TrainingTimer.__call__": "74eefa1a2d53c3c98b8c3829dcf20881359627ffe897edc8082c0be5332b5b25",
+      "TrainingTimer.begin_episode": "b2c124b3c67a794ac2bf5c9caec033fc58fa1ac4443838ff178df1658dc26181",
+      "TrainingTimer.flush_episode": "45e29a79c615546bdecaca6b7c41532de495c2bc1a3dcea764704e98a1853603",
+      "TrainingTimer._accumulate": "6a7ccdf6c488890541890b5128b01685168762208ee173654ea82d818f2d79f9",
+      "TrainingTimer._flush_accum": "9e1203e097777613fe65c3a4b48f0a66ee84af6ac7288392367cf3e4523f5302",
+      "TrainingTimer._write_record": "69b9a130135c7fb124caa8b1c2e4e4c8e527134dbaf4cfe2db7cf761f33bfa0f",
+      "TrainingTimer.close": "03839d9b8b906a916ff0c1f855aee2c6b9effcd7ac157b808c22bf9676e431aa"
+    }
+  },
+  "training/common/timing/plot.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/shared/timing/plot.py",
+    "source_sha256": "84652d1437005b32d8f5f660db6b4eed76e5734606e8e4bd73e9959d9a0e39fe",
+    "functions": {
+      "_load_records": "036889eff9ba830dc264d2f7015c421121a8ca3a71668d855b01b748f2043123",
+      "plot_run_breakdown": "274b4f1e1919f578124d257c626da4b4d48fb4e5a6d3353677dc23b34dc264bb",
+      "plot_timeseries": "45b0b13a38d55a5fa694df85c16639e0223ec1aa31eea6298627a3a584c882d4",
+      "_find_run_dir": "43deb9337ee00c15922d6b89db2a98e0edd0193b3790f6f72a16133e5676338b",
+      "plot_algorithm_comparison": "f17d2ff0231cc7c1bfcaecb74f3def5b9f9256963b73f910f219c8c9c862f2fe",
+      "main": "df0b10224db11d0ba56d757d2be24e49988f67883e9075b0b64b850aee0bbe21"
+    }
+  },
+  "training/learners/jaxnav/config.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/config.py",
+    "source_sha256": "5e55bde6b5b7095e0411c876f61edd4edacf42e97a5b5c3b50bd399fae38e522",
+    "functions": {}
+  },
+  "training/learners/jaxnav/qdiag.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/qdiag.py",
+    "source_sha256": "f2024477131b72c810809af06cc92be9f28b57469ad490ec09ae1d2eac5baa13",
+    "functions": {
+      "build_probe": "fc0cc84155bf8adc9d2f32be5f8e3281dc57dae48cb8f0bb856b92089e0bcba4",
+      "QDiagRecorder.__init__": "699ac970e6e3b8cb1ec68542c5a03ef98fe3cba3f469dfe7baeda4e2c6f49a5d",
+      "QDiagRecorder.maybe_record": "664f492b05a93e78db345d7c822b5a7b62f2fad7cfd1395013e8ab16daf16d8b",
+      "QDiagRecorder.drain": "7c3351d85aed6bb429a92e956ae6f504a7482c0535dcdd99258bb7116a387eb8"
+    }
+  },
+  "training/learners/jaxnav/dqn.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn.py",
+    "source_sha256": "f9e780a618fc0ecabcbddd8bd37c04c1ee26289c53e4c59d10867615992ccc31",
+    "functions": {
+      "_QNetwork.__call__": "5815bd0d77719dca027cdb0aaae01dd290437d2b7598d09707aba632d4595768",
+      "_MetricsLogger.log_eval": "c465ff6d77088002ad6e72958b8add25e00ca74519cb4cb8df53c148c3752e66",
+      "_MetricsLogger.log_qdiag": "01b1e0435b8c78628cacaad5eccfa32368690a14a86cd420cb2a55fda5a1d30f",
+      "_MetricsLogger.plot_eval_curves": "067eee064e9077d2de48719d945ae7e42bc29a01b22065b2a991a3e2ff4f2471",
+      "_MetricsLogger.plot_training_curves": "a8632f8c2677ad6d97815749f97128ac48b7f913ba39aa68c0d7c3cc064eb81a",
+      "_MetricsLogger.close": "eef82df0be1175df7e3e865de82a290dcc00f8050fc0995040f7bd66d02ace97",
+      "JaxNavDQN.__init__": "6fcee79006b0c4ea1e182fa6a58403ada247e600acefb652edd37ff1bad71720",
+      "JaxNavDQN._build_jit_fns": "7c570ce318ab85e294c476b23ea395031f0aff574a5a7da54b1cff0b65e991f7",
+      "JaxNavDQN.select_action": "2a4d5549e84fa8979fd2cbefab00665cdb83c899044608bb43211288233ddb9b",
+      "JaxNavDQN._update": "11364b90d0a8d9a5549c8f8c11fa2ad78922473f14584946d9d2974b71b2a406",
+      "JaxNavDQN._write_qdiag": "fcf642c2af14e51e11b5643332d66be78af99b29bf2aa08b4feb06b4d6ce5dc6",
+      "JaxNavDQN._update_target_network": "be7b22c15d40db6424dcf6b10abe8c4266d4d054877d21ccb33100712bb50216",
+      "JaxNavDQN.evaluate": "a197d0bf2afd41120473be9bf9a459847a8461860b03868e8e07f6a8a7296ae5",
+      "JaxNavDQN.learn": "7d0f2f948b8c478a34b36a17e859a84ffde3be042140f4f8724eecca55fce6bb",
+      "JaxNavDQN.save": "db8a27de061347a600e2169b0d425f4c411397669a3c63fada6688fbb2a17a15",
+      "JaxNavDQN.load": "56904bcfb337ed2b710996e88ee9228abf32042536ec99bfff55f19798345f91"
+    }
+  },
+  "training/learners/jaxnav/consequence_dqn.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn.py",
+    "source_sha256": "dcaa2fdfa0ae20f0637e433cd38bfafd4b8fa79638bc5f9e1e8958d1e5d54872",
+    "functions": {
+      "_wasserstein_weighted_mean_1rollout": "a1be1aec6e25e148ead739a5481451eaa2f6b1489fc2ef862d598618f0f81922",
+      "JaxNavConsequenceDQN._build_rollout_fn": "0f820df14aed5637ff9f10c85a29aa7403c93086e6744ee360dfb871d36cacdf",
+      "JaxNavConsequenceDQN._score_buffer_transitions": "ce6a09c20037af70372dcb1fc71875806ae4c12db622217e5f3dcc473d3c881e",
+      "JaxNavConsequenceDQN._score_indices": "95fe5ac482a2aa12f61a9b6db9390fa235c32f94919a7911def4b59285b7ce80",
+      "JaxNavConsequenceDQN._score_index_chunk": "6d237f704d76ab2f8496866bc419026dd22d93cd4a6a127e4b337ae865f34897",
+      "JaxNavConsequenceDQN._score_states": "d6410083ec41ea4bfe1a584d88fb7310a99ca410d3cda1fb4d8f14d9076029d8",
+      "JaxNavConsequenceDQN._maybe_init_drift_probe": "d94c8188c75f7200fb3d7158f760172b4b9c1aae6fc19c7c2e008e6c07eb8945",
+      "JaxNavConsequenceDQN.run_drift_probe": "a96c94896162ba5735054d0923edffd8660d32dc4e17649f0cae98a56061e690",
+      "JaxNavConsequenceDQN._update": "76399aba391e27b99b10ce2fa25be508753e1c80ed4313a17633dbf5f3eb0190",
+      "JaxNavConsequenceDQN.learn": "79b669a1799b40f16b62af7a3a58a312c2265008b24e7d27901aeebbe8f21ee4"
+    }
+  },
+  "training/learners/jaxnav/dqn_vectorized.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
+    "source_sha256": "2ba2bda15f9a429ecfb6e6df11908d82b8ac1ee051d0d4532fe8f9351a76e8e5",
+    "functions": {
+      "_tree_where": "592aadc20322491aa04ef90949faaec9816584e6a8db337633c3a3d35d184738",
+      "JaxNavDQNVectorized._initial_collect_carry": "91c9bf9d8a01f4292890fc02ae5f80e0fead6891ebc421dbeb86e568131a0135",
+      "JaxNavDQNVectorized._build_collect_fn": "5a65131c237c33b23880637ae7d397b8deed7255ee856d194da701a3431e7aae",
+      "JaxNavDQNVectorized._add_chunk_to_buffer": "f1005983e8d536b6005b8012dbc6e65ff0ceecb21a5f6358698e4fcf2e19a1a5",
+      "JaxNavDQNVectorized._build_eval_fn": "70fa37be82e6b261e6c21948c595fcfc7740b23aa40b4e4a4f582d2e49278f7f",
+      "JaxNavDQNVectorized.evaluate": "81428bbbdca09f188cc5ed631108ec853fb756dc0d1ee0e231a36969c15f9053",
+      "JaxNavDQNVectorized.learn": "046a8f7231de5fa2aee90ed98078fa5efa88ba07293c5f24a9a0a949169d26a0"
+    }
+  },
+  "training/learners/jaxnav/consequence_dqn_vectorized.py": {
+    "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
+    "source_sha256": "7e136b6bf07807f244ca5cba5a7c99ac872822a73a54f769180e5365e3295e61",
+    "functions": {
+      "JaxNavConsequenceDQNVectorized._build_eval_fn": "71e9327e6ccb1c8c997a4ae2214276d45a3b62c610cb89510f36b68d64346a42",
+      "JaxNavConsequenceDQNVectorized.evaluate": "e8ef39da323d9c66473476699ba95380612af65c04b769a0c0e0c54684d020bc",
+      "JaxNavConsequenceDQNVectorized._build_collect_fn": "36933effb54d7c4c8b35bc0434e8829f71bc0a7bef47c9f94d6af4e264ed3f04",
+      "JaxNavConsequenceDQNVectorized._add_chunk_to_buffer": "d4145fe05f671de3303e932c97b2b096ceda2ea820a047410a940e8943459a4c",
+      "JaxNavConsequenceDQNVectorized.learn": "48a666f2070f3536d99819e7e9bbe339c4de993b8809f7c266d6d91f9fd2951e",
+      "_log_priority_diagnostics": "fe2d5ac7f8b1eecdecb9cce6cf99e6d076faf1b5c32bb71064c62079cecd88e4"
+    }
+  },
+  "training/learners/jaxnav/dqn_vectorized_legacy.py": {
+    "reference": "old/src/counterfactual_rl/agents/jax_nav/dqn_vectorized.py",
+    "source_sha256": "6801fc3cab22f590a9af065a2bfacd4772271c7aadc217dded2c5f6cdbeb706d",
+    "functions": {
+      "_tree_where": "592aadc20322491aa04ef90949faaec9816584e6a8db337633c3a3d35d184738",
+      "JaxNavDQNVectorized._build_collect_fn": "2a70bfd724086615fe99ac30d5401c56a077c896cb33b2a524b9698837e3c109",
+      "JaxNavDQNVectorized._add_chunk_to_buffer": "f1005983e8d536b6005b8012dbc6e65ff0ceecb21a5f6358698e4fcf2e19a1a5",
+      "JaxNavDQNVectorized._build_eval_fn": "70fa37be82e6b261e6c21948c595fcfc7740b23aa40b4e4a4f582d2e49278f7f",
+      "JaxNavDQNVectorized.evaluate": "81428bbbdca09f188cc5ed631108ec853fb756dc0d1ee0e231a36969c15f9053",
+      "JaxNavDQNVectorized.learn": "9eb3753e0cb434e0b97323318c91e0a73c1a99e28f1fd45b0d5502ebb852a9cf"
+    }
+  },
+  "training/learners/jaxnav/consequence_dqn_vectorized_legacy.py": {
+    "reference": "old/src/counterfactual_rl/agents/jax_nav/consequence_dqn_vectorized.py",
+    "source_sha256": "70f209ded23778e133c3a2f1b6ff523029fb6c458387bbdcd28549916613ff0b",
+    "functions": {
+      "JaxNavConsequenceDQNVectorized._build_eval_fn": "71e9327e6ccb1c8c997a4ae2214276d45a3b62c610cb89510f36b68d64346a42",
+      "JaxNavConsequenceDQNVectorized.evaluate": "e8ef39da323d9c66473476699ba95380612af65c04b769a0c0e0c54684d020bc",
+      "JaxNavConsequenceDQNVectorized._build_collect_fn": "39484b635c61d3746ca5fe7277210c8e6d2ae87561fbe9a753791a28bb4a25ce",
+      "JaxNavConsequenceDQNVectorized._add_chunk_to_buffer": "d4145fe05f671de3303e932c97b2b096ceda2ea820a047410a940e8943459a4c",
+      "JaxNavConsequenceDQNVectorized.learn": "04b679b2883b1c033d31a88df1e1c594cb14052969ff77aa762b050514837de1",
+      "_log_priority_diagnostics": "fe2d5ac7f8b1eecdecb9cce6cf99e6d076faf1b5c32bb71064c62079cecd88e4"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "meaning": "Local chat sessions used as discovery aids. Chats locate work; manifests, logs, Git objects, and Slurm records remain the proof.",
+  "sessions": [
+    {"system": "claude", "session_id": "d547247a-a02f-4643-865b-08644f13e960"},
+    {"system": "claude", "session_id": "fb330241-a678-43b5-b276-f76984840d08"},
+    {"system": "codex", "session_id": "01a0bbe7-7aaa-7202-a8e7-a15007ce9594"},
+    {"system": "codex", "session_id": "01a0bbe7-7c3e-7192-8bb6-08006d9218b5"},
+    {"system": "codex", "session_id": "01a0e492-8588-74d3-8a96-b2f26a4915c1"}
+  ]
+}

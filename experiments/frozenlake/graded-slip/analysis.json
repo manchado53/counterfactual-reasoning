@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "seed": 0,
+  "study": "graded_slip",
+  "cache": "paper/repro/cache/claim2_graded_slip.npz",
+  "reps": 32,
+  "threshold": 0.5,
+  "curves": false,
+  "data_root": "../../.."
+}

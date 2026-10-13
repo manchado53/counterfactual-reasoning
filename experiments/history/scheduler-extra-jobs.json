@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "meaning": "Known historical Slurm groups whose job IDs were not all recoverable from committed manifests.",
+  "groups": [
+    {
+      "environment": "connect_four",
+      "experiment_id": "connect-four-legacy",
+      "job_ranges": [[257685, 257734], [257930, 257979], [258360, 258409], [258936, 258985], [259039, 259088], [259200, 259249], [259251, 259300]]
+    },
+    {
+      "environment": "doorkey",
+      "experiment_id": "doorkey-claim1",
+      "job_ranges": [[270991, 270994]]
+    },
+    {
+      "environment": "doorkey",
+      "experiment_id": "doorkey-claim2",
+      "job_ranges": [[270995, 271069], [271913, 271924]]
+    },
+    {
+      "environment": "doorkey",
+      "experiment_id": "doorkey-lava",
+      "job_ranges": [[271084, 271087], [271091, 271093], [271110, 271159]]
+    },
+    {
+      "environment": "jaxnav",
+      "experiment_id": "jaxnav-decay-new-path",
+      "job_ids": [280874, 280875, 280876, 280899]
+    }
+  ]
+}

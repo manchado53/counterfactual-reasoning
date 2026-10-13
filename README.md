@@ -1,425 +1,170 @@
-# Counterfactual Reasoning in Reinforcement Learning
+# Counterfactual Reasoning for Replay Prioritization
 
-> **⚠ Parts of this README are stale (pre-SMAX-pivot architecture).** For current status,
-> claims, and dead ends see **`lab-notebook.md`**; the paper is **`paper/paper.tex`**;
-> reproduction lives in **`paper/repro/`**. Sections below mentioning SMAC, beam search, or
-> `environments/`/`training/` paths predate the restructure to `agents/` + `envs/`.
+This repository studies one question:
 
-A framework for analyzing **consequential states** in reinforcement learning by asking: *"What if the agent had taken a different action?"*
+> Can counterfactual consequence scores improve which transitions a replay
+> buffer samples?
 
-This tool identifies critical decision points in RL episodes by comparing the distribution of future outcomes under the chosen action versus alternative actions.
+The package contains shared CCE scoring and replay math. Training and analysis
+are reusable engines. Actual research questions live in experiment bundles.
 
-## Core Concept
+## Layout
 
-At each timestep, the analyzer:
-1. **Saves** the current environment state
-2. **Evaluates** multiple alternative actions by rolling out the policy from that state
-3. **Compares** the distributions of returns using statistical divergence metrics
-4. **Scores** how "consequential" the decision was based on how different the alternatives would have been
+```text
+src/counterfactual_rl/
+  replay/                 replay buffers and priority schedules
+  scoring/                consequence metrics
 
-A **high consequence score** means: *"There existed an alternative action that would have led to a very different future."*
+training/
+  envs/                   task state, actions, reset, and step rules
+  learners/<environment>/ training implementations
+  run.py                  one training entry point
+  catalog.py              recipe inventory and validation
 
-## Features
+analysis/
+  plotting/               comparable learning curves
+  studies/                reusable result-reading code
 
-- **Multiple Environment Support**
-  - FrozenLake (discrete, single-agent)
-  - SMAC (StarCraft Multi-Agent Challenge)
-  - SMAX (JaxMARL - JAX-accelerated SMAC)
+experiments/
+  <environment>/<name>/   README plus training and/or analysis recipe
 
-- **Consequence-weighted DQN Training (Algorithm 2)**
-  - Full training pipeline integrating counterfactual consequence scoring into DQN
-  - Prioritized Experience Replay weighted by both TD-error and consequence score
-  - Additive (Eq 4) and multiplicative (Eq 5) priority mixing modes
-  - Circular replay buffer for O(1) add/eviction (no per-step memory shifts)
-  - SLURM experiment sweep infrastructure for hyperparameter search
+tests/                    fast merge gate
+paper/                    paper source and reproducibility cache
+```
 
-- **Efficient Multi-Agent Analysis**
-  - Beam search for top-K joint actions (avoids exponential enumeration)
-  - JAX triple-vmap rollouts (transitions × actions × rollouts) compiled via JIT
+Detailed migration evidence was removed from the normal tree. It remains
+recoverable from the commit listed in [docs/migration-audit.md](docs/migration-audit.md).
 
-- **Four Divergence Metrics**
-  - KL Divergence (asymmetric, unbounded)
-  - Jensen-Shannon Divergence (symmetric, bounded)
-  - Total Variation Distance (L1 distance)
-  - Wasserstein Distance (Earth mover's distance)
+## Supported experiment adapters
 
-- **Flexible Aggregation**
-  - `max` - Maximum divergence across alternatives (find the "worst case")
-  - `mean` - Average divergence
-  - `weighted_mean` - Weighted by action probability (most principled)
+| Adapter | Task |
+|---|---|
+| `jaxnav` | Random navigation maps |
+| `frozenlake` | Deterministic and stochastic FrozenLake |
+| `doorkey` | DoorKey and lava layouts |
+| `connect_four` | Fixed and historical Connect Four protocols |
+| `smax` | Multi-agent SMAX |
+| `chess` | Gardner chess environment |
+| `cvrp` | Tabular routing |
+| `rpdqn` | Neural routing |
+| `cvrp_budget` | Budget and Option-A routing variants |
 
-## Installation
+Each adapter provides the same small interface:
+
+```text
+validate_config
+build_agent
+smoke_overrides
+evaluation_axis
+simulator_sources
+```
+
+Environment-specific choices stay behind that interface.
+
+## Install
+
+Python 3.12 is required.
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd counterfactual-reasoning
-
-# Create virtual environment
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install package in editable mode
-pip install -e .
-
-# For SMAX support (optional)
-pip install jaxmarl
+pip install -e '.[research,dev]'
 ```
 
-## Quick Start
+Historical JaxNav runs used a dependency combination that modern package
+resolvers reject. Use the pinned instructions in
+[docs/migration-install.md](docs/migration-install.md) when exact historical
+behavior matters.
 
-### FrozenLake (Discrete Environment)
-
-```python
-from counterfactual_rl.environments import registry
-from counterfactual_rl.analysis import CounterfactualAnalyzer
-import gymnasium as gym
-from stable_baselines3 import PPO
-
-# Setup
-env = gym.make("FrozenLake-v1", is_slippery=False)
-model = PPO.load("model.zip", env=env)
-state_manager = registry.get_state_manager("FrozenLake-v1")
-
-# Analyze
-analyzer = CounterfactualAnalyzer(
-    model=model,
-    env=env,
-    state_manager=state_manager,
-    horizon=20,      # Rollout steps
-    n_rollouts=48    # Samples per action
-)
-records = analyzer.evaluate_episode()
-
-# Results
-for r in records:
-    print(f"State {r.state}: KL={r.kl_score:.4f}")
-```
-
-### SMAC (Multi-Agent)
-
-```python
-from smac.env import StarCraft2Env
-from counterfactual_rl.environments.smac import CentralizedSmacWrapper, SmacStateManager
-from counterfactual_rl.analysis import MultiDiscreteCounterfactualAnalyzer
-
-# Setup
-smac_env = StarCraft2Env(map_name="3m")
-wrapped_env = CentralizedSmacWrapper(smac_env)
-state_manager = SmacStateManager()
-
-# Analyze with beam search (top-20 actions instead of 9^3=729)
-analyzer = MultiDiscreteCounterfactualAnalyzer(
-    model=model,
-    main_env=wrapped_env,
-    state_manager=state_manager,
-    top_k=20,
-    horizon=20
-)
-records = analyzer.evaluate_episode()
-```
-
-### SMAX/JaxMARL (JAX-Accelerated)
-
-```python
-from jaxmarl import make
-from jaxmarl.environments.smax import map_name_to_scenario
-from counterfactual_rl.analysis.smax_vectorized_counterfactual import (
-    SMAXVectorizedCounterfactualAnalyzer
-)
-from counterfactual_rl.utils.smax_jax_utils import make_jax_random_policy
-import jax
-
-# Setup
-scenario = map_name_to_scenario("3m")
-env = make("HeuristicEnemySMAX", scenario=scenario)
-policy_fn = make_jax_random_policy(list(env.agents))
-
-# Vectorized analyzer (JIT-compiled, 100x faster)
-analyzer = SMAXVectorizedCounterfactualAnalyzer(
-    env=env,
-    policy_fn=policy_fn,
-    horizon=20,
-    n_rollouts=48,
-    top_k=20,
-    aggregation='weighted_mean'  # 'max', 'mean', or 'weighted_mean'
-)
-
-key = jax.random.PRNGKey(42)
-records = analyzer.evaluate_episode(key, max_steps=50)
-
-# Save video and plots
-analyzer.save_video("episode.gif")
-analyzer.save_plots(records, save_dir="./results", n_enemies=3)
-```
-
-## Project Structure
-
-```
-counterfactual-reasoning/
-├── src/counterfactual_rl/
-│   ├── analysis/                    # Core algorithms
-│   │   ├── counterfactual.py        # Base analyzer (discrete actions)
-│   │   ├── multidiscrete_counterfactual.py  # Multi-agent with beam search
-│   │   ├── smax_counterfactual.py   # SMAX (non-vectorized)
-│   │   ├── smax_vectorized_counterfactual.py  # SMAX (JAX vmap/jit)
-│   │   └── metrics.py               # KL, JSD, TV, Wasserstein
-│   │
-│   ├── environments/                # State management per environment
-│   │   ├── base.py                  # Abstract StateManager interface
-│   │   ├── frozen_lake.py           # FrozenLake implementation
-│   │   ├── smac.py                  # SMAC wrapper + replay strategy
-│   │   └── registry.py              # Environment factory
-│   │
-│   ├── utils/                       # Utilities
-│   │   ├── data_structures.py       # ConsequenceRecord dataclass
-│   │   ├── smac_data_structures.py  # SmacConsequenceRecord
-│   │   ├── smax_data_structures.py  # SMAXConsequenceRecord
-│   │   ├── action_selection.py      # Beam search algorithm
-│   │   ├── smax_utils.py            # SMAX helpers
-│   │   └── smax_jax_utils.py        # JAX-compatible utilities
-│   │
-│   ├── visualization/               # Plotting
-│   │   ├── plots.py                 # Base plotter (heatmaps, histograms)
-│   │   ├── smac_plots.py            # SMAC-specific visualizations
-│   │   └── smax_plots.py            # SMAX-specific visualizations
-│   │
-│   ├── policies/                    # Policy adapters
-│   │   └── policy_adapters.py       # RandomPolicy, PPO adapters
-│   │
-│   └── simulations/                 # Example scripts
-│       ├── smac_random_policy.py
-│       ├── smax_random_policy.py
-│       ├── smax_vectorized_random_policy.py
-│       ├── run_*.sh                 # SLURM sbatch scripts
-│       ├── logs/                    # Job outputs
-│       └── runs/                    # Timestamped results
-│
-├── examples/                        # Jupyter notebooks & demos
-├── docs/                            # Additional documentation
-├── tests/                           # Unit tests
-└── refactorization_cleanup.md       # Planned restructuring notes
-```
-
-## Algorithm Details
-
-### Counterfactual Rollout Analysis
-
-```
-For each timestep t in episode:
-  1. Save state S_t
-  2. Get action a_t from policy
-  3. For each alternative action a' in top-K:
-     - Restore to S_t
-     - Execute a'
-     - Follow policy for H steps (horizon)
-     - Record cumulative discounted return G
-     - Repeat N times → distribution D(a')
-  4. Compute KL(D(a_t) || D(a')) for each a'
-  5. Score = aggregation(KL values)
-```
-
-### Beam Search for Multi-Agent Actions
-
-The joint action space for n agents with m actions each is O(m^n) - combinatorially explosive.
-
-**Solution:** Beam search finds top-K most probable joint actions in O(n × K × m).
-
-```python
-# 3 agents × 9 actions = 729 combinations
-# Beam search with K=20 → only 20 evaluated
-actions, probs = beam_search_top_k_joint_actions(
-    valid_actions=[[0,1,2,...], [0,1,2,...], [0,1,2,...]],
-    k=20,
-    return_probs=True  # Also get probabilities for weighted_mean
-)
-```
-
-### JAX Vectorization (SMAX)
-
-The vectorized analyzer compiles all rollouts into a single XLA kernel:
-
-| Loop | Python (slow) | JAX Primitive | Speedup |
-|------|---------------|---------------|---------|
-| Actions (outer) | `for action in actions` | `jax.vmap` | Parallel |
-| Rollouts (middle) | `for i in range(N)` | `jax.vmap` | Parallel |
-| Steps (inner) | `for t in range(H)` | `jax.lax.scan` | Compiled |
-
-Result: **~100-500x speedup** after one-time JIT compilation.
-
-## Output: ConsequenceRecord
-
-Each analyzed timestep produces a record:
-
-```python
-SMAXConsequenceRecord(
-    timestep=25,
-    action=(4, 3, 2),           # Joint action taken
-    kl_score=2.34,              # Consequence score (max KL)
-    kl_divergences={            # KL vs each alternative
-        (0, 3, 2): 2.34,
-        (4, 0, 2): 0.12,
-        ...
-    },
-    return_distributions={      # Raw return samples
-        (4, 3, 2): array([1.2, 0.8, ...]),  # N samples
-        (0, 3, 2): array([0.1, 0.0, ...]),
-        ...
-    },
-    jsd_score=0.42,
-    tv_score=0.78,
-    wasserstein_score=0.31
-)
-```
-
-## Metrics Explained
-
-| Metric | Range | Properties | Best For |
-|--------|-------|------------|----------|
-| **KL Divergence** | [0, ∞) | Asymmetric, sensitive to tail differences | Detecting any difference |
-| **Jensen-Shannon** | [0, ln(2)] | Symmetric, bounded | Balanced comparison |
-| **Total Variation** | [0, 1] | Symmetric, bounded, L1-based | Binary "same or different" |
-| **Wasserstein** | [0, ∞) | Symmetric, geometric interpretation | Magnitude of difference |
-
-## Aggregation Methods
-
-How to combine divergences across alternative actions into a single score:
-
-- **`max`** (default for critical decisions): "What's the worst-case alternative?"
-- **`mean`**: "On average, how different are alternatives?"
-- **`weighted_mean`**: "Weighted by how likely I was to take each alternative" — most principled for policy analysis
-
-## Training Consequence-weighted DQN
-
-### Running a single training job locally
+## Find runnable recipes
 
 ```bash
-conda activate counterfactual
-cd src/counterfactual_rl/training/smax/shared
-
-CONFIG_OVERRIDES='{"scenario":"3m","n_episodes":1000,"algorithm":"consequence-dqn"}' \
-    python -m counterfactual_rl.training.smax.shared.train
+python -m training.catalog --root .
 ```
 
-Results are written to `runs/<job_id>/`:
-- `timing.jsonl` — per-component timing records
-- `metrics.log` — win rate, return, episode length per eval interval
-- `training_curves.png` — return and episode length over training
-- `timing_breakdown.png` / `timing_timeseries.png` — profiling plots
-- `last.pkl` / `best.pkl` — saved model weights
+Recipe validation is lazy. It does not import JAX or a simulator.
 
-### Running experiment sweeps on SLURM
+## Validate a run
 
 ```bash
-cd src/counterfactual_rl/training/smax/shared
-
-# Preview jobs without submitting
-python run_experiments.py metric_sweep --dry-run
-
-# Submit all jobs
-python run_experiments.py metric_sweep
-python run_experiments.py algorithm_comparison
-python run_experiments.py mu_sweep
+cce-run validate \
+  --recipe experiments/jaxnav/ranked-td-decay/training.json \
+  --task 1
 ```
 
-Available experiments: `smoke_test`, `metric_sweep`, `algorithm_comparison`, `mu_sweep`.
-
-### Key configuration parameters
-
-| Parameter | Default | Description |
-|---|---|---|
-| `scenario` | `3s5z` | SMAX map: `3m`, `2s3z`, `5m_vs_6m`, `3s5z`, etc. |
-| `algorithm` | `consequence-dqn` | `dqn-uniform`, `dqn`, or `consequence-dqn` |
-| `mu` | `0.25` | Priority blend: 0 = pure TD, 1 = pure consequence |
-| `priority_mixing` | `additive` | `additive` (Eq 4) or `multiplicative` (Eq 5) |
-| `consequence_metric` | `total_variation` | `kl_divergence`, `jensen_shannon`, `total_variation`, `wasserstein` |
-| `score_interval` | `200` | Q-updates between consequence scoring passes |
-| `cf_horizon` | `30` | Counterfactual rollout horizon |
-| `cf_n_rollouts` | `30` | Rollouts per action per transition |
-| `cf_top_k` | `10` | Top-K actions from beam search |
-| `M` | `100000` | Replay buffer capacity |
-
-### Running on SLURM (HPC)
+## Run a bounded smoke test
 
 ```bash
-cd src/counterfactual_rl/training/smax/shared
-sbatch train_smax_dqn.sh
+cce-run train \
+  --recipe experiments/frozenlake/smoke/training.json \
+  --task 0 \
+  --smoke \
+  --device cpu \
+  --max-wall-seconds 180 \
+  --output /tmp/cce-frozenlake-smoke
 ```
 
-Legacy counterfactual analysis scripts:
+`--smoke` changes compute settings. It is a code check, not a research result.
+Normal runs keep the recipe unchanged.
+
+## Run a full recipe
 
 ```bash
-cd src/counterfactual_rl/simulations
-sbatch run_SMAX_vectorized_analysis.sh
+cce-run train \
+  --recipe experiments/cvrp_budget/budget/training.json \
+  --task 0 \
+  --device gpu \
+  --max-wall-seconds 86400 \
+  --output /path/to/fresh/run
 ```
 
-Results saved to `runs/smax_vectorized_run_<timestamp>/`:
-- `episode_replay.gif` - Animated episode replay
-- `analysis_comprehensive.png` - Multi-panel analysis figure
-- `consequence_over_time.png` - Metrics timeline
-- `*.log` - Detailed logs
+The output folder must not already exist. Every attempt records:
 
-## Extending to New Environments
+- the resolved configuration;
+- package and device versions;
+- project and simulator source hashes;
+- a compressed source bundle;
+- evaluation-bank identity when the learner has one;
+- completion or failure state.
 
-1. **Create a StateManager** (in `environments/`):
-   ```python
-   class MyEnvStateManager(StateManager):
-       @staticmethod
-       def clone_state(env) -> Dict:
-           return {"position": env.agent_pos, "rng": env.np_random.get_state()}
+## Plot comparable runs
 
-       def restore_state(env, state_dict):
-           env.agent_pos = state_dict["position"]
-           env.np_random.set_state(state_dict["rng"])
-   ```
-
-2. **Register it**:
-   ```python
-   from counterfactual_rl.environments import registry
-   registry.register("MyEnv-v0", MyEnvStateManager, MyEnvConfig)
-   ```
-
-3. **Use existing analyzers** - no changes needed!
-
-## Known Bugs and Defects
-
-See `bugs.md` for full detail. Summary of open issues:
-
-| # | File | Severity | Description |
-|---|---|---|---|
-| 1 | `consequence_diagnostics.py:118` | Low | `buffer_scored_frac` always reports ~100% — uses wrong sentinel (`max_priority`) instead of initial consequence score (`0.0`) |
-| 2 | `consequence_dqn.py:76` | Low | `diagnostics_enabled` fallback is `True` but `DEFAULT_CONFIG` default is `False` — partial configs behave unexpectedly |
-| 4 | `config.py:80` | Low | `3s5z` preset uses `hidden_dim=516` — likely typo for `512` (all other presets use powers of 2) |
-| 6 | `experiments.py:116` | Cosmetic | Run count comment (`57 runs`) is stale after `MU_SWEEP` was narrowed to `3m` only |
-| 7 | `consequence_buffers.py:152` | Medium | IS weights not normalized by batch max — rare high-priority transitions can produce very large weights, potentially destabilizing updates |
-| 8 | `consequence_dqn.py:208` | Low | Duplicate action padding for under-full action sets wastes JIT compute (rolled-out returns discarded silently) |
-
-**Fixed:**
-- Bug 3: `ConsequenceDQN.learn()` now seeds NumPy RNG for reproducibility
-- Bug 5: `ConsequenceReplayBuffer.add()` replaced `list.pop(0)` (O(N)) with circular buffer (O(1)) — eliminated 43% of total training time in profiling
-
-## Documentation
-
-- `docs/COUNTERFACTUAL_COMPONENTS.md` - Detailed method breakdown
-- `docs/MULTIDISCRETE_COUNTERFACTUAL.md` - Beam search explanation
-- `refactorization_cleanup.md` - Planned code restructuring
-
-## Citation
-
-If you use this code in your research, please cite:
-
-```bibtex
-@software{counterfactual_rl,
-  title = {Counterfactual Reasoning in Reinforcement Learning},
-  author = {Your Name},
-  year = {2025},
-  url = {https://github.com/your-repo}
-}
+```bash
+python -m analysis.plotting.learning_curves \
+  --runs /path/to/run-a /path/to/run-b \
+  --bin-size 5000 \
+  --output /tmp/learning-curves.png
 ```
 
-## License
+The plotter rejects mixed evaluation banks, simulator source, map settings,
+duplicate seeds, and incompatible training clocks.
 
-MIT
+## Run an analysis
+
+```bash
+cce-study \
+  --config experiments/frozenlake/claim2-deterministic/analysis.json \
+  --out /tmp/cce-claim2
+```
+
+Analysis recipes are not training jobs. Cached data is not a new experiment.
+
+## Test
+
+```bash
+PYTHONPATH=.:src pytest -q
+```
+
+The normal gate covers environment dynamics, recipe validation, package
+contracts, source capture, and plotting guards. Large one-time migration audits
+live in Git history instead of the normal test suite.
+
+## Research status
+
+The migration has strong CPU checks and a fresh-wheel validation path. Two
+full-size JaxNav GPU tasks matched numerically. A third stopped on tiny
+old-versus-old float noise before its candidate ran, so the full-budget gate is
+incomplete. See [docs/migration-audit.md](docs/migration-audit.md).
+
+The current paper source is [paper/paper.tex](paper/paper.tex). Research notes
+are in [lab-notebook.md](lab-notebook.md).

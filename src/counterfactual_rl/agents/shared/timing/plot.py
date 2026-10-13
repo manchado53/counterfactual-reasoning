@@ -8,7 +8,7 @@ Cross-run comparison (CLI or SLURM dependency job):
     plot_algorithm_comparison()  -> timing_comparison.png
 
 CLI usage:
-    python -m counterfactual_rl.training.smax.shared.timing.plot --manifest experiments/algo.json
+    python -m counterfactual_rl.training.smax.shared.timing.plot --manifest training/algo.json
 """
 
 import argparse
