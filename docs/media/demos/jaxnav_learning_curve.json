@@ -1,0 +1,55 @@
+{
+  "window_episodes": [
+    100000,
+    150000
+  ],
+  "window_mean": {
+    "Uniform": 0.4888060606060606,
+    "PER": 0.4598757575757576,
+    "CCE Only + decay": 0.6083106060606062
+  },
+  "sources": {
+    "Uniform": [
+      {
+        "reference": "277734/eval.jsonl",
+        "sha256": "4ad3af01ee2547c66e0d10b6144c7bb9a7ac55f2d738fc82f06d1fd22ab86efe"
+      },
+      {
+        "reference": "277735/eval.jsonl",
+        "sha256": "67235052150061e54cb2748102a9862ade60cbf8c9b44402e7a626cb5db25f05"
+      },
+      {
+        "reference": "277736/eval.jsonl",
+        "sha256": "0aa6bf2a6a30fc613b6015961ab9d1cab923fc333ba4cea5196ad5883676e3f8"
+      }
+    ],
+    "PER": [
+      {
+        "reference": "277751/eval.jsonl",
+        "sha256": "bde70b17451b8d507f1006be17fda6a8913f1a2d2cf38ae905fa6bfc335ee043"
+      },
+      {
+        "reference": "277752/eval.jsonl",
+        "sha256": "aadea5c30e98dfe0dcf20b027b9188f355b68ef758e002ebb0a3aae37173537b"
+      },
+      {
+        "reference": "277753/eval.jsonl",
+        "sha256": "126b9c25316273e577e196fea9c571eaea1cf3ef126e49ccb15d0630eb4e7c42"
+      }
+    ],
+    "CCE Only + decay": [
+      {
+        "reference": "281092/eval.jsonl",
+        "sha256": "753f8741d33da39cae1e1f85b5b2c351ef0ab288a51e8ec8a760676e99244920"
+      },
+      {
+        "reference": "281093/eval.jsonl",
+        "sha256": "56655d79968cd88b1f0409e6d0c316f74d8324a51d24456953c1924f84d3422a"
+      },
+      {
+        "reference": "280874/eval.jsonl",
+        "sha256": "5650113b48fe77fb566fbc44a956954f47c38cdaec831ebd968cd7020c32d404"
+      }
+    ]
+  }
+}
