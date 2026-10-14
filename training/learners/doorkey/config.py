@@ -4,6 +4,7 @@ HERE = Path(__file__).resolve().parent
 ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
 DECAY_TRANSFER_ARMS = ('uniform', 'per', 'cce_decay')
 PROCEDURAL_BENCHMARK_ARMS = ('uniform', 'per', 'cce_decay')
+PAPER_PARITY_ARMS = ('uniform', 'per', 'cce_decay')
 
 # Every field here is copied verbatim from task 33 of the JaxNav ranked-TD
 # decay recipe: fixed collector, CCE-only, decay enabled, seed 0. Tests compare
@@ -117,6 +118,86 @@ def procedural_benchmark_config(arm, seed):
         decay_end=750_000,
         timeout_bootstrap=True,
         experiment='doorkey_procedural_12x12_20261013',
+    )
+
+
+def paper_parity_config(arm, seed):
+    """DoorKey 12x12 DQN setup matched to the VLM-RB appendix."""
+    if arm not in PAPER_PARITY_ARMS:
+        raise ValueError(f'Unsupported paper-parity DoorKey arm: {arm}')
+    if type(seed) is not int or seed not in range(5):
+        raise ValueError(f'Unsupported paper-parity DoorKey seed: {seed}')
+    cce = arm == 'cce_decay'
+    algorithm = 'consequence-dqn' if cce else ('dqn-uniform' if arm == 'uniform' else 'dqn')
+    return dict(
+        seed=seed,
+        arm=arm,
+        algorithm=algorithm,
+        cce_enabled=cce,
+        decay_enabled=cce,
+        optimizer='adam',
+        alpha=4e-5,
+        gradient_clip=1.,
+        loss='squared-td',
+        gamma=.95,
+        batch_size=128,
+        buffer_capacity=100000,
+        target_update_freq=1000,
+        target_copy_phase='after env steps 1000,2000,...',
+        n_steps_per_update=4,
+        learning_starts_steps=500,
+        double_dqn=True,
+        epsilon_start=1.,
+        epsilon_end=.05,
+        epsilon_decay_steps=500_000,
+        epsilon_decay_episodes=500_000,
+        n_envs=128,
+        collect_steps=4,
+        hidden_dim=128,
+        n_layers=3,
+        cnn_channels=128,
+        head_hidden_dim=128,
+        cnn_dilations=[1, 2, 4],
+        channel_embedding_dims=[16, 8, 8],
+        n_actions=5,
+        PER_parameters=dict(eps=1e-6, beta=.7, maximum_priority=1.),
+        use_importance_weights=arm == 'per',
+        normalize_importance_weights=arm == 'per',
+        importance_weights='standard normalized PER weights' if arm == 'per' else 'disabled',
+        environment='minigrid-doorkey-procedural',
+        protocol='doorkey-vlmrb-paper-parity',
+        collector_variant='carry-safe',
+        training_budget_kind='env_steps',
+        size=12,
+        max_episode_steps=1440,
+        eval_max_steps=1440,
+        observation='symbolic-full-grid',
+        reward='minigrid-time-scaled-goal',
+        total_env_steps=1_000_000,
+        eval_interval_steps=25_000,
+        eval_episodes=1000,
+        fixed_eval_seed=20260923,
+        score_on_insert=True,
+        cf_score_chunk=512,
+        normalise_priorities='rank',
+        mu=1.,
+        priority_mixing='additive',
+        mu_c=1.,
+        mu_delta=1.,
+        consequence_metric='wasserstein',
+        consequence_aggregation='weighted_mean',
+        cf_horizon=60,
+        cf_n_rollouts=1,
+        cf_gamma=.95,
+        cf_rollout_temperature=0.,
+        cf_bootstrap=True,
+        cf_action_prob_temperature=.5,
+        decay_start=500_000,
+        decay_end=750_000,
+        timeout_bootstrap=True,
+        paper_reference='arXiv:2602.01915 Appendix B/E.2/E.4',
+        paper_unspecified_choices=['buffer_capacity', 'cnn_channels', 'embedding_dims', 'head_hidden_dim'],
+        experiment='doorkey_vlmrb_paper_parity_20261014',
     )
 
 

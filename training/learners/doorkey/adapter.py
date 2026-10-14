@@ -51,14 +51,19 @@ def weighted_scores(returns, probabilities, taken):
     taken = np.asarray(taken, dtype=int)
     reference = r[np.arange(len(r)), taken]
     num, den = np.zeros(len(r)), np.zeros(len(r))
-    for action in range(7):
+    n_actions = r.shape[1]
+    if p.shape != r.shape:
+        raise ValueError(f"Return/probability shape mismatch: {r.shape} != {p.shape}")
+    for action in range(n_actions):
         alt = taken != action
         weight = p[:, action].astype(np.float64)
         num = np.where(alt, num + weight * np.abs(reference - r[:, action]), num)
         den = np.where(alt, den + weight, den)
     result = np.divide(num, den, out=np.zeros_like(num), where=den > 0)
     for i in np.flatnonzero(den <= 0):
-        result[i] = np.mean([abs(reference[i] - r[i, a]) for a in range(7) if a != taken[i]])
+        result[i] = np.mean(
+            [abs(reference[i] - r[i, a]) for a in range(n_actions) if a != taken[i]]
+        )
     return result
 
 

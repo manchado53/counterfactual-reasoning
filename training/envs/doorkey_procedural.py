@@ -95,6 +95,23 @@ class ProceduralDoorKey:
         image = image.at[self.view_size // 2, self.view_size - 1].set(carried)
         return {"image": image, "direction": state.direction}
 
+    def observe_full(self, state: DoorKeyState):
+        """Match MiniGrid's FullyObsWrapper symbolic grid encoding."""
+        coordinates = jnp.stack(
+            jnp.meshgrid(
+                jnp.arange(self.size, dtype=jnp.int32),
+                jnp.arange(self.size, dtype=jnp.int32),
+                indexing="ij",
+            ),
+            axis=-1,
+        )
+        image = jax.vmap(jax.vmap(lambda xy: self._tile(state, xy[0], xy[1])))(
+            coordinates
+        )
+        agent = jnp.array((10, 0, state.direction), dtype=jnp.uint8)
+        image = image.at[state.x, state.y].set(agent)
+        return {"image": image, "direction": state.direction}
+
     def reset(self, key):
         split_key, agent_key, direction_key, door_key, key_key = jax.random.split(key, 5)
         split_x = jax.random.randint(split_key, (), 2, self.size - 2)

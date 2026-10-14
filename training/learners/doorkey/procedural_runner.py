@@ -18,7 +18,15 @@ import optax
 
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
 from counterfactual_rl.replay.decay import DecayBuffer, blend_weight
-from training.envs.doorkey_procedural import DoorKeyState, ProceduralDoorKey
+from training.envs.doorkey_procedural import (
+    FORWARD,
+    LEFT,
+    PICKUP,
+    RIGHT,
+    TOGGLE,
+    DoorKeyState,
+    ProceduralDoorKey,
+)
 from .adapter import ddqn_targets, weighted_scores
 
 
@@ -33,13 +41,63 @@ class Carry(NamedTuple):
 class QNetwork(nn.Module):
     hidden_dim: int = 128
     n_layers: int = 3
+    n_actions: int = 7
 
     @nn.compact
     def __call__(self, observation):
         x = observation.astype(jnp.float32)
         for _ in range(self.n_layers):
             x = nn.relu(nn.Dense(self.hidden_dim)(x))
-        return nn.Dense(7)(x)
+        return nn.Dense(self.n_actions)(x)
+
+
+class ResidualDilatedBlock(nn.Module):
+    channels: int
+    dilation: int
+
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+        x = nn.relu(x)
+        x = nn.Conv(
+            self.channels,
+            kernel_size=(3, 3),
+            padding="SAME",
+            kernel_dilation=(self.dilation, self.dilation),
+        )(x)
+        x = nn.relu(x)
+        x = nn.Conv(
+            self.channels,
+            kernel_size=(3, 3),
+            padding="SAME",
+            kernel_dilation=(self.dilation, self.dilation),
+        )(x)
+        return residual + x
+
+
+class PaperGridQNetwork(nn.Module):
+    """Appendix-matched symbolic embeddings and three-block dilated CNN."""
+
+    n_actions: int = 5
+    channels: int = 128
+    head_hidden_dim: int = 128
+    embedding_dims: tuple[int, int, int] = (16, 8, 8)
+    dilations: tuple[int, ...] = (1, 2, 4)
+
+    @nn.compact
+    def __call__(self, observation):
+        image = observation.astype(jnp.int32)
+        objects = nn.Embed(11, self.embedding_dims[0], name="object_embedding")(image[..., 0])
+        colors = nn.Embed(6, self.embedding_dims[1], name="color_embedding")(image[..., 1])
+        states = nn.Embed(4, self.embedding_dims[2], name="state_embedding")(image[..., 2])
+        x = jnp.concatenate((objects, colors, states), axis=-1)
+        x = nn.Conv(self.channels, kernel_size=(3, 3), padding="SAME")(x)
+        for dilation in self.dilations:
+            x = ResidualDilatedBlock(self.channels, dilation)(x)
+        x = nn.relu(x)
+        pooled = jnp.concatenate((jnp.mean(x, axis=(-3, -2)), jnp.max(x, axis=(-3, -2))), axis=-1)
+        x = nn.relu(nn.Dense(self.head_hidden_dim)(pooled))
+        return nn.Dense(self.n_actions)(x)
 
 
 def encode_observation(observation):
@@ -67,11 +125,30 @@ class ProceduralAgent:
         self.arm = config["arm"]
         self.env = ProceduralDoorKey(config["size"], config["max_episode_steps"])
         self.eval_env = ProceduralDoorKey(config["size"], config["eval_max_steps"])
-        self.net = QNetwork(config["hidden_dim"], config["n_layers"])
+        self.full_observation = config.get("observation") == "symbolic-full-grid"
+        self.n_actions = int(config.get("n_actions", 7))
+        self.policy_to_env_action = jnp.asarray(
+            (LEFT, RIGHT, FORWARD, PICKUP, TOGGLE) if self.n_actions == 5 else tuple(range(7)),
+            dtype=jnp.int32,
+        )
+        if self.full_observation:
+            self.obs_shape = (config["size"], config["size"], 3)
+            self.obs_dtype = jnp.uint8
+            self.net = PaperGridQNetwork(
+                n_actions=self.n_actions,
+                channels=config["cnn_channels"],
+                head_hidden_dim=config["head_hidden_dim"],
+                embedding_dims=tuple(config["channel_embedding_dims"]),
+                dilations=tuple(config["cnn_dilations"]),
+            )
+        else:
+            self.obs_shape = (151,)
+            self.obs_dtype = jnp.float32
+            self.net = QNetwork(config["hidden_dim"], config["n_layers"], self.n_actions)
 
         root = jax.random.PRNGKey(config["seed"])
         self.collect_key, init_key = jax.random.split(root)
-        self.params = self.net.init(init_key, jnp.zeros((151,), dtype=jnp.float32))
+        self.params = self.net.init(init_key, jnp.zeros(self.obs_shape, dtype=self.obs_dtype))
         self.target = jax.tree.map(jnp.copy, self.params)
         self.optimizer = optax.chain(
             optax.clip_by_global_norm(config["gradient_clip"]),
@@ -104,7 +181,7 @@ class ProceduralAgent:
         n_envs = config["n_envs"]
         self.carry = Carry(
             _empty_state((n_envs,)),
-            jnp.zeros((n_envs, 151), dtype=jnp.float32),
+            jnp.zeros((n_envs,) + self.obs_shape, dtype=self.obs_dtype),
             jnp.ones((n_envs,), dtype=jnp.bool_),
             jnp.zeros((n_envs,), dtype=jnp.float32),
             jnp.zeros((n_envs,), dtype=jnp.int32),
@@ -115,7 +192,7 @@ class ProceduralAgent:
             jax.random.PRNGKey(config["fixed_eval_seed"]), config["eval_episodes"]
         )
         identity = (
-            f"procedural-doorkey-{config['size']}-symbolic7-"
+            f"procedural-doorkey-{config['size']}-{config['observation']}-"
             f"cap{config['eval_max_steps']}-greedy-lowest-index"
         ).encode()
         self.eval_bank_hash = hashlib.sha256(
@@ -127,6 +204,16 @@ class ProceduralAgent:
         self._branch_fn = jax.jit(jax.vmap(self._branch_state, in_axes=(None, None, 0)))
         self._eval_fn = jax.jit(jax.vmap(self._eval_one, in_axes=(None, 0)))
 
+    def _encode(self, observation, state):
+        if self.full_observation:
+            return self.env.observe_full(state)["image"]
+        return encode_observation(observation)
+
+    def _encode_eval(self, observation, state):
+        if self.full_observation:
+            return self.eval_env.observe_full(state)["image"]
+        return encode_observation(observation)
+
     def _collect_one(self, params, epsilon, carry, keys):
         def one_step(current, key):
             reset_key, action_key, explore_key = jax.random.split(key, 3)
@@ -136,20 +223,26 @@ class ProceduralAgent:
                 reset_state,
                 current.state,
             )
+            reset_feature = self._encode(reset_obs, reset_state)
             obs = jnp.where(
                 current.pending_reset,
-                encode_observation(reset_obs),
+                reset_feature,
                 current.obs,
             )
             total = jnp.where(current.pending_reset, 0.0, current.episode_return)
             length = jnp.where(current.pending_reset, 0, current.length)
             greedy = jnp.argmax(self.net.apply(params, obs))
             explore = jax.random.uniform(explore_key) < epsilon
-            action = jnp.where(explore, jax.random.randint(action_key, (), 0, 7), greedy)
-            next_observation, next_state, reward, terminated, truncated, _ = self.env.step(
-                None, state, action
+            action = jnp.where(
+                explore,
+                jax.random.randint(action_key, (), 0, self.n_actions),
+                greedy,
             )
-            next_obs = encode_observation(next_observation)
+            env_action = self.policy_to_env_action[action]
+            next_observation, next_state, reward, terminated, truncated, _ = self.env.step(
+                None, state, env_action
+            )
+            next_obs = self._encode(next_observation, next_state)
             total = total + reward
             length = length + 1
             ended = terminated | truncated
@@ -193,22 +286,24 @@ class ProceduralAgent:
         return optax.apply_updates(params, updates), opt_state, td, stats
 
     def _branch_state(self, params, target, state):
-        actions = jnp.arange(7, dtype=jnp.int32)
+        actions = jnp.arange(self.n_actions, dtype=jnp.int32)
 
         def branch(first_action):
+            first_env_action = self.policy_to_env_action[first_action]
             observation, next_state, reward, terminated, truncated, _ = self.env.step(
-                None, state, first_action
+                None, state, first_env_action
             )
-            feature = encode_observation(observation)
+            feature = self._encode(observation, next_state)
 
             def rollout(carry, _):
                 current_state, current_feature, total, discount, term, trunc = carry
                 active = ~(term | trunc)
                 action = jnp.argmax(self.net.apply(params, current_feature))
+                env_action = self.policy_to_env_action[action]
                 obs, proposed_state, r, new_term, new_trunc, _ = self.env.step(
-                    None, current_state, action
+                    None, current_state, env_action
                 )
-                proposed_feature = encode_observation(obs)
+                proposed_feature = self._encode(obs, proposed_state)
                 selected_state = jax.tree.map(
                     lambda new, old: jnp.where(active, new, old), proposed_state, current_state
                 )
@@ -241,16 +336,17 @@ class ProceduralAgent:
 
     def _eval_one(self, params, key):
         observation, state = self.eval_env.reset(key)
-        feature = encode_observation(observation)
+        feature = self._encode_eval(observation, state)
 
         def one_step(carry, _):
             current_state, current_feature, ended, total, length = carry
             action = jnp.argmax(self.net.apply(params, current_feature))
+            env_action = self.policy_to_env_action[action]
             obs, proposed_state, reward, terminated, truncated, _ = self.eval_env.step(
-                None, current_state, action
+                None, current_state, env_action
             )
             active = ~ended
-            proposed_feature = encode_observation(obs)
+            proposed_feature = self._encode_eval(obs, proposed_state)
             return (
                 jax.tree.map(lambda new, old: jnp.where(active, new, old), proposed_state, current_state),
                 jnp.where(active, proposed_feature, current_feature),
@@ -273,10 +369,10 @@ class ProceduralAgent:
 
     def _insert(self, rows):
         transitions = {
-            "s": np.asarray(rows["s"]).reshape((-1, 151)),
+            "s": np.asarray(rows["s"]).reshape((-1,) + self.obs_shape),
             "a": np.asarray(rows["a"]).reshape(-1),
             "r": np.asarray(rows["r"]).reshape(-1),
-            "s'": np.asarray(rows["next_s"]).reshape((-1, 151)),
+            "s'": np.asarray(rows["next_s"]).reshape((-1,) + self.obs_shape),
             "done": np.asarray(rows["done"]).reshape(-1),
         }
         if not self.cce:
@@ -323,7 +419,13 @@ class ProceduralAgent:
         for attempt in range(self.steps // stride, (self.steps + count) // stride):
             self.attempts += 1
             if self.buffer.can_sample(self.config["batch_size"]):
+                if (attempt + 1) * stride < self.config.get("learning_starts_steps", 0):
+                    continue
                 batch, indices, weights = self.buffer.sample(self.config["batch_size"])
+                if not self.config.get("use_importance_weights", True):
+                    weights = np.ones_like(weights)
+                elif self.config.get("normalize_importance_weights", False):
+                    weights = weights / np.max(weights)
                 arrays = [jnp.asarray(np.stack([transition[key] for transition in batch]))
                           for key in ("s", "a", "r", "s'", "done")]
                 self.params, self.opt_state, td, diagnostic = self._update_fn(
@@ -336,7 +438,9 @@ class ProceduralAgent:
                 self.buffer.update_priorities(indices, td)
                 self.updates += 1
                 stats.append(diagnostic)
-            if attempt % target_attempts == 0:
+            paper_phase = self.config.get("target_copy_phase") == "after env steps 1000,2000,..."
+            target_due = ((attempt + 1) % target_attempts == 0) if paper_phase else (attempt % target_attempts == 0)
+            if target_due:
                 self.target = jax.tree.map(jnp.copy, self.params)
 
         self.steps += count
