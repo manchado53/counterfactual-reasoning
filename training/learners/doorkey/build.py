@@ -2,7 +2,14 @@
 from copy import deepcopy
 import math
 from pathlib import Path
-from .config import ARMS, config_for, DECAY_TRANSFER_ARMS, decay_transfer_config
+from .config import (
+    ARMS,
+    config_for,
+    DECAY_TRANSFER_ARMS,
+    decay_transfer_config,
+    PROCEDURAL_BENCHMARK_ARMS,
+    procedural_benchmark_config,
+)
 
 
 def resolved_config(arm, seed):
@@ -12,6 +19,17 @@ def resolved_config(arm, seed):
 
 
 def validate_config(config):
+    if config.get('protocol') == 'procedural-doorkey-12x12':
+        if config.get('arm') not in PROCEDURAL_BENCHMARK_ARMS:
+            raise ValueError('Unsupported procedural DoorKey arm')
+        expected = procedural_benchmark_config(config['arm'], config.get('seed'))
+        if config.get('_smoke_profile') is True:
+            expected.update(smoke_overrides(expected))
+        if config != expected:
+            changed = sorted(key for key in set(config) | set(expected)
+                             if config.get(key) != expected.get(key))
+            raise ValueError(f'Procedural DoorKey config drift: {changed}')
+        return config
     if config.get('protocol') == 'jaxnav-ranked-td-decay-transfer':
         if config.get('arm') not in DECAY_TRANSFER_ARMS:
             raise ValueError('Unsupported DoorKey decay-transfer arm')
@@ -98,6 +116,24 @@ def smoke_overrides(config):
         return dict(n_envs=4, collect_steps=32, buffer_capacity=256,
                     n_episodes=8, eval_interval=4, save_every=8,
                     decay_start=2, decay_end=4, _smoke_profile=True)
+    if config['protocol'] == 'procedural-doorkey-12x12':
+        return dict(
+            n_envs=4,
+            collect_steps=32,
+            buffer_capacity=256,
+            batch_size=16,
+            total_env_steps=256,
+            eval_interval_steps=128,
+            eval_episodes=8,
+            max_episode_steps=48,
+            eval_max_steps=48,
+            epsilon_decay_steps=128,
+            cf_horizon=4,
+            cf_score_chunk=128,
+            decay_start=64,
+            decay_end=192,
+            _smoke_profile=True,
+        )
     return dict(n_envs=4, collect_steps=32, buffer_capacity=256, blocks=2, eval_every_blocks=1)
 
 
@@ -106,13 +142,19 @@ def evaluation_axis(config):
 
 
 def simulator_sources(config):
-    name = 'doorkey_legacy.py' if config['protocol'] == 'legacy-doorkey' else 'doorkey.py'
+    if config['protocol'] == 'procedural-doorkey-12x12':
+        name = 'doorkey_procedural.py'
+    else:
+        name = 'doorkey_legacy.py' if config['protocol'] == 'legacy-doorkey' else 'doorkey.py'
     return {name: Path(__file__).resolve().parents[2] / 'envs' / name}
 
 
 def build_agent(config):
     validate_config(config)
     config = deepcopy(config)
+    if config['protocol'] == 'procedural-doorkey-12x12':
+        from .procedural_runner import ProceduralAgent
+        return ProceduralAgent(config)
     if config['protocol'] == 'legacy-doorkey':
         if config['vectorized']:
             from .legacy.dqn_vectorized import DoorKeyDQNVectorized as DQN

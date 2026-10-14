@@ -3,6 +3,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
 DECAY_TRANSFER_ARMS = ('uniform', 'per', 'cce_decay')
+PROCEDURAL_BENCHMARK_ARMS = ('uniform', 'per', 'cce_decay')
 
 # Every field here is copied verbatim from task 33 of the JaxNav ranked-TD
 # decay recipe: fixed collector, CCE-only, decay enabled, seed 0. Tests compare
@@ -78,6 +79,45 @@ JAXNAV_WINNER = dict(
     decay_start=100000,
     decay_end=150000,
 )
+
+
+def procedural_benchmark_config(arm, seed):
+    """Matched 12x12 procedural DoorKey benchmark built from the JaxNav winner."""
+    if arm not in PROCEDURAL_BENCHMARK_ARMS:
+        raise ValueError(f'Unsupported procedural DoorKey arm: {arm}')
+    if type(seed) is not int or seed not in range(5):
+        raise ValueError(f'Unsupported procedural DoorKey seed: {seed}')
+    cce = arm == 'cce_decay'
+    algorithm = 'consequence-dqn' if cce else ('dqn-uniform' if arm == 'uniform' else 'dqn')
+    return dict(
+        JAXNAV_WINNER,
+        seed=seed,
+        arm=arm,
+        algorithm=algorithm,
+        cce_enabled=cce,
+        decay_enabled=cce,
+        optimizer='adam',
+        gradient_clip=10.,
+        loss='importance-weighted-squared-td',
+        importance_weights='1/(N*p), no batch rescale',
+        target_copy_phase='after attempts 0,125,250,...',
+        environment='minigrid-doorkey-procedural',
+        protocol='procedural-doorkey-12x12',
+        collector_variant='carry-safe',
+        training_budget_kind='env_steps',
+        size=12,
+        max_episode_steps=1440,
+        eval_max_steps=1440,
+        observation='symbolic-7x7-partial',
+        reward='minigrid-time-scaled-goal',
+        total_env_steps=1_000_000,
+        eval_interval_steps=25_000,
+        epsilon_decay_steps=312_500,
+        decay_start=500_000,
+        decay_end=750_000,
+        timeout_bootstrap=True,
+        experiment='doorkey_procedural_12x12_20261013',
+    )
 
 
 def decay_transfer_config(arm, seed, layout_name):
