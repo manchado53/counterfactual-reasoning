@@ -5,7 +5,7 @@
 #SBATCH --array=0-14%6
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
-#SBATCH --time=2-00:00:00
+#SBATCH --time=23:55:00
 #SBATCH --output=logs/doorkey12-%A_%a.out
 
 set -euo pipefail
@@ -27,5 +27,5 @@ exec /home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python -m traini
   --recipe "$recipe" \
   --task "$SLURM_ARRAY_TASK_ID" \
   --device gpu \
-  --max-wall-seconds 171000 \
+  --max-wall-seconds 85500 \
   --output "$output"
