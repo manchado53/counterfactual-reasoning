@@ -120,6 +120,16 @@ def procedural_benchmark_config(arm, seed):
     )
 
 
+def procedural_long_benchmark_config(arm, seed):
+    """Exact procedural benchmark with only the training budget extended."""
+    config = procedural_benchmark_config(arm, seed)
+    config.update(
+        total_env_steps=10_000_000,
+        experiment='doorkey_procedural_12x12_10m_20261013',
+    )
+    return config
+
+
 def decay_transfer_config(arm, seed, layout_name):
     if arm not in DECAY_TRANSFER_ARMS:
         raise ValueError(f'Unsupported decay-transfer arm: {arm}')

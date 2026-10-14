@@ -96,6 +96,23 @@ def test_research_recipe_uses_paired_12x12_protocol():
     assert (cce["decay_start"], cce["decay_end"]) == (500_000, 750_000)
 
 
+def test_ten_million_step_recipe_changes_only_budget_and_identity():
+    from training.learners.doorkey.config import (
+        procedural_benchmark_config,
+        procedural_long_benchmark_config,
+    )
+
+    for arm in ("uniform", "per", "cce_decay"):
+        for seed in range(5):
+            short = procedural_benchmark_config(arm, seed)
+            long = procedural_long_benchmark_config(arm, seed)
+            changed = {key for key in short if short[key] != long[key]}
+            assert changed == {"total_env_steps", "experiment"}
+            assert long["total_env_steps"] == 10_000_000
+            assert long["decay_start"] == 500_000
+            assert long["decay_end"] == 750_000
+
+
 def test_procedural_learner_smoke_has_exact_cce_coverage_and_fixed_eval_bank():
     import pickle
 

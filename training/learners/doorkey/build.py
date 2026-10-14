@@ -9,6 +9,7 @@ from .config import (
     decay_transfer_config,
     PROCEDURAL_BENCHMARK_ARMS,
     procedural_benchmark_config,
+    procedural_long_benchmark_config,
 )
 
 
@@ -22,7 +23,10 @@ def validate_config(config):
     if config.get('protocol') == 'procedural-doorkey-12x12':
         if config.get('arm') not in PROCEDURAL_BENCHMARK_ARMS:
             raise ValueError('Unsupported procedural DoorKey arm')
-        expected = procedural_benchmark_config(config['arm'], config.get('seed'))
+        if config.get('experiment') == 'doorkey_procedural_12x12_10m_20261013':
+            expected = procedural_long_benchmark_config(config['arm'], config.get('seed'))
+        else:
+            expected = procedural_benchmark_config(config['arm'], config.get('seed'))
         if config.get('_smoke_profile') is True:
             expected.update(smoke_overrides(expected))
         if config != expected:
