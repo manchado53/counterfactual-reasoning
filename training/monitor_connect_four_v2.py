@@ -11,7 +11,7 @@ def main():
     p.add_argument('--job', required=True)
     p.add_argument('--mode', choices=['smoke','train'], required=True)
     args = p.parse_args()
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1] / 'experiments/connect_four/jaxnav-transfer-v2'
     missing = 0
     while True:
         q = subprocess.run(['squeue','-h','-r','-j',args.job,'-o','%i|%T|%M|%R'],capture_output=True,text=True)

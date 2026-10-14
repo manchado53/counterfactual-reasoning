@@ -30,7 +30,7 @@ C4_MODE (smoke/train), and C4_COMMIT. Run `sbatch --test-only` before each
 submission. Smoke tasks are 0,5,10; each runs two full-size collection blocks,
 the full network and all 1000 cases. Require all three completion records before
 full submission. Full tasks are 0–14 with at most eight active GPUs, reducing
-the cap if other user jobs require it. Start `monitor.py` after each submission.
+the cap if other user jobs require it. Start `python -m training.monitor_connect_four_v2` after each submission.
 No DoorKey job or source is modified.
 
 Each attempt bundles source and package identity. Progress records include

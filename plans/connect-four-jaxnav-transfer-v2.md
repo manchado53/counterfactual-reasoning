@@ -1,6 +1,7 @@
 # Connect Four replay transfer v2
 
-Plan for approval. No training code changed or jobs submitted yet.
+Approved by the user on October 14, 2026. Implemented and CPU/GPU checked.
+See the experiment execution note for launch evidence.
 
 Test whether the working JaxNav replay design helps on Connect Four.
 Use Uniform, raw-TD PER, and multiplicative CCE with ranked-TD decay.
