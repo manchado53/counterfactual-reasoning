@@ -18,6 +18,7 @@ export PYTHONNOUSERSITE=1
 export PYTHONUNBUFFERED=1
 export MPLBACKEND=Agg
 export PYTHONPATH="$root/src:$root"
+export PATH="/home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/lib/python3.12/site-packages/nvidia/cuda_nvcc/bin:$PATH"
 
 mkdir -p "$run_root"
 cd "$root"
