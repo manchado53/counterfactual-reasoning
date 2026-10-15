@@ -62,3 +62,8 @@ saved parent-study full-run directory and ARRAY_ID with the submitted job):
 python -m analysis.studies.four_rooms_single --control runs/four-rooms-proportional-per/full --reference ../four-rooms-2x/runs/four-rooms-2x/full --out runs/four-rooms-proportional-per/report
 python -m training.monitor_four_rooms --root "$PWD" --job ARRAY_ID --study-dir runs/four-rooms-proportional-per --tasks 1 --reference-runs ../four-rooms-2x/runs/four-rooms-2x/full
 ```
+
+Validation: 48 shared/study tests passed, then all four proportional-specific
+tests passed after the report test was added (49 unique tests). CPU smoke and
+T4 GPU smoke array 284123 completed: 384 transitions, 16 updates, zero CCE
+scorings. `validation.json` records devices and bank/source hashes.
