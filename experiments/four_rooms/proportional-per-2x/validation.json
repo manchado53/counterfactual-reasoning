@@ -1,0 +1,28 @@
+{
+  "tests": "48-test shared/study suite passed; all 4 proportional-specific tests passed after adding report test (49 unique tests)",
+  "gpu_smoke_array": 284123,
+  "smokes": {
+    "cpu": {
+      "status": "completed",
+      "device": [
+        "TFRT_CPU_0"
+      ],
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "62583e12376f6c6fb70e9ff4380b33b351ddccaeec5d89955bfbd05e149e8f60"
+    },
+    "smoke": {
+      "status": "completed",
+      "device": [
+        "cuda:0"
+      ],
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "d997c63bc80ac1cfa55fda1371dad5f1fa8f0ba0728c9898ca2ef84558b934cb"
+    }
+  }
+}

@@ -4,7 +4,7 @@ from importlib import import_module
 from pathlib import Path
 
 
-CURRENT_ENVIRONMENTS = ("jaxnav", "frozenlake", "doorkey", "connect_four")
+CURRENT_ENVIRONMENTS = ("jaxnav", "frozenlake", "doorkey", "connect_four", "four_rooms")
 HISTORICAL_ENVIRONMENTS = ("smax", "chess", "cvrp", "rpdqn", "cvrp_budget")
 ENVIRONMENTS = CURRENT_ENVIRONMENTS + HISTORICAL_ENVIRONMENTS
 SHARED_LEARNING_ENVIRONMENTS = ENVIRONMENTS
