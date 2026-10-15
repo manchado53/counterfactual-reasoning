@@ -1,0 +1,36 @@
+[
+  {
+    "room_scale": 1,
+    "open_cells": 104,
+    "cap": 200,
+    "shortest_steps": 16,
+    "policies": {
+      "known_map_shortest_path": {
+        "goal_probability": 0.9999999999993793,
+        "successful_length": 32.077492590934774
+      },
+      "uniform_random": {
+        "goal_probability": 0.10464769057975497,
+        "successful_length": 140.9794896936325
+      }
+    },
+    "scope": "Exact fixed-policy dynamics check; not a learned agent result"
+  },
+  {
+    "room_scale": 2,
+    "open_cells": 404,
+    "cap": 200,
+    "shortest_steps": 30,
+    "policies": {
+      "known_map_shortest_path": {
+        "goal_probability": 0.9999999805075358,
+        "successful_length": 61.05723362283726
+      },
+      "uniform_random": {
+        "goal_probability": 0.0013292244640036115,
+        "successful_length": 165.45610999742897
+      }
+    },
+    "scope": "Exact fixed-policy dynamics check; not a learned agent result"
+  }
+]

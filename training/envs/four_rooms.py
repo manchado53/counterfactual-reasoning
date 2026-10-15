@@ -26,18 +26,49 @@ DOORS = ((3, 6), (6, 2), (7, 9), (10, 6))
 DIRECTIONS = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
 
+def scaled_layout(room_scale=1):
+    """Scale room interiors in both axes; retain one-cell walls and doors.
+
+    Original interior rectangles: left 5x5 twice, upper-right 6x5,
+    lower-right 4x5. Their dimensions multiply by room_scale. Door/marker
+    coordinates choose the first cell of the corresponding scaled cell.
+    """
+    if type(room_scale) is not int or room_scale not in (1, 2):
+        raise ValueError('Supported room scales are 1 and 2')
+    s = room_scale
+    side = 10*s + 3
+    grid = [['#'] * side for _ in range(side)]
+    rectangles = ((1, 5*s+1, 1, 5*s+1),
+                  (5*s+2, 10*s+2, 1, 5*s+1),
+                  (1, 6*s+1, 5*s+2, 10*s+2),
+                  (6*s+2, 10*s+2, 5*s+2, 10*s+2))
+    for r0, r1, c0, c1 in rectangles:
+        for r in range(r0, r1):
+            for c in range(c0, c1):
+                grid[r][c] = '.'
+    doors = ((2*s+1, 5*s+1), (5*s+1, s+1),
+             (6*s+1, 7*s+2), (8*s+2, 5*s+1))
+    for r, c in doors:
+        grid[r][c] = '.'
+    grid[1][1] = 'S'
+    grid[7*s+2][7*s+2] = 'G'
+    return tuple(''.join(row) for row in grid), doors
+
+
 class FourRoomsEnv:
     max_steps = 200
     n_actions = 4
 
-    def __init__(self):
-        self.cells = tuple((r, c) for r, row in enumerate(LAYOUT)
+    def __init__(self, room_scale=1):
+        self.room_scale = room_scale
+        self.layout, self.doors = scaled_layout(room_scale)
+        self.cells = tuple((r, c) for r, row in enumerate(self.layout)
                            for c, tile in enumerate(row) if tile != '#')
         self.index = {cell: i for i, cell in enumerate(self.cells)}
         self.n_positions = len(self.cells)
         self.n_states = (self.max_steps + 1) * self.n_positions
         self.start = self.index[(1, 1)]
-        self.goal = self.index[(9, 9)]
+        self.goal = self.index[(7*room_scale+2, 7*room_scale+2)]
         moves = np.empty((self.n_positions, 4), dtype=np.int32)
         for i, (r, c) in enumerate(self.cells):
             for a, (dr, dc) in enumerate(DIRECTIONS):
