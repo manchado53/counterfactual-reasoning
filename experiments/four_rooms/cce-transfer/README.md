@@ -100,3 +100,28 @@ SLURM uses `job.sbatch`; dry-run and smoke gates precede full submission.
 A single full array has concurrency 7, leaving one job slot for the CPU monitor.
 Use shared allocations; never cancel unrelated jobs. Monitor events are limited
 to startup/failure, 25/50/75/100% budget milestones, and completion.
+
+### Launch record (2026-10-15)
+
+Base: origin/master 5b3a608 (user approved the remote default; origin/main absent).
+Core commit: 5ea837b. Report/launcher commit: 1563b27.
+CPU smoke: all three arms completed. GPU smoke array 284071 tasks 0,5,10:
+all COMPLETED, exit 0; actual device cuda:0 / Tesla T4, driver 595.71.05.
+Each GPU smoke collected 384 transitions and ran 16 updates. CCE scored 384/384.
+Full training results are separate and are not established by these checks.
+
+Exact cluster launch from this checkout (fresh output directories required):
+
+```bash
+export FR_ROOT="$PWD" FR_MODE=full FR_COMMIT="$(git rev-parse HEAD)"
+export FR_PYTHON=/home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python
+mkdir -p logs
+sbatch --test-only --array=0-14%7 experiments/four_rooms/cce-transfer/job.sbatch
+sbatch --parsable --array=0-14%7 experiments/four_rooms/cce-transfer/job.sbatch
+# Use the returned array ID below. Run detached under a durable host session.
+python -m training.monitor_four_rooms --root "$PWD" --job ARRAY_ID
+```
+
+The monitor writes `runs/four-rooms/monitor/events.jsonl`, updates the report at
+quarter-budget milestones and completion, and saves its PID/status. Events are
+local logs; this script does not send email or chat messages.
