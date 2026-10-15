@@ -1,0 +1,80 @@
+{
+  "tests_passed": 45,
+  "smoke_array": 284091,
+  "smoke_tasks": {
+    "0": {
+      "status": "completed",
+      "device": [
+        "cuda:0"
+      ],
+      "arm": "uniform",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "12b9822d5b449c57040b71f1901e4bf0c140507a3aa0273253d29813c056808c"
+    },
+    "1": {
+      "status": "completed",
+      "device": [
+        "cuda:0"
+      ],
+      "arm": "rank_per",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "12b9822d5b449c57040b71f1901e4bf0c140507a3aa0273253d29813c056808c"
+    },
+    "2": {
+      "status": "completed",
+      "device": [
+        "cuda:0"
+      ],
+      "arm": "cce",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 384,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "cd0aa0f245eff220231f3b1ea1aa22439e02f2fe30cb74389984bf31ad61ef67"
+    }
+  },
+  "cpu_smokes": {
+    "0": {
+      "status": "completed",
+      "device": [
+        "TFRT_CPU_0"
+      ],
+      "arm": "uniform",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "3770a2bc6c558a59912fb7e6db59a438c142d933d5353f7b604b86f17a8af3c3"
+    },
+    "1": {
+      "status": "completed",
+      "device": [
+        "TFRT_CPU_0"
+      ],
+      "arm": "rank_per",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 0,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "3770a2bc6c558a59912fb7e6db59a438c142d933d5353f7b604b86f17a8af3c3"
+    },
+    "2": {
+      "status": "completed",
+      "device": [
+        "TFRT_CPU_0"
+      ],
+      "arm": "cce",
+      "env_steps": 384,
+      "updates": 16,
+      "scored_arrivals": 384,
+      "eval_bank_hash": "cc64b27ae09db8894a749f92e0293375dab885d1c7685a53c165d2c0ef882ff9",
+      "source_bundle_sha256": "3770a2bc6c558a59912fb7e6db59a438c142d933d5353f7b604b86f17a8af3c3"
+    }
+  }
+}

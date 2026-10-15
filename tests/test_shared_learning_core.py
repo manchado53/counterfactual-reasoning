@@ -154,9 +154,15 @@ def test_array_replay_inserts_at_largest_observed_td_priority():
 
 def _current_source_files(environment):
     root = ROOT / "training/learners" / environment
+    roots = [root]
+    # Four Rooms delegates its whole learner to a reusable environment-neutral module.
+    # Audit the implementation as well as its thin build adapter.
+    if environment == "four_rooms":
+        roots.append(ROOT / "training/learners/shared")
     return [
         path
-        for path in root.rglob("*.py")
+        for source_root in roots
+        for path in source_root.rglob("*.py")
         if not {"legacy", "_historical", "_source_shared"} & set(path.parts)
         and not path.name.endswith("_legacy.py")
     ]
@@ -170,7 +176,12 @@ def test_every_current_environment_crosses_the_shared_learning_seams():
         "counterfactual_rl.scoring.weighted_wasserstein": {"weighted_wasserstein_scores"},
     }
     for environment in CURRENT_ENVIRONMENTS:
-        imports = {module: set() for module in required_imports}
+        expected = dict(required_imports)
+        if environment == "four_rooms":
+            expected.pop("counterfactual_rl.replay.buffers")
+            expected.pop("counterfactual_rl.replay.consequence_buffers")
+            expected["counterfactual_rl.replay.rank_buffer"] = {"SelectionReplayBuffer"}
+        imports = {module: set() for module in expected}
         calls = set()
         for path in _current_source_files(environment):
             tree = ast.parse(path.read_text())
@@ -179,7 +190,7 @@ def test_every_current_environment_crosses_the_shared_learning_seams():
                     imports[node.module].update(alias.name for alias in node.names)
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                     calls.add(node.func.id)
-        for module, names in required_imports.items():
+        for module, names in expected.items():
             assert names <= imports[module], (environment, module)
             if module in {
                 "counterfactual_rl.learning.td",
@@ -252,6 +263,7 @@ def test_every_runnable_environment_uses_shared_learning_modules():
             for module in (
                 "counterfactual_rl.replay.buffers",
                 "counterfactual_rl.replay.array_buffer",
+                "counterfactual_rl.replay.rank_buffer",
             )
         ), environment
         assert any(module.startswith("counterfactual_rl.scoring") for module in modules), environment
@@ -454,3 +466,11 @@ def test_shared_decay_boundaries_and_probability_blend():
     )
     buffer.blend = 1.0
     np.testing.assert_array_equal(buffer._compute_priorities(), ranked_td)
+
+
+def test_rank_selection_reuses_shared_storage_and_sampler():
+    from counterfactual_rl.replay.rank_buffer import SelectionReplayBuffer
+    from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
+    assert issubclass(SelectionReplayBuffer, ConsequenceReplayBuffer)
+    for method in ("sample", "add_batch", "update_priorities", "update_consequence_scores"):
+        assert getattr(SelectionReplayBuffer, method) is getattr(ConsequenceReplayBuffer, method)
