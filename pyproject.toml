@@ -38,6 +38,7 @@ cce-study = "analysis.studies.run:main"
 [project.optional-dependencies]
 research = [
     "jax==0.9.1", "jaxlib==0.9.1", "flax==0.10.4", "optax==0.2.5",
+    "numba==0.65.0", "llvmlite==0.47.0",
     "chex==0.1.91", "matplotlib==3.10.7", "tqdm==4.67.1", "gymnasium>=1.0",
     "rliable>=1.2.0", "Pillow>=10.0", "imageio[ffmpeg]>=2.31",
 ]

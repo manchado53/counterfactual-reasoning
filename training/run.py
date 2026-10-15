@@ -65,7 +65,7 @@ def main():
             raise RuntimeError("Requested backend is unavailable")
         record["packages"] = {k: importlib.metadata.version(k) for k in
             ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex")}
-        for package in ("jaxmarl", "pgx", "rliable"):
+        for package in ("jaxmarl", "pgx", "rliable", "numba", "llvmlite"):
             try:
                 record["packages"][package] = importlib.metadata.version(package)
             except importlib.metadata.PackageNotFoundError:
