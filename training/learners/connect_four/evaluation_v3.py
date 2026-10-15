@@ -77,7 +77,7 @@ class Evaluator:
             starts = {tuple(np.array(self.bank['cases'][i]['board']).ravel()) for i in ids}
             return dict(cases=len(r),wins=int((r==1).sum()),draws=int((r==0).sum()),losses=int((r==-1).sum()),
                 win_rate=float(np.mean(r==1)),draw_rate=float(np.mean(r==0)),loss_rate=float(np.mean(r==-1)),
-                score_rate=float(np.mean((r+1)/2)),unique_start_positions=len(starts),unique_game_paths=len(unique_paths))
+                score_rate=float(np.mean((r.astype(np.float64)+1)/2)),unique_start_positions=len(starts),unique_game_paths=len(unique_paths))
         return dict(eval_bank_hash=self.hash,cases=1000,independent_training_seeds=1,
             by_suite={s:stats(self.suites==s) for s in SUITES},
             by_suite_role_depth={f'{s}:{r}:{d}':stats((self.suites==s)&(self.roles==r)&(self.depths==d))

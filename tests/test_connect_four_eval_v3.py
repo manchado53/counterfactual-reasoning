@@ -161,3 +161,13 @@ def test_same_actions_same_foe_even_when_q_values_change():
     second=evaluator.evaluate(a*3+50)
     assert first==second
     np.testing.assert_array_equal(paths,evaluator.last_actions)
+
+
+def test_search_starts_in_fresh_processes():
+    import subprocess
+    import sys
+    code = "from training.learners.connect_four.minimax_eval import root_scores; import numpy as np; print(root_scores(np.zeros(42,np.int8),5).tolist())"
+    first = subprocess.run([sys.executable,'-c',code],capture_output=True,text=True,timeout=60)
+    second = subprocess.run([sys.executable,'-c',code],capture_output=True,text=True,timeout=60)
+    assert first.returncode == second.returncode == 0, first.stderr+second.stderr
+    assert first.stdout == second.stdout

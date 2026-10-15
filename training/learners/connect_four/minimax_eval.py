@@ -1,6 +1,8 @@
 """Fixed CPU minimax test foe. Search depth counts individual board moves.
 
 Integer, symmetric window heuristic; exact root scores, alpha-beta below root.
+Disk caching is disabled: recursive Numba symbols are not safe to reload
+across these cluster hosts. Each process compiles its own search.
 Only tied best root moves are randomized. No shared or training RNG is used.
 """
 import numpy as np
@@ -18,7 +20,7 @@ SPEC = dict(version='minimax-window-v1', depths=[1,2,3,4,5],
             search='negamax-alpha-beta-full-window-each-root', depth_unit='board-ply')
 
 
-@njit(cache=True)
+@njit(cache=False)
 def won(board, player):
     for window in WINDOWS:
         count = 0
@@ -29,7 +31,7 @@ def won(board, player):
     return False
 
 
-@njit(cache=True)
+@njit(cache=False)
 def heuristic(board, player):
     score = 0
     weights = (0,1,4,16)
@@ -47,7 +49,7 @@ def heuristic(board, player):
     return score
 
 
-@njit(cache=True)
+@njit(cache=False)
 def _search(board, player, depth, alpha, beta):
     if not np.any(board[:7] == 0):
         return 0
@@ -74,7 +76,7 @@ def _search(board, player, depth, alpha, beta):
     return best
 
 
-@njit(cache=True)
+@njit(cache=False)
 def root_scores(board, depth):
     scores = np.full(7, -1000000, dtype=np.int64)
     for col in ORDER:
@@ -91,7 +93,7 @@ def root_scores(board, depth):
     return scores
 
 
-@njit(cache=True)
+@njit(cache=False)
 def batch_scores(boards, depths, active):
     result = np.full((len(boards),7), -1000000, dtype=np.int64)
     for i in range(len(boards)):
