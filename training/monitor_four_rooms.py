@@ -24,9 +24,17 @@ def scheduler_states(job):
     return states
 
 
-def monitor(root,job,interval,study_dir='runs/four-rooms',budget=524288):
+def monitor(root,job,interval,study_dir='runs/four-rooms',budget=524288,tasks=15,reference_runs=None):
     from analysis.studies.four_rooms import read_jsonl,report
     base=root/study_dir;dest=base/'monitor';dest.mkdir(parents=True,exist_ok=True)
+    if tasks < 1 or budget < 1:
+        raise ValueError('Positive task count and budget required')
+    def refresh():
+        if reference_runs is None:
+            report(base/'full',base/'report')
+        else:
+            from analysis.studies.four_rooms_single import report as single_report
+            single_report(base/'full',reference_runs,base/'report')
     state_file=dest/'state.json'
     saved=json.loads(state_file.read_text()) if state_file.exists() else {}
     seen=set(saved.get('seen',[]))
@@ -40,7 +48,7 @@ def monitor(root,job,interval,study_dir='runs/four-rooms',budget=524288):
         try:
             sched=scheduler_states(job)
             progress={}; attempts={}
-            for task in range(15):
+            for task in range(tasks):
                 folder=base/'full'/f'task_{task}'
                 logs=read_jsonl(folder/'progress.jsonl')
                 progress[task]=logs[-1]['env_steps'] if logs else 0
@@ -54,19 +62,19 @@ def monitor(root,job,interval,study_dir='runs/four-rooms',budget=524288):
                 if status=='failed' or scheduler in {'FAILED','CANCELLED','TIMEOUT','OUT_OF_MEMORY','NODE_FAIL','PREEMPTED','BOOT_FAIL'}:
                     kind='startup_failure' if progress[task]==0 else 'job_failure'
                     event(f'failure-{task}',kind,dict(task=task,scheduler=scheduler,error=rec.get('error')))
-            fraction=sum(progress.values())/(15*budget)
+            fraction=sum(progress.values())/(tasks*budget)
             changed=False
             for percent in (25,50,75,100):
                 key=f'milestone-{percent}'
                 if fraction>=percent/100 and key not in seen:
                     event(key,'progress',dict(percent=percent,steps=progress));changed=True
             terminal={'COMPLETED','FAILED','CANCELLED','TIMEOUT','OUT_OF_MEMORY','NODE_FAIL','PREEMPTED','BOOT_FAIL'}
-            finished=len(sched)==15 and all(x['state'] in terminal for x in sched.values())
+            finished=len(sched)==tasks and all(x['state'] in terminal for x in sched.values())
             if changed or finished:
-                report(base/'full',base/'report')
+                refresh()
             if finished:
                 completed=sum(x.get('status')=='completed' for x in attempts.values())
-                event('finished','completion',dict(completed=completed,total=15,report=str(base/'report')))
+                event('finished','completion',dict(completed=completed,total=tasks,report=str(base/'report')))
             tmp=state_file.with_suffix('.tmp')
             tmp.write_text(json.dumps(dict(pid=os.getpid(),job=job,seen=sorted(seen),
                 progress=progress,scheduler=sched,finished=finished),indent=2));tmp.replace(state_file)
@@ -81,4 +89,6 @@ if __name__=='__main__':
     p.add_argument('--job',type=int,required=True);p.add_argument('--interval',type=int,default=120)
     p.add_argument('--study-dir',default='runs/four-rooms')
     p.add_argument('--budget',type=int,default=524288)
-    a=p.parse_args();monitor(a.root,a.job,a.interval,a.study_dir,a.budget)
+    p.add_argument('--tasks',type=int,default=15)
+    p.add_argument('--reference-runs',type=Path)
+    a=p.parse_args();monitor(a.root,a.job,a.interval,a.study_dir,a.budget,a.tasks,a.reference_runs)
