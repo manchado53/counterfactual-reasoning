@@ -53,27 +53,36 @@ def load_runs(root):
     return runs,statuses
 
 
-def draw_map(out):
+def draw_map(out, room_scale=1):
     # Read-only source constants; loading this module imports JAX, never a device.
-    from training.envs.four_rooms import LAYOUT, DOORS
-    walls=np.array([[c=='#' for c in row] for row in LAYOUT])
+    from training.envs.four_rooms import scaled_layout
+    layout, doors = scaled_layout(room_scale)
+    walls=np.array([[c=='#' for c in row] for row in layout])
     fig,ax=plt.subplots(figsize=(6,6))
     ax.imshow(walls,cmap='Greys',vmin=0,vmax=1)
-    for r,c in DOORS:
+    for r,c in doors:
         ax.add_patch(plt.Rectangle((c-.5,r-.5),1,1,facecolor='#f8cd62'))
         ax.text(c,r,'D',ha='center',va='center',fontsize=12)
-    for r,c,label,color in [(1,1,'S','#2878b5'),(9,9,'G','#25976a')]:
-        ax.scatter(c,r,s=390,color=color)
+    for r,c,label,color in [(1,1,'S','#2878b5'),(7*room_scale+2,7*room_scale+2,'G','#25976a')]:
+        ax.scatter(c,r,s=390*(13/len(layout))**2,color=color)
         ax.text(c,r,label,ha='center',va='center',color='white',weight='bold')
-    ax.set_xticks(np.arange(-.5,13,1),minor=True);ax.set_yticks(np.arange(-.5,13,1),minor=True)
+    ax.set_xticks(np.arange(-.5,len(layout),1),minor=True);ax.set_yticks(np.arange(-.5,len(layout),1),minor=True)
     ax.grid(which='minor',alpha=.2);ax.set_xticks([]);ax.set_yticks([])
-    ax.set_title('Sparse Four Rooms\nS=start, G=goal, D=door; cap 200 steps')
+    ax.set_title(f'Sparse Four Rooms — room scale {room_scale}×\nS=start, G=goal, D=door; cap 200 steps')
     fig.savefig(out/'map.png',dpi=180,bbox_inches='tight');plt.close(fig)
 
 
-def report(root,out):
+def report(root,out,room_scale=None):
     out.mkdir(parents=True,exist_ok=True)
-    draw_map(out)
+    scales={json.loads(p.read_text())['resolved_config'].get('room_scale',1)
+            for p in root.glob('*/attempt.json')}
+    if len(scales)>1:
+        raise ValueError('Mixed room scales in report')
+    if room_scale is None:
+        room_scale=next(iter(scales),1)
+    elif scales and scales != {room_scale}:
+        raise ValueError('Requested room scale differs from logs')
+    draw_map(out, room_scale)
     runs,statuses=load_runs(root)
     for metric,title,name in [('success_rate','Goal success rate','success'),
                               ('successful_length','Successful episode length','successful-length')]:
@@ -158,5 +167,5 @@ def report(root,out):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--runs',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
-    a=p.parse_args();report(a.runs,a.out)
+    p=argparse.ArgumentParser();p.add_argument('--runs',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--room-scale',type=int,choices=(1,2))
+    a=p.parse_args();report(a.runs,a.out,a.room_scale)

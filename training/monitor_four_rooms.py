@@ -24,9 +24,9 @@ def scheduler_states(job):
     return states
 
 
-def monitor(root,job,interval):
+def monitor(root,job,interval,study_dir='runs/four-rooms',budget=524288):
     from analysis.studies.four_rooms import read_jsonl,report
-    base=root/'runs/four-rooms';dest=base/'monitor';dest.mkdir(parents=True,exist_ok=True)
+    base=root/study_dir;dest=base/'monitor';dest.mkdir(parents=True,exist_ok=True)
     state_file=dest/'state.json'
     saved=json.loads(state_file.read_text()) if state_file.exists() else {}
     seen=set(saved.get('seen',[]))
@@ -54,7 +54,7 @@ def monitor(root,job,interval):
                 if status=='failed' or scheduler in {'FAILED','CANCELLED','TIMEOUT','OUT_OF_MEMORY','NODE_FAIL','PREEMPTED','BOOT_FAIL'}:
                     kind='startup_failure' if progress[task]==0 else 'job_failure'
                     event(f'failure-{task}',kind,dict(task=task,scheduler=scheduler,error=rec.get('error')))
-            fraction=sum(progress.values())/(15*524288)
+            fraction=sum(progress.values())/(15*budget)
             changed=False
             for percent in (25,50,75,100):
                 key=f'milestone-{percent}'
@@ -79,4 +79,6 @@ def monitor(root,job,interval):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True)
     p.add_argument('--job',type=int,required=True);p.add_argument('--interval',type=int,default=120)
-    a=p.parse_args();monitor(a.root,a.job,a.interval)
+    p.add_argument('--study-dir',default='runs/four-rooms')
+    p.add_argument('--budget',type=int,default=524288)
+    a=p.parse_args();monitor(a.root,a.job,a.interval,a.study_dir,a.budget)
