@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 
 ARMS = ('uniform', 'rank_per', 'cce')
+SUPPORTED_ARMS = ARMS + ('proportional_per',)
 
 
 def config_for(arm, seed, room_scale=1):
@@ -21,6 +22,9 @@ def config_for(arm, seed, room_scale=1):
         early_stop_win_rate=None)
     if room_scale != 1:
         config.update(room_scale=room_scale, protocol='sparse-four-rooms-2x-v1')
+    if arm == 'proportional_per':
+        # Shared Eq. 2 with raw TD, and Eq. 4 with zero CCE contribution.
+        config.update(normalise_priorities='none', priority_mixing='additive', mu=0.)
     return config
 
 
@@ -30,7 +34,7 @@ def smoke_overrides(config):
 
 
 def validate_config(config):
-    if config.get('arm') not in ARMS or type(config.get('seed')) is not int or config['seed'] not in range(5):
+    if config.get('arm') not in SUPPORTED_ARMS or type(config.get('seed')) is not int or config['seed'] not in range(5):
         raise ValueError('Unknown arm or seed')
     expected = config_for(config['arm'], config['seed'], config.get('room_scale', 1))
     smoke = dict(expected, **smoke_overrides(expected))

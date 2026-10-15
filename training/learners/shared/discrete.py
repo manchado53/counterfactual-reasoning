@@ -92,7 +92,7 @@ class DiscreteAgent:
         self.buffer = SelectionReplayBuffer(capacity=c['buffer_capacity'], eps=per['eps'],
             beta=per['beta'], max_priority=per['maximum_priority'], selection=c['arm'],
             rank_alpha=per['beta'], priority_mixing=c['priority_mixing'],
-            mu=c['mu'], mu_c=c['mu_c'], mu_delta=c['mu_delta'], normalise_priorities='rank')
+            mu=c['mu'], mu_c=c['mu_c'], mu_delta=c['mu_delta'], normalise_priorities=c['normalise_priorities'])
         self.update_fn = build_update(self.network, self.optimizer, c['gamma'])
         self.branch_fn = build_branches(env, c['cf_horizon'], c['cf_gamma'])
         self.all_obs = jax.vmap(env.get_obs)(jnp.arange(env.n_states, dtype=jnp.int32))
