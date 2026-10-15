@@ -14,3 +14,6 @@ evaluation design as the 12x12 study.
 
 Run `smoke.sbatch` first. Then run `gate.sbatch` for seed 0 of all three arms.
 The full 15-task recipe is kept ready for expansion after the difficulty gate.
+
+If H100 jobs cannot start, use `smoke-t4.sbatch` and `gate-t4.sbatch`. These
+run the same three tasks and recipe on the `batch` T4 partition.
