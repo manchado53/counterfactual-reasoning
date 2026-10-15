@@ -82,3 +82,13 @@ Rebuild with:
 ```bash
 python -m analysis.studies.four_rooms_feasibility --out experiments/four_rooms/cce-transfer-2x/feasibility.json
 ```
+
+## Validation before full launch
+
+45 tests passed, including the original 1× protocol, the 2× geometry and time
+cap, movement probabilities, shared evaluation bank, replay-arm parity, shared
+learning/replay seams and report checks. All three CPU smokes completed.
+GPU smoke array **284091**, tasks 0,1,2, completed on T4 (`cuda:0`) with exit 0.
+Each smoke collected 384 transitions and made 16 updates; CCE scored 384/384.
+`validation.json` preserves the smoke bank and source-bundle hashes.
+These gates establish runnable code, not learned performance on the full study.
