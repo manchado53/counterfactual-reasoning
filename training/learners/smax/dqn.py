@@ -17,7 +17,8 @@ import jax.numpy as jnp
 import optax
 
 from .policies import CentralizedQNetwork
-from ._historical.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
+from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
 from .config import DEFAULT_CONFIG
 from ._historical.metrics import MetricsLogger
 from training.envs.smax import (
@@ -147,21 +148,24 @@ class DQN:
             def loss_fn(p):
                 # Current Q-values
                 q_values = jax.vmap(network.apply, in_axes=(None, 0))(p, states)
-                # Gather Q-values for taken actions
-                q_taken = jnp.take_along_axis(
-                    q_values, actions[:, :, None], axis=-1
-                ).squeeze(-1)  # (B, num_agents)
-                q_taken = q_taken.sum(axis=-1)  # (B,)
-
-                # Target Q-values
                 next_q = jax.vmap(network.apply, in_axes=(None, 0))(target_params, next_states)
-                next_q = jnp.where(next_masks, next_q, -jnp.inf)
-                max_next_q = next_q.max(axis=-1).sum(axis=-1)  # (B,)
-                targets = rewards + gamma * max_next_q * (1.0 - dones)
-
-                # Weighted MSE loss
-                td_errors = targets - q_taken
-                loss = jnp.mean(weights * td_errors ** 2)
+                targets = q_learning_targets(
+                    rewards,
+                    dones > 0,
+                    next_q,
+                    next_q,
+                    gamma,
+                    double_dqn=False,
+                    legal_actions=next_masks,
+                    reduce_action_axes=True,
+                )
+                loss, td_errors, _ = weighted_td_loss(
+                    q_values,
+                    actions,
+                    targets,
+                    weights,
+                    reduce_action_axes=True,
+                )
                 return loss, td_errors
 
             (loss, td_errors), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)

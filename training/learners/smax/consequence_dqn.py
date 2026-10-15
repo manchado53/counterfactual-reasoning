@@ -15,14 +15,14 @@ import jax.numpy as jnp
 from tqdm import tqdm
 
 from .dqn import DQN
-from ._historical.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
 from training.learners.smax._historical.smax_utils import get_valid_actions_mask
 from training.learners.smax._historical.smax_jax_utils import jax_actions_array_to_dict, jax_sum_rewards
 from training.learners.smax._historical.action_selection import (
     beam_search_top_k_joint_actions,
     convert_mask_to_indices,
 )
-from training.learners.smax._historical.score_metrics import compute_consequence_metric
+from counterfactual_rl.scoring.metrics import compute_consequence_metric
 from ._historical.metrics import MetricsLogger
 from ._historical.consequence_diagnostics import ConsequenceDiagnostics
 from training.envs.smax import (

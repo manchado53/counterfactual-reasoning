@@ -37,9 +37,9 @@ import jax.numpy as jnp
 import numpy as np
 
 from .dqn import CVRPNeuralDQN, MASK_VALUE
-from ._historical.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
 from ._historical.cf_rollout import build_rollout_fn
-from training.learners.rpdqn._historical.score_metrics import compute_consequence_metric
+from counterfactual_rl.scoring.metrics import compute_consequence_metric
 
 
 class CVRPNeuralConsequenceDQN(CVRPNeuralDQN):

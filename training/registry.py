@@ -7,6 +7,7 @@ from pathlib import Path
 CURRENT_ENVIRONMENTS = ("jaxnav", "frozenlake", "doorkey", "connect_four")
 HISTORICAL_ENVIRONMENTS = ("smax", "chess", "cvrp", "rpdqn", "cvrp_budget")
 ENVIRONMENTS = CURRENT_ENVIRONMENTS + HISTORICAL_ENVIRONMENTS
+SHARED_LEARNING_ENVIRONMENTS = ENVIRONMENTS
 
 
 @dataclass(frozen=True)

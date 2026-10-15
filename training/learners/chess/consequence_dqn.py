@@ -25,12 +25,12 @@ import pgx
 from tqdm import tqdm
 
 from .dqn import ChessDQN
-from .array_buffer import ChessArrayReplayBuffer
+from counterfactual_rl.replay.array_buffer import ArrayReplayBuffer
 from training.learners.chess._historical.action_selection import (
     beam_search_top_k_joint_actions,
     convert_mask_to_indices,
 )
-from training.learners.chess._historical.score_metrics import compute_consequence_metric
+from counterfactual_rl.scoring.metrics import compute_consequence_metric
 from ._historical.consequence_diagnostics import ConsequenceDiagnostics
 
 
@@ -48,7 +48,7 @@ class ChessConsequenceDQN(ChessDQN):
         super().__init__(env, env_info, config)
 
         per_params = self.config.get('PER_parameters', {})
-        self.buffer = ChessArrayReplayBuffer(
+        self.buffer = ArrayReplayBuffer(
             capacity=self.config.get('M', 200000),
             obs_dim=self.obs_dim,
             eps=per_params.get('eps', 0.01),

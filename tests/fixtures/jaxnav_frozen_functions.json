@@ -23,7 +23,17 @@
   },
   "src/counterfactual_rl/learning/td.py": {
     "reference": "shared-learning-core migration",
-    "source_sha256": "62a03c18d6760d7bb75beb1fd8a3b2f416cf68a9a9fba1a0fa283f941e5f5e5f",
+    "source_sha256": "23a34f9905c5e75ed01e0057a6f62645c3fa7b773ad7d684cc61e481eab15fbd",
+    "approved_divergences": {
+      "q_learning_targets": {
+        "sha256": "4acb86bb1ad249597221504b2726550f8e297ee40f0449dcac21b5cb52682755",
+        "reason": "Support summed multi-agent action values behind an opt-in flag; the default JaxNav path remains exactly parity-tested."
+      },
+      "weighted_td_loss": {
+        "sha256": "1c41719d514c07b5d99ea098ce6296513e42c8007e48500bbc9fb51a959299e2",
+        "reason": "Support summed multi-agent chosen values behind an opt-in flag; the default JaxNav path remains exactly parity-tested."
+      }
+    },
     "functions": {
       "q_learning_targets": "7e889a72e19215550ded857f66d00bb80b564c03d1b879541c17959757d2e520",
       "weighted_td_loss": "a1e4aa19535f652971b5717ea641b9b5351f1c418a3e010e9570bcb9636b9f11"

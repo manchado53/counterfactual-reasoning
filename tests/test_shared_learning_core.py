@@ -8,9 +8,10 @@ from scipy.stats import wasserstein_distance
 
 from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
 from counterfactual_rl.replay.decay import DecayBuffer, blend_weight
+from counterfactual_rl.replay.array_buffer import ArrayReplayBuffer
 from counterfactual_rl.scoring.metrics import compute_consequence_metric
 from counterfactual_rl.scoring.weighted_wasserstein import weighted_wasserstein_scores
-from training.registry import CURRENT_ENVIRONMENTS
+from training.registry import CURRENT_ENVIRONMENTS, SHARED_LEARNING_ENVIRONMENTS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,6 +87,71 @@ def test_weighted_td_loss_returns_one_shared_td_definition():
     np.testing.assert_array_equal(loss, np.array(17.0))
 
 
+def test_shared_td_reduces_multi_agent_action_values():
+    rewards = jnp.array([1.0, 2.0])
+    terminated = jnp.array([False, True])
+    online_next = jnp.array([
+        [[1.0, 4.0], [3.0, 2.0]],
+        [[5.0, 1.0], [2.0, 7.0]],
+    ])
+    target_next = online_next + 1.0
+    targets = q_learning_targets(
+        rewards,
+        terminated,
+        online_next,
+        target_next,
+        0.5,
+        double_dqn=False,
+        reduce_action_axes=True,
+    )
+    np.testing.assert_array_equal(targets, np.array([5.5, 2.0]))
+
+    q_values = jnp.array([
+        [[1.0, 2.0], [3.0, 4.0]],
+        [[5.0, 6.0], [7.0, 8.0]],
+    ])
+    actions = jnp.array([[1, 0], [0, 1]])
+    loss, td, chosen = weighted_td_loss(
+        q_values,
+        actions,
+        jnp.array([10.0, 20.0]),
+        jnp.ones(2),
+        reduce_action_axes=True,
+    )
+    np.testing.assert_array_equal(chosen, np.array([5.0, 13.0]))
+    np.testing.assert_array_equal(td, np.array([5.0, 7.0]))
+    np.testing.assert_array_equal(loss, np.array(37.0))
+
+
+def test_array_replay_inserts_at_largest_observed_td_priority():
+    buffer = ArrayReplayBuffer(
+        capacity=4,
+        obs_dim=2,
+        mask_dim=2,
+        eps=0.01,
+        beta=0.25,
+        max_priority=1.0,
+    )
+
+    def add(value):
+        buffer.add_batch(
+            obs=np.full((1, 2), value, dtype=np.float32),
+            next_obs=np.full((1, 2), value + 1, dtype=np.float32),
+            actions=np.zeros(1, dtype=np.int32),
+            rewards=np.zeros(1, dtype=np.float32),
+            dones=np.zeros(1, dtype=bool),
+            masks=np.ones((1, 1, 2), dtype=bool),
+            next_masks=np.ones((1, 1, 2), dtype=bool),
+        )
+
+    add(0)
+    buffer.update_priorities(np.array([0]), np.array([7.0]))
+    add(1)
+
+    assert buffer.max_priority == 7.0
+    assert buffer.td_magnitudes[1] == 7.0
+
+
 def _current_source_files(environment):
     root = ROOT / "training/learners" / environment
     return [
@@ -158,6 +224,38 @@ def test_current_environments_do_not_copy_learning_math_or_import_frozen_code():
             if path.name not in historical_adapters:
                 assert not frozen_imports, (path, frozen_imports)
             assert not direct_wasserstein, path
+
+
+def test_every_runnable_environment_uses_shared_learning_modules():
+    for environment in SHARED_LEARNING_ENVIRONMENTS:
+        modules = set()
+        calls = set()
+        forbidden_learning_imports = set()
+        for path in _current_source_files(environment):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    modules.add(node.module)
+                    if node.module.endswith((
+                        "._historical.buffers",
+                        "._historical.consequence_buffers",
+                        "._historical.score_metrics",
+                    )):
+                        forbidden_learning_imports.add(node.module)
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    calls.add(node.func.id)
+
+        assert "counterfactual_rl.learning.td" in modules, environment
+        assert {"q_learning_targets", "weighted_td_loss"} <= calls, environment
+        assert any(
+            module in modules
+            for module in (
+                "counterfactual_rl.replay.buffers",
+                "counterfactual_rl.replay.array_buffer",
+            )
+        ), environment
+        assert any(module.startswith("counterfactual_rl.scoring") for module in modules), environment
+        assert not forbidden_learning_imports, (environment, forbidden_learning_imports)
 
 
 def test_weighted_wasserstein_uses_action_weights_and_excludes_taken_action():

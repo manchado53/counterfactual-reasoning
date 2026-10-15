@@ -20,6 +20,7 @@ def q_learning_targets(
     *,
     double_dqn: bool,
     legal_actions=None,
+    reduce_action_axes: bool = False,
 ):
     """Return stopped Q-learning targets.
 
@@ -37,13 +38,21 @@ def q_learning_targets(
     if legal_actions is not None:
         has_legal_action = jnp.any(legal_actions, axis=-1)
         next_values = jnp.where(has_legal_action, next_values, jnp.nan)
+    if reduce_action_axes:
+        while next_values.ndim > rewards.ndim:
+            next_values = jnp.sum(next_values, axis=-1)
     targets = rewards + gamma * jnp.where(terminated, 0.0, next_values)
     return jax.lax.stop_gradient(targets)
 
 
-def weighted_td_loss(q_values, actions, targets, weights):
+def weighted_td_loss(
+    q_values, actions, targets, weights, *, reduce_action_axes: bool = False
+):
     """Return weighted squared loss, signed TD errors, and chosen Q values."""
     chosen_q = jnp.take_along_axis(q_values, actions[..., None], axis=-1)[..., 0]
+    if reduce_action_axes:
+        while chosen_q.ndim > targets.ndim:
+            chosen_q = jnp.sum(chosen_q, axis=-1)
     td_errors = targets - chosen_q
     loss = jnp.mean(weights * td_errors**2)
     return loss, td_errors, chosen_q
