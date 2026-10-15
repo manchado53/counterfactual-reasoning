@@ -18,6 +18,8 @@ import optax
 
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
 from counterfactual_rl.replay.decay import DecayBuffer, blend_weight
+from counterfactual_rl.learning.td import q_learning_targets
+from counterfactual_rl.scoring import weighted_wasserstein_scores
 from training.envs.doorkey_procedural import (
     FORWARD,
     LEFT,
@@ -27,7 +29,6 @@ from training.envs.doorkey_procedural import (
     DoorKeyState,
     ProceduralDoorKey,
 )
-from .adapter import ddqn_targets, weighted_scores
 
 
 class Carry(NamedTuple):
@@ -267,7 +268,14 @@ class ProceduralAgent:
         next_online = self.net.apply(params, ns)
         next_target = self.net.apply(target, ns)
         targets = jax.lax.stop_gradient(
-            ddqn_targets(next_online, next_target, r, done, gamma=self.config["gamma"])
+            q_learning_targets(
+                r,
+                done,
+                next_online,
+                next_target,
+                self.config["gamma"],
+                double_dqn=True,
+            )
         )
 
         def loss_fn(values):
@@ -389,7 +397,9 @@ class ProceduralAgent:
                 self.net.apply(self.params, jnp.asarray(transitions["s"][lo:hi])) /
                 self.config["cf_action_prob_temperature"], axis=-1
             ))
-            scores = weighted_scores(returns, probabilities, transitions["a"][lo:hi])
+            scores = weighted_wasserstein_scores(
+                returns, probabilities, transitions["a"][lo:hi]
+            )
             if not np.isfinite(scores).all():
                 raise FloatingPointError("Non-finite CCE score")
             self.buffer.update_consequence_scores(

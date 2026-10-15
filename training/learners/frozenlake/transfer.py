@@ -2,11 +2,11 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from scipy.stats import wasserstein_distance
 
 from .dqn_vectorized import FrozenLakeDQNVectorized
 from .consequence_dqn_vectorized import FrozenLakeConsequenceDQNVectorized
 from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.scoring.weighted_wasserstein import weighted_wasserstein_scores
 
 
 def build_return_sampler(env, horizon, gamma):
@@ -31,16 +31,12 @@ def score_table(returns, action_probs):
     """Weighted alternative-action Wasserstein distance, excluding taken action."""
     n_states, n_actions, _ = returns.shape
     result = np.zeros((n_states, n_actions), dtype=np.float64)
-    for s in range(n_states):
-        distances = np.zeros((n_actions, n_actions))
-        for a in range(n_actions):
-            for b in range(a):
-                distances[a, b] = distances[b, a] = wasserstein_distance(returns[s, a], returns[s, b])
-        for a in range(n_actions):
-            weights = np.asarray(action_probs[s], dtype=np.float64).copy()
-            weights[a] = 0.
-            result[s, a] = (np.dot(weights, distances[a]) / weights.sum() if weights.sum() > 0
-                            else np.mean(np.delete(distances[a], a)))
+    for action in range(n_actions):
+        result[:, action] = weighted_wasserstein_scores(
+            returns,
+            action_probs,
+            np.full(n_states, action, dtype=np.int64),
+        )
     return result
 
 

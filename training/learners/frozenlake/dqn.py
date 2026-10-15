@@ -22,6 +22,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
 from counterfactual_rl.agents.shared.timing import TrainingTimer
 from .config import DEFAULT_CONFIG
 from training.envs.frozenlake import FrozenLakeEnv
@@ -216,14 +217,14 @@ class FrozenLakeDQN:
                         states, actions, rewards, next_states, dones, weights):
             def loss_fn(p):
                 q = jax.vmap(network.apply, in_axes=(None, 0))(p, states)          # (B, 4)
-                q_taken = q[jnp.arange(q.shape[0]), actions]                        # (B,)
-                next_q = jax.vmap(
+                next_q_target = jax.vmap(
                     network.apply, in_axes=(None, 0)
                 )(target_params, next_states)                                        # (B, 4)
-                max_next_q = next_q.max(axis=-1)                                     # (B,)
-                targets = rewards + gamma * max_next_q * (1.0 - dones)
-                td_errors = targets - q_taken
-                loss = jnp.mean(weights * td_errors ** 2)
+                targets = q_learning_targets(
+                    rewards, dones, next_q_target, next_q_target, gamma,
+                    double_dqn=False,
+                )
+                loss, td_errors, _ = weighted_td_loss(q, actions, targets, weights)
                 return loss, td_errors
 
             (_, td_errors), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)

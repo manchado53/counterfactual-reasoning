@@ -8,7 +8,6 @@ from typing import NamedTuple
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from training.envs.doorkey import DoorKeyEnv
 
@@ -36,35 +35,6 @@ def initial_carry(n_envs):
     zeros = jnp.zeros(n_envs, dtype=jnp.int32)
     return Carry(zeros, zeros, jnp.zeros(n_envs, dtype=bool),
                  jnp.zeros(n_envs, dtype=jnp.float32), zeros)
-
-
-def ddqn_targets(online_next, target_next, rewards, terminated, gamma=.99):
-    actions = jnp.argmax(online_next, axis=-1)
-    value = jnp.take_along_axis(target_next, actions[..., None], axis=-1)[..., 0]
-    return rewards + gamma * jnp.where(terminated, 0., value)
-
-
-def weighted_scores(returns, probabilities, taken):
-    """Source N=1 Wasserstein, float64 subtraction and ordered accumulation."""
-    r = np.asarray(returns, dtype=np.float64)
-    p = np.asarray(probabilities)
-    taken = np.asarray(taken, dtype=int)
-    reference = r[np.arange(len(r)), taken]
-    num, den = np.zeros(len(r)), np.zeros(len(r))
-    n_actions = r.shape[1]
-    if p.shape != r.shape:
-        raise ValueError(f"Return/probability shape mismatch: {r.shape} != {p.shape}")
-    for action in range(n_actions):
-        alt = taken != action
-        weight = p[:, action].astype(np.float64)
-        num = np.where(alt, num + weight * np.abs(reference - r[:, action]), num)
-        den = np.where(alt, den + weight, den)
-    result = np.divide(num, den, out=np.zeros_like(num), where=den > 0)
-    for i in np.flatnonzero(den <= 0):
-        result[i] = np.mean(
-            [abs(reference[i] - r[i, a]) for a in range(n_actions) if a != taken[i]]
-        )
-    return result
 
 
 class DoorKeyAdapter:

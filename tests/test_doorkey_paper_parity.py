@@ -75,11 +75,11 @@ def test_paper_network_is_spatial_and_outputs_five_actions():
 
 
 def test_cce_weighted_score_accepts_the_five_action_paper_space():
-    from training.learners.doorkey.adapter import weighted_scores
+    from counterfactual_rl.scoring import weighted_wasserstein_scores
 
     returns = np.array([[0., 1., 2., 3., 4.], [4., 3., 2., 1., 0.]])
     probabilities = np.full((2, 5), .2)
-    scores = weighted_scores(returns, probabilities, np.array([0, 4]))
+    scores = weighted_wasserstein_scores(returns, probabilities, np.array([0, 4]))
     np.testing.assert_allclose(scores, [2.5, 2.5])
 
 
