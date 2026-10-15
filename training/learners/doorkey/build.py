@@ -9,6 +9,8 @@ from .config import (
     decay_transfer_config,
     PROCEDURAL_BENCHMARK_ARMS,
     PAPER_PARITY_ARMS,
+    FULLSTATE_16X16_ARMS,
+    fullstate_16x16_config,
     paper_parity_config,
     procedural_benchmark_config,
 )
@@ -21,6 +23,17 @@ def resolved_config(arm, seed):
 
 
 def validate_config(config):
+    if config.get('protocol') == 'doorkey-fullstate-16x16':
+        if config.get('arm') not in FULLSTATE_16X16_ARMS:
+            raise ValueError('Unsupported full-state 16x16 DoorKey arm')
+        expected = fullstate_16x16_config(config['arm'], config.get('seed'))
+        if config.get('_smoke_profile') is True:
+            expected.update(smoke_overrides(expected))
+        if config != expected:
+            changed = sorted(key for key in set(config) | set(expected)
+                             if config.get(key) != expected.get(key))
+            raise ValueError(f'Full-state 16x16 DoorKey config drift: {changed}')
+        return config
     if config.get('protocol') == 'doorkey-vlmrb-paper-parity':
         if config.get('arm') not in PAPER_PARITY_ARMS:
             raise ValueError('Unsupported paper-parity DoorKey arm')
@@ -147,7 +160,7 @@ def smoke_overrides(config):
             decay_end=192,
             _smoke_profile=True,
         )
-    if config['protocol'] == 'doorkey-vlmrb-paper-parity':
+    if config['protocol'] in ('doorkey-vlmrb-paper-parity', 'doorkey-fullstate-16x16'):
         return dict(
             n_envs=4,
             collect_steps=4,
@@ -177,7 +190,7 @@ def evaluation_axis(config):
 
 
 def simulator_sources(config):
-    if config['protocol'] in ('procedural-doorkey-12x12', 'doorkey-vlmrb-paper-parity'):
+    if config['protocol'] in ('procedural-doorkey-12x12', 'doorkey-vlmrb-paper-parity', 'doorkey-fullstate-16x16'):
         name = 'doorkey_procedural.py'
     else:
         name = 'doorkey_legacy.py' if config['protocol'] == 'legacy-doorkey' else 'doorkey.py'
@@ -187,7 +200,7 @@ def simulator_sources(config):
 def build_agent(config):
     validate_config(config)
     config = deepcopy(config)
-    if config['protocol'] in ('procedural-doorkey-12x12', 'doorkey-vlmrb-paper-parity'):
+    if config['protocol'] in ('procedural-doorkey-12x12', 'doorkey-vlmrb-paper-parity', 'doorkey-fullstate-16x16'):
         from .procedural_runner import ProceduralAgent
         return ProceduralAgent(config)
     if config['protocol'] == 'legacy-doorkey':

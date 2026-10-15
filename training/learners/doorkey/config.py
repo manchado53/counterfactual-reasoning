@@ -5,6 +5,7 @@ ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
 DECAY_TRANSFER_ARMS = ('uniform', 'per', 'cce_decay')
 PROCEDURAL_BENCHMARK_ARMS = ('uniform', 'per', 'cce_decay')
 PAPER_PARITY_ARMS = ('uniform', 'per', 'cce_decay')
+FULLSTATE_16X16_ARMS = PAPER_PARITY_ARMS
 
 # Every field here is copied verbatim from task 33 of the JaxNav ranked-TD
 # decay recipe: fixed collector, CCE-only, decay enabled, seed 0. Tests compare
@@ -199,6 +200,19 @@ def paper_parity_config(arm, seed):
         paper_unspecified_choices=['buffer_capacity', 'cnn_channels', 'embedding_dims', 'head_hidden_dim'],
         experiment='doorkey_vlmrb_paper_parity_20261014',
     )
+
+
+def fullstate_16x16_config(arm, seed):
+    """DoorKey 16x16 difficulty rung with the 12x12 learner held fixed."""
+    config = paper_parity_config(arm, seed)
+    config.update(
+        protocol='doorkey-fullstate-16x16',
+        size=16,
+        max_episode_steps=2560,
+        eval_max_steps=2560,
+        experiment='doorkey_fullstate_16x16_20261014',
+    )
+    return config
 
 
 def decay_transfer_config(arm, seed, layout_name):
