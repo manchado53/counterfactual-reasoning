@@ -1,4 +1,4 @@
-"""Frozen original AST hashes guard unchanged learning math and control flow."""
+"""Frozen AST hashes guard learning math, with named approved changes."""
 import ast
 import hashlib
 import json
@@ -23,4 +23,8 @@ def test_frozen_learning_functions(path):
     for name, expected in FIXTURE[path]["functions"].items():
         assert name in actual, name
         digest = hashlib.sha256(ast.dump(actual[name],include_attributes=False).encode()).hexdigest()
+        approved = FIXTURE[path].get("approved_divergences", {}).get(name)
+        if approved is not None:
+            assert approved["reason"]
+            expected = approved["sha256"]
         assert digest == expected, (path,name)

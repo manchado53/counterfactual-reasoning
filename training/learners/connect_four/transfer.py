@@ -11,7 +11,7 @@ import numpy as np
 import optax
 
 from training.envs import connect_four_transfer as task
-from ._source_shared.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
 from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
 
 ARMS = ("uniform", "per", "cce_mul", "cce_add", "cce_only")

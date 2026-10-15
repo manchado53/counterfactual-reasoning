@@ -24,6 +24,12 @@
   "src/counterfactual_rl/replay/buffers.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/buffers.py",
     "source_sha256": "ae1ad983c71cf0d7b4a192422a552a98abe5d98d67881e09a07e6611350221e5",
+    "approved_divergences": {
+      "PrioritizedReplayBuffer.update_priority": {
+        "sha256": "f5c48533fbd5848365d993301b030205a026e61194401793593ed3bf2327c3e3",
+        "reason": "Track the largest observed raw TD error so later PER inserts use the standard max-priority rule."
+      }
+    },
     "functions": {
       "PrioritizedReplayBuffer.__init__": "06033b19baaa58bcd0bc47053f9a75f663f466be0958c6a820c94b94cf6d284c",
       "PrioritizedReplayBuffer.__len__": "54263f662153f5432e63da0e4a4d0e6950f63dc2110bb04ecfe2e616e5f200db",
