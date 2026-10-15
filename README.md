@@ -49,10 +49,16 @@ runs use Wasserstein, because TV is always zero with a single rollout.
 
 ![CCE score](docs/figures/readme/eq/eq_cce_score.png)
 
-Here are steps 1 and 2 on real FrozenLake rollouts. At the top state, the taken action
-almost always reaches the goal, and the alternatives often fall in a hole (return 0), so the
-score is high. At the bottom state, every action usually ends in a hole, so the choice barely
-matters and the score is near zero.
+Here are steps 1 and 2 on real FrozenLake rollouts. The ice is slippery, so each action is
+tried 1,000 times from the boxed square.
+
+- **Top, next to the goal:** going right reaches the goal 98% of the time. Every other
+  action drops to about 64%. The choice matters, so the score is high (0.36).
+- **Bottom, between holes:** every action reaches the goal less than 10% of the time. The
+  choice barely changes anything, so the score is near zero (0.05).
+
+The bars show only the share of tries that reach the goal. The score itself compares the full
+spread of returns, which also accounts for how long each try takes.
 
 ![Steps 1 and 2 on FrozenLake: rollouts per action from a high-scoring and a low-scoring state, and their returns](docs/figures/readme/cce_core.png)
 

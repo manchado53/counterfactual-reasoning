@@ -18,7 +18,7 @@ Made by [`analysis/readme/make_readme_figs.py`](../../../analysis/readme/make_re
 
 | File | Source |
 |---|---|
-| `cce_core.png` | Fresh rollouts on FrozenLake 8x8 slippery: exact dynamics, greedy policy from value iteration, 1,000 rollouts per action, TV over 50 bins, seed 7 |
+| `cce_core.png` | Fresh rollouts on FrozenLake 8x8 slippery: exact dynamics, greedy policy from value iteration, 1,000 rollouts per action; bars = share reaching the goal, score = TV over 50 return bins; seed 7 |
 | `cce_priority.png` | Same setup, all 53 non-terminal states (300 rollouts each), ε = 0.01 |
 | `jaxnav_curve.png` | Raw `eval.jsonl` from runs 277734–277736 (Uniform), 277751–277753 (PER), 281092, 281093, 280874 (CCE + ranked-TD decay). SHA-256 matches `docs/media/demos/jaxnav_learning_curve.json`. Recomputed window means differ from that file by ≤0.4 points (binning); the README table quotes the file. |
 

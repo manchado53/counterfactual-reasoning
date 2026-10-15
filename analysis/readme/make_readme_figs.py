@@ -135,7 +135,7 @@ score_hi, rets_hi = cce_score(HIGH, n=1000)
 score_lo, rets_lo = cce_score(LOW, n=1000)
 
 
-def draw_map(ax, s, paths_by_action):
+def draw_map(ax, s):
     for r in range(N):
         for c in range(N):
             ch = MAP[r][c]
@@ -143,53 +143,53 @@ def draw_map(ax, s, paths_by_action):
             ax.add_patch(Rectangle((c, r), 1, 1, fc=fc, ec=LIGHT, lw=0.6))
             if ch == "G":
                 ax.text(c + .5, r + .5, "goal", ha="center", va="center", fontsize=7, color=INK)
-    taken = policy[s]
-    for a, paths in paths_by_action.items():
-        col = ACCENT if a == taken else GRAY
-        for p in paths:
-            rc = np.array([cell(x) for x in p], float)
-            jitter = rng.normal(0, 0.06, rc.shape)
-            ax.plot(rc[:, 1] + .5 + jitter[:, 1], rc[:, 0] + .5 + jitter[:, 0],
-                    color=col, lw=0.7, alpha=0.55 if a == taken else 0.35)
     r, c = cell(s)
-    ax.add_patch(Rectangle((c, r), 1, 1, fc="none", ec=ACCENT, lw=2))
+    ax.add_patch(Rectangle((c, r), 1, 1, fc="#fbe9e2", ec=ACCENT, lw=2))
+    taken = policy[s]
+    for a in range(4):
+        dr, dc = MOVES[a]
+        col = ACCENT if a == taken else GRAY
+        ax.annotate("", xy=(c + .5 + dc * .95, r + .5 + dr * .95), xytext=(c + .5, r + .5),
+                    arrowprops=dict(arrowstyle="-|>", color=col, lw=2.2 if a == taken else 1.2,
+                                    mutation_scale=11))
+    ax.text(0, N + 0.15, "black squares = holes", ha="left", va="top", fontsize=7, color=GRAY)
     ax.set_xlim(0, N); ax.set_ylim(N, 0); ax.set_aspect("equal"); ax.axis("off")
 
 
-def draw_returns(ax, s, rets, score):
+def draw_outcomes(ax, s, rets, score):
     taken = policy[s]
     order = [taken] + [a for a in range(4) if a != taken]
     for i, a in enumerate(order):
-        x = rets[a][:250]
-        y = np.full_like(x, -i) + rng.uniform(-0.28, 0.28, x.size)
-        ax.scatter(x, y, s=5, color=ACCENT if a == taken else GRAY, alpha=0.5, lw=0)
-        ax.text(-0.04, -i, ACTIONS[a] + (" (taken)" if a == taken else ""),
-                ha="right", va="center", fontsize=9,
-                color=ACCENT if a == taken else INK)
+        goal = (rets[a] > 0).mean()
+        col = ACCENT if a == taken else GRAY
+        ax.barh(-i, goal, color=col, height=0.6)
+        ax.barh(-i, 1 - goal, left=goal, color="#efefef", height=0.6)
+        ax.text(goal + 0.01 if goal < 0.85 else goal - 0.01, -i, f"{goal:.0%}",
+                ha="left" if goal < 0.85 else "right", va="center", fontsize=9,
+                color=INK if goal < 0.85 else "white")
+        ax.text(-0.02, -i, "go " + ACTIONS[a] + ("  (policy's pick)" if a == taken else ""),
+                ha="right", va="center", fontsize=9, color=ACCENT if a == taken else INK)
     ax.set_yticks([]); ax.spines["left"].set_visible(False)
-    ax.set_xlim(-0.02, 1.0); ax.set_ylim(-3.6, 0.6)
-    ax.set_xlabel("discounted return of each rollout")
-    ax.text(1.0, 0.75, f"score = {score:.2f}", ha="right", va="bottom", fontsize=10, color=INK)
+    ax.set_xlim(0, 1); ax.set_ylim(-3.5, 0.5)
+    ax.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+    ax.set_xlabel("share of 1,000 tries that reach the goal")
+    ax.text(1.0, 0.62, f"CCE score = {score:.2f}", ha="right", va="bottom", fontsize=10,
+            color=INK, weight="bold")
 
 
-fig = plt.figure(figsize=(10, 6.2))
-gs = fig.add_gridspec(2, 2, width_ratios=[1, 1.6], hspace=0.45, wspace=0.35)
+fig = plt.figure(figsize=(10, 6.0))
+gs = fig.add_gridspec(2, 2, width_ratios=[1, 1.7], hspace=0.5, wspace=0.45)
 for row, (s, rets, score, label) in enumerate([
-        (HIGH, rets_hi, score_hi, "Highest-scoring state: the choice matters"),
-        (LOW, rets_lo, score_lo, "Lowest-scoring state: every choice ends about the same")]):
-    paths = {a: [rollout(s, a)[1] for _ in range(6)] for a in range(4)}
-    axm = fig.add_subplot(gs[row, 0]); draw_map(axm, s, paths)
-    axr = fig.add_subplot(gs[row, 1]); draw_returns(axr, s, rets, score)
-    axm.set_title(label, loc="left", fontsize=10, color=INK, pad=6)
-fig.text(0.01, 0.005,
-         "FrozenLake 8x8, slippery. From the boxed state, each action is tried 1,000 times and the "
-         "policy plays out the rest (250 rollouts drawn per row).\nScore = mean total-variation "
-         "distance between the taken action's returns and each alternative's. Lines on the map: "
-         "six rollouts per action.",
-         fontsize=8, color=GRAY)
-fig.savefig(OUT / "cce_core.png", dpi=160, bbox_inches="tight")
+        (HIGH, rets_hi, score_hi, "A state where the choice matters"),
+        (LOW, rets_lo, score_lo, "A state where it doesn't")]):
+    axm = fig.add_subplot(gs[row, 0]); draw_map(axm, s)
+    axr = fig.add_subplot(gs[row, 1]); draw_outcomes(axr, s, rets, score)
+    axm.set_title(label, loc="left", fontsize=11, color=INK, pad=8)
+fig.savefig(OUT / "cce_core.png", dpi=160, bbox_inches="tight", pad_inches=0.2)
 plt.close(fig)
 print("cce_core", round(score_hi, 3), round(score_lo, 3))
+for s, rets in ((HIGH, rets_hi), (LOW, rets_lo)):
+    print(cell(s), ACTIONS[policy[s]], {ACTIONS[a]: round((rets[a] > 0).mean(), 3) for a in range(4)})
 
 # ---------------------------------------------------------- priority figure
 scores = np.array([first[s] for s in nonterm])
