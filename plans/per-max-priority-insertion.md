@@ -1,5 +1,7 @@
-# Standard PER insertion priority
+# Shared replay for current experiments
 
 Make the canonical shared PER buffer insert every new transition with the largest raw priority observed so far, initialized at `1.0`. This matches standard PER and replaces the misleading fixed-`1.0` behavior for new experiments.
 
-Route current, non-historical learners through that canonical behavior. Keep frozen historical learners and fixed recipe files unchanged so old results still reproduce. Add focused tests for initialization, growth after a larger TD error, no decrease after smaller errors, uniform replay, and active learner wiring. Record the shared buffer in each new run's source hashes and run the relevant replay, learner, and smoke checks before handoff.
+Route every current, non-historical JaxNav, FrozenLake, DoorKey, and Connect Four replay arm through the canonical PER and CCE buffers. Keep frozen source copies and historical-only SMAX, Chess, CVRP, CVRP Budget, and RP-DQN protocols unchanged. Old completed runs remain recoverable from their saved source bundles; new runs hash and bundle the canonical replay source.
+
+Guard the move with replay-operation parity tests, live-import tests, recipe validation, checkpoint/source-manifest checks, and DoorKey plus Connect Four smokes. The only intended behavior change is the new PER max-observed insertion rule. CCE output, ranks, samples, weights, and diagnostics must stay the same.

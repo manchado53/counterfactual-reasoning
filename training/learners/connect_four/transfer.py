@@ -12,7 +12,7 @@ import optax
 
 from training.envs import connect_four_transfer as task
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
-from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
 
 ARMS = ("uniform", "per", "cce_mul", "cce_add", "cce_only")
 RECIPE = dict(gamma=.99, alpha=.0003, hidden_dim=128, n_layers=3, batch_size=128,

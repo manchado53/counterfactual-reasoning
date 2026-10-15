@@ -17,7 +17,7 @@ import optax
 
 from .adapter import DoorKeyAdapter, initial_carry, ddqn_targets, weighted_scores
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
-from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
 
 ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
 HERE = Path(__file__).resolve().parent
@@ -63,9 +63,8 @@ def digest(value):
 def source_hashes():
     root = HERE.parents[2]
     files = list(HERE.glob('*.py')) + [root / 'training/envs/doorkey.py']
-    files += [root / 'src/counterfactual_rl/replay/buffers.py']
-    files += [HERE / '_source_shared' / name for name in
-              ('consequence_buffers.py', 'draw_log.py')]
+    files += [root / 'src/counterfactual_rl/replay/buffers.py',
+              root / 'src/counterfactual_rl/replay/consequence_buffers.py']
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}
 
 

@@ -28,9 +28,8 @@ def source_hashes():
     root = package.parent
     files = [Path(__file__), Path(__file__).with_name('transfer.py'),
              package / 'envs/connect_four_transfer.py']
-    files += [root / 'src/counterfactual_rl/replay/buffers.py']
-    files += [Path(__file__).parent / '_source_shared' / name for name in
-              ('consequence_buffers.py', 'draw_log.py')]
+    files += [root / 'src/counterfactual_rl/replay/buffers.py',
+              root / 'src/counterfactual_rl/replay/consequence_buffers.py']
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 
 
