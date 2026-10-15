@@ -2,9 +2,7 @@
 
 > Can an agent learn faster if it replays the moments where its choice mattered most?
 
-**Status: in progress.** Paper draft in [`paper/paper.tex`](paper/paper.tex). Since January 2026
-the project has run about 6,600 jobs on MSOE's Rosie cluster, roughly 12,600 GPU-hours.
-This README covers what worked, what didn't, and what we still don't know.
+**Status: in progress.** Targetting Publication ICML 2027
 
 A DQN agent learns from a replay buffer of past transitions. Standard prioritized replay
 (PER) replays transitions with large TD error, the ones the network predicted badly.
