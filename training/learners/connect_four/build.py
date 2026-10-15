@@ -11,6 +11,9 @@ def resolved_config(arm, seed):
 
 
 def validate_config(config):
+    if config.get('protocol') == 'fixed-eval-v3':
+        from .protocol_v3 import validate
+        return validate(config)
     if config.get('protocol') == 'jaxnav-transfer-v2':
         from .protocol_v2 import validate
         return validate(config)
@@ -35,7 +38,7 @@ def validate_config(config):
 
 
 def smoke_overrides(config):
-    if config.get('protocol') == 'jaxnav-transfer-v2':
+    if config.get('protocol') in ('jaxnav-transfer-v2', 'fixed-eval-v3'):
         from .protocol_v2 import smoke_overrides as overrides
         return overrides(config)
     if config['protocol'] == 'legacy-connect-four':
@@ -53,7 +56,7 @@ def simulator_sources(config):
     import pgx
     root = Path(pgx.__file__).resolve().parent
     sources = {'pgx/' + str(p.relative_to(root)): p for p in root.rglob('*.py')}
-    if config['protocol'] in ('fixed-jaxnav-transfer', 'jaxnav-transfer-v2'):
+    if config['protocol'] in ('fixed-jaxnav-transfer', 'jaxnav-transfer-v2', 'fixed-eval-v3'):
         from training.envs import connect_four_transfer
         sources['connect_four_transfer.py'] = Path(connect_four_transfer.__file__)
     elif config['opponent'] == 'mcts':
@@ -65,7 +68,7 @@ def simulator_sources(config):
 
 def build_agent(config):
     validate_config(config)
-    if config['protocol'] == 'jaxnav-transfer-v2':
+    if config['protocol'] in ('jaxnav-transfer-v2', 'fixed-eval-v3'):
         from .transfer_v2 import Agent
         return Agent(deepcopy(config))
     if config['protocol'] == 'legacy-connect-four':

@@ -88,3 +88,6 @@ src/counterfactual_rl/analysis/claim1/**/checkpoints/
 src/counterfactual_rl/agents/chess/baselines/
 # graded-slip analysis scratch (sub-manifests)
 gradedslip_*/
+
+# Isolated evaluation search runtime; do not edit shared training env.
+/.runtime/

@@ -47,7 +47,11 @@ def build_update(network, optimizer, gamma):
 
 class Agent:
     def __init__(self, config):
-        validate(config)
+        if config.get('protocol') == 'fixed-eval-v3':
+            from .protocol_v3 import validate as validate_v3
+            validate_v3(config)
+        else:
+            validate(config)
         self.config = copy.deepcopy(config)
         self.arm, self.seed = config['arm'], config['seed']
         self.cce = self.arm == 'cce_decay'
@@ -71,7 +75,10 @@ class Agent:
         self.draw_counts = np.zeros(config['buffer_capacity'], np.int64)
         self.epsilon = 1.
         self.last_diag = {}
-        self.evaluator = Evaluator(self.network, config['eval_bank_hash'])
+        evaluator_type = Evaluator
+        if config['protocol'] == 'fixed-eval-v3':
+            from .evaluation_v3 import Evaluator as evaluator_type
+        self.evaluator = evaluator_type(self.network, config['eval_bank_hash'])
 
     def evaluation_identity(self):
         return dict(eval_bank_hash=self.config['eval_bank_hash'], eval_unique_cases=1000,
@@ -189,7 +196,8 @@ class Agent:
     def learn(self, verbose=False):
         out = Path(os.environ['CCE_RUN_DIR'])
         from .bank_v2 import BANK_PATH
-        (out/'evaluation-bank.json').write_bytes(BANK_PATH.read_bytes())
+        bank_path = getattr(self.evaluator, 'bank_path', BANK_PATH)
+        (out/'evaluation-bank.json').write_bytes(bank_path.read_bytes())
         start = time.monotonic()
         initial = [np.asarray(x).copy() for x in jax.tree.leaves(self.params)]
         times, eval_times = [], []
@@ -200,6 +208,10 @@ class Agent:
         def evaluate(block):
             clock = time.monotonic()
             result = self.evaluate()
+            if self.config['protocol'] == 'fixed-eval-v3':
+                np.savez_compressed(out/f'eval-paths-{self.steps:09d}.npz',
+                    actions=self.evaluator.last_actions, rewards=self.evaluator.last_rewards,
+                    eval_bank_hash=self.config['eval_bank_hash'])
             emit('eval', dict(result, block=block, env_steps=self.steps, arm=self.arm, seed=self.seed))
             self.save(out/'last.pkl')
             if not self.config['smoke']:
