@@ -32,7 +32,7 @@ Budget: 512 blocks = 524288 steps = 32704 updates. Epsilon falls linearly
 from 1 to .05 over 262144 steps, then stays fixed; no early stop.
 
 Full CCE transfers the fixed collector/no-decay multiplicative recipe from
-`experiments/jaxnav/ranked-td-decay/training.json` (task 13): Wasserstein,
+`experiments/jaxnav/ranked-td-decay/training.json` (task 7): Wasserstein,
 weighted alternatives, horizon 60, one rollout/action, greedy continuation,
 gamma .99, target-network max-value bootstrap at horizon, action softmax
  temperature .5, score every insertion, percentile rank normalization,
@@ -49,7 +49,7 @@ Only replay probabilities vary. Standard PER uses p proportional to descending
 rank(|TD|)^(-.25), with average ranks for ties. This differs from CCE's ascending
 percentile rank mix and from the historical raw-TD JaxNav PER baseline.
 Importance weights are 1/(N*p) for all arms (Uniform gives ones), matching shared
-CCE code. New entries inherit the running maximum TD magnitude.
+CCE code. New entries inherit the largest TD magnitude currently stored in replay.
 CCE scoring consumes its own RNG; it cannot change collection draws.
 Transfer choices: finite-state encoding, four actions, time-aware cap, smaller
 collection blocks, fixed step budget/epsilon clock, standard inverse-rank PER.
@@ -125,3 +125,10 @@ python -m training.monitor_four_rooms --root "$PWD" --job ARRAY_ID
 The monitor writes `runs/four-rooms/monitor/events.jsonl`, updates the report at
 quarter-budget milestones and completion, and saves its PID/status. Events are
 local logs; this script does not send email or chat messages.
+
+Full array: **284075**, submitted after successful dry run 284074.
+Execution source is pinned at **9d742d9** in the study worktree.
+A separate review checkout contains a follow-up change to architecture tests
+so they trace the shared learner; training source bytes are unchanged.
+The tested suite now includes the shared TD/scoring seams and maximum-priority
+checks as well as the study-specific tests (39 tests passed).
