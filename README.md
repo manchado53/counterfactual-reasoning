@@ -26,8 +26,6 @@ measure how different their futures are
 large difference -> replay more often
 ```
 
-![Training pipeline: environment, replay buffer, CCE score, TD error, combined priority, Q update](docs/figures/diagrams/pipeline.png)
-
 ---
 
 ## The method, step by step
@@ -43,8 +41,6 @@ The returns for one action form a distribution over outcomes:
 
 ![return distribution](docs/figures/readme/eq/eq_return_dist.png)
 
-![Rollouts from one state: the taken action and two alternatives produce different return distributions](docs/figures/diagrams/cce_rollout.png)
-
 ### 2. Score how far apart the distributions are
 
 The consequence score m<sup>C</sup><sub>j</sub> is a distance between the per-action return
@@ -53,7 +49,12 @@ runs use Wasserstein, because TV is always zero with a single rollout.
 
 ![CCE score](docs/figures/readme/eq/eq_cce_score.png)
 
-![High consequence: return distributions far apart. Low consequence: they overlap](docs/figures/diagrams/cce_score.png)
+Here are steps 1 and 2 on real FrozenLake rollouts. At the top state, the taken action
+almost always reaches the goal, and the alternatives often fall in a hole (return 0), so the
+score is high. At the bottom state, every action usually ends in a hole, so the choice barely
+matters and the score is near zero.
+
+![Steps 1 and 2 on FrozenLake: rollouts per action from a high-scoring and a low-scoring state, and their returns](docs/figures/readme/cce_core.png)
 
 ### 3. Turn scores into sampling probabilities
 
@@ -62,7 +63,11 @@ score. In code, ε = 0.01 and β = 0.25.
 
 ![TD and CCE priorities](docs/figures/readme/eq/eq_priorities.png)
 
-![Uniform replay vs PER](docs/figures/diagrams/replay_buffer.png)
+β sets how hard the scores push. At β = 1, the top FrozenLake state is replayed 5x as often
+as the bottom one. At the β = 0.25 we used, the gap is only 1.5x. That turns out to matter
+(see [What didn't work](#what-didnt-work)).
+
+![Real CCE scores for all 53 FrozenLake states, and the replay rate they produce at beta 1 and beta 0.25](docs/figures/readme/cce_priority.png)
 
 ### 4. Mix the two signals
 
@@ -73,10 +78,6 @@ We tested two blends. The additive one weights them with μ:
 The multiplicative one puts the most weight on transitions that score high on *both*:
 
 ![multiplicative mixing](docs/figures/readme/eq/eq_mix_mul.png)
-
-![Toy illustration of how each strategy ranks the same buffer](docs/figures/diagrams/priority_mixing.png)
-
-*The illustration uses an exaggerated β = 0.6, so the differences are easy to see.*
 
 ### 5. Learn
 
@@ -145,17 +146,21 @@ Same map, same training seed, final checkpoints. CCE reaches the goal; uniform a
 
 ### A partial win: JaxNav, mid-training
 
-JaxNav is a 2D robot navigation task with random obstacle maps. On a fixed bank of 1,000
-evaluation maps, the newest recipe (CCE only, with a shift to ranked TD from 100k to 150k
-episodes, 3 seeds) leads during the middle of training:
+JaxNav is a 2D robot navigation task with random obstacle maps. Our latest experiment
+(October 2026) used CCE only, shifting to ranked TD between 100k and 150k episodes, with 3
+seeds per arm. Every arm was evaluated on the same 1,000 fixed maps. From about 90k episodes,
+CCE pulls ahead, and it holds roughly a 12-point lead over uniform through the middle of
+training:
+
+![JaxNav learning curves: CCE + ranked-TD decay leads uniform and PER from ~90k to ~150k episodes](docs/figures/readme/jaxnav_curve.png)
 
 | 100k–150k episode window | Uniform | PER | CCE + ranked-TD decay |
 |---|---:|---:|---:|
 | Success rate | 48.9% | 46.0% | **60.8%** |
+| Lead of CCE | +11.9 pts | +14.8 pts | |
 
-![JaxNav fixed-map learning curves](docs/media/demos/jaxnav_learning_curve.png)
-
-This is a sample-efficiency lead only. The curves converge or collapse by the end of training.
+This is a sample-efficiency lead only. After 150k the CCE curve drops back to the others,
+and the run ended at 200k.
 
 ![Uniform, PER, and CCE on four JaxNav maps](docs/media/demos/jaxnav_comparison.gif)
 
