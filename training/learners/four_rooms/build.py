@@ -1,0 +1,50 @@
+"""Lazy adapter; validation loads no JAX runtime."""
+from copy import deepcopy
+from pathlib import Path
+
+ARMS = ('uniform', 'rank_per', 'cce')
+
+
+def config_for(arm, seed):
+    return dict(arm=arm, seed=seed, gamma=.99, alpha=.0003, hidden_dim=128, n_layers=3,
+        batch_size=128, buffer_capacity=100000, n_steps_per_update=16, target_update_freq=2000,
+        n_envs=32, collect_steps=32, warmup_steps=1024, blocks=512, eval_every_blocks=16,
+        epsilon_start=1., epsilon_end=.05, epsilon_decay_steps=262144,
+        fixed_eval_seed=20261015, eval_episodes=1000, cf_horizon=60, cf_n_rollouts=1,
+        cf_gamma=.99, cf_rollout_temperature=0., cf_action_prob_temperature=.5,
+        cf_bootstrap=True, score_on_insert=True, normalise_priorities='rank',
+        priority_mixing='multiplicative', mu=.5, mu_c=1., mu_delta=1.,
+        PER_parameters=dict(eps=.01, beta=.25, maximum_priority=1.),
+        protocol='sparse-four-rooms-v1', training_budget_kind='env_steps',
+        early_stop_win_rate=None)
+
+
+def smoke_overrides(config):
+    return dict(n_envs=4, collect_steps=32, buffer_capacity=512, warmup_steps=128,
+                blocks=3, eval_every_blocks=1, eval_episodes=8)
+
+
+def validate_config(config):
+    if config.get('arm') not in ARMS or type(config.get('seed')) is not int or config['seed'] not in range(5):
+        raise ValueError('Unknown arm or seed')
+    expected = config_for(config['arm'], config['seed'])
+    smoke = dict(expected, **smoke_overrides(expected))
+    if config != expected and config != smoke:
+        raise ValueError('Config differs from frozen full or smoke protocol')
+    return config
+
+
+def build_agent(config):
+    validate_config(config)
+    from training.envs.four_rooms import FourRoomsEnv
+    from training.learners.shared.discrete import DiscreteAgent
+    return DiscreteAgent(deepcopy(config), FourRoomsEnv())
+
+
+def evaluation_axis(config):
+    return 'env_steps'
+
+
+def simulator_sources(config):
+    from training.envs import four_rooms
+    return {'four_rooms.py': Path(four_rooms.__file__)}
