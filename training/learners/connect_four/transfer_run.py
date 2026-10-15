@@ -29,7 +29,9 @@ def source_hashes():
     files = [Path(__file__), Path(__file__).with_name('transfer.py'),
              package / 'envs/connect_four_transfer.py']
     files += [root / 'src/counterfactual_rl/replay/buffers.py',
-              root / 'src/counterfactual_rl/replay/consequence_buffers.py']
+              root / 'src/counterfactual_rl/replay/consequence_buffers.py',
+              root / 'src/counterfactual_rl/learning/td.py',
+              root / 'src/counterfactual_rl/scoring/weighted_wasserstein.py']
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 
 

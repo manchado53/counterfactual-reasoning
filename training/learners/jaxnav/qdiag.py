@@ -19,21 +19,14 @@ rewards are at most 1.0 and gamma is 0.99, so the true Q of any state-action pai
 is at most 1.0. Any logged Q above 1.0 is MEASURED overestimation, not a judgement
 call.
 
-WHY THE LOSS IS DUPLICATED HERE
--------------------------------
-``JaxNavDQN._build_jit_fns`` already computes every one of these quantities inside
-its jitted ``update_step``, and returning them from there would be nearly free --
-``_update`` already syncs the device each step to write replay priorities. It is
-not done that way on purpose: adding outputs to a jitted function changes the HLO
-module, and XLA is free to fuse a changed module differently, which can move the
-last bits of a float. Runs made with logging on must be bit-identical to runs made
-with it off, so ``update_step`` is left exactly as it was and the loss body is
-repeated here instead.
+WHY THE NETWORK PASS IS REPEATED HERE
+-------------------------------------
+Returning more values from the training update changes its compiled HLO. That can
+move the last bits of a float. The probe therefore repeats the network pass.
 
-The cost of that choice is drift: if the loss in ``dqn.py`` changes and this copy
-does not, the diagnostics quietly describe a different objective.
-``tests/test_qdiag_identity.py::test_qdiag_td_errors_match_update_step`` pins the
-two together and fails loudly if they separate.
+The learning math is not copied. Training and diagnostics both call the canonical
+``q_learning_targets`` and ``weighted_td_loss`` functions. The probe can cost more,
+but it cannot silently use a different TD definition.
 """
 
 from typing import Optional
@@ -42,6 +35,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
 
 # Order of the scalars packed by the jitted probe. Kept as one tuple so the
 # accumulator, the field names and the probe cannot drift apart.
@@ -62,25 +57,20 @@ FIELDS = (
 def build_probe(network, gamma: float, double_dqn: bool):
     """Jitted forward+backward pass returning the FIELDS scalars for one batch.
 
-    Mirrors ``JaxNavDQN._build_jit_fns.update_step``'s ``loss_fn`` exactly; see the
-    module docstring for why it is a copy rather than a shared helper.
+    Repeats the network pass but uses the same shared TD math as training.
     """
 
     @jax.jit
     def probe(params, target_params, states, actions, rewards, next_states, dones, weights):
         def loss_fn(p):
             q = jax.vmap(network.apply, in_axes=(None, 0))(p, states)              # (B, A)
-            q_taken = q[jnp.arange(q.shape[0]), actions]                           # (B,)
             next_q_target = jax.vmap(network.apply, in_axes=(None, 0))(target_params, next_states)
-            if double_dqn:
-                next_q_online = jax.vmap(network.apply, in_axes=(None, 0))(p, next_states)
-                next_actions = jnp.argmax(jax.lax.stop_gradient(next_q_online), axis=-1)
-                max_next_q = next_q_target[jnp.arange(next_q_target.shape[0]), next_actions]
-            else:
-                max_next_q = next_q_target.max(axis=-1)
-            targets = rewards + gamma * max_next_q * (1.0 - dones)
-            td_errors = targets - q_taken
-            loss = jnp.mean(weights * td_errors ** 2)
+            next_q_online = jax.vmap(network.apply, in_axes=(None, 0))(p, next_states)
+            targets = q_learning_targets(
+                rewards, dones, next_q_online, next_q_target, gamma,
+                double_dqn=double_dqn,
+            )
+            loss, td_errors, q_taken = weighted_td_loss(q, actions, targets, weights)
             return loss, (q, q_taken, targets, td_errors)
 
         (loss, (q, q_taken, targets, td_errors)), grads = \

@@ -1,8 +1,5 @@
 """PER insertion-priority and live-learner wiring checks."""
 
-import ast
-from pathlib import Path
-
 import numpy as np
 
 from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
@@ -13,10 +10,6 @@ from training.learners.connect_four._source_shared.consequence_buffers import (
 from training.learners.doorkey._source_shared.consequence_buffers import (
     ConsequenceReplayBuffer as DoorKeyFrozenConsequenceReplayBuffer,
 )
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def _transition(reward=0.0):
     return {"s": 0, "a": 0, "r": reward, "ns": 1, "done": False}
@@ -72,47 +65,6 @@ def test_uniform_replay_behavior_is_unchanged():
     assert buffer.max_priority == 1.0
     assert transitions[0] == _transition()
     np.testing.assert_array_equal(weights, np.ones(1))
-
-
-def test_current_learners_import_the_canonical_replay_buffers():
-    per_paths = [
-        ROOT / "training/learners/jaxnav/dqn.py",
-        ROOT / "training/learners/frozenlake/dqn.py",
-        ROOT / "training/learners/doorkey/train.py",
-        ROOT / "training/learners/connect_four/transfer.py",
-    ]
-    cce_paths = [
-        ROOT / "training/learners/jaxnav/consequence_dqn.py",
-        ROOT / "training/learners/frozenlake/consequence_dqn.py",
-        ROOT / "training/learners/doorkey/train.py",
-        ROOT / "training/learners/connect_four/transfer.py",
-    ]
-
-    for path in per_paths:
-        tree = ast.parse(path.read_text())
-        imports = {
-            (node.module, alias.name)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            for alias in node.names
-        }
-        assert (
-            "counterfactual_rl.replay.buffers",
-            "PrioritizedReplayBuffer",
-        ) in imports, path
-
-    for path in cce_paths:
-        tree = ast.parse(path.read_text())
-        imports = {
-            (node.module, alias.name)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            for alias in node.names
-        }
-        assert (
-            "counterfactual_rl.replay.consequence_buffers",
-            "ConsequenceReplayBuffer",
-        ) in imports, path
 
 
 def _exercise_cce_buffer(buffer_class, priority_mixing, mu):

@@ -33,50 +33,10 @@ from tqdm import tqdm
 from .dqn import JaxNavDQN, _MetricsLogger
 from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
 from counterfactual_rl.scoring.metrics import compute_consequence_metric
+from counterfactual_rl.scoring.weighted_wasserstein import weighted_wasserstein_scores
 
 # Rollout terminal-reason codes (same order/values as ~/probe_logs/probe_reasons.py).
 _R_ALIVE, _R_GOAL, _R_CRASH, _R_TIMEUP = 0, 1, 2, 3
-
-
-def _wasserstein_weighted_mean_1rollout(returns_np, probs_batch, taken):
-    """Every transition's consequence score at once, for one rollout per action.
-
-    Bit-identical to calling ``compute_consequence_metric(metric='wasserstein',
-    aggregation='weighted_mean')`` row by row, which cost ~2.7 s per JaxNav chunk
-    (8,192 rows x 14 scipy calls). Three things make it exact rather than close:
-
-    * With a single sample per action, scipy's Wasserstein distance is |R_a - R_taken|,
-      and scipy casts its inputs to float64 BEFORE subtracting -- so this does too.
-      Subtracting in float32 differs in most rows (measured 3,778 of 4,000).
-    * The weighted sum and the weight total are accumulated over actions 0..A-1 in
-      the same order Python's ``sum()`` walks them in the reference function.
-    * Rows whose alternative weights sum to 0 take the reference function's plain-mean
-      fallback, by calling it -- np.mean's summation order is not worth re-deriving.
-
-    returns_np: (B, A, 1) rollout returns; probs_batch: (B, A); taken: (B,) int actions.
-    """
-    B, A = probs_batch.shape
-    R = returns_np[:, :, 0].astype(np.float64)
-    r_taken = R[np.arange(B), taken]
-    num = np.zeros(B)
-    den = np.zeros(B)
-    for a in range(A):
-        alt = taken != a
-        p = probs_batch[:, a].astype(np.float64)
-        num = np.where(alt, num + p * np.abs(r_taken - R[:, a]), num)
-        den = np.where(alt, den + p, den)
-    scores = np.zeros(B)
-    ok = den > 0
-    scores[ok] = num[ok] / den[ok]
-    for i in np.flatnonzero(~ok):
-        scores[i] = compute_consequence_metric(
-            action=(int(taken[i]),),
-            return_distributions={(a,): returns_np[i, a] for a in range(A)},
-            metric='wasserstein',
-            action_probs={(a,): float(probs_batch[i, a]) for a in range(A)},
-            aggregation='weighted_mean',
-        )
-    return scores
 
 
 class JaxNavConsequenceDQN(JaxNavDQN):
@@ -351,7 +311,7 @@ class JaxNavConsequenceDQN(JaxNavDQN):
 
         if (N == 1 and self.consequence_metric == 'wasserstein'
                 and self.consequence_aggregation == 'weighted_mean'):
-            scores = _wasserstein_weighted_mean_1rollout(
+            scores = weighted_wasserstein_scores(
                 returns_np, probs_batch, np.asarray(valid_actions_taken))
         else:
             scores = np.zeros(B)
