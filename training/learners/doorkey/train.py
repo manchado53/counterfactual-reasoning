@@ -15,9 +15,11 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from .adapter import DoorKeyAdapter, initial_carry, ddqn_targets, weighted_scores
-from ._source_shared.buffers import PrioritizedReplayBuffer
-from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
+from .adapter import DoorKeyAdapter, initial_carry
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
+from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.scoring.weighted_wasserstein import weighted_wasserstein_scores
 
 ARMS = ('uniform', 'per', 'cce_mul', 'cce_add', 'cce_only')
 HERE = Path(__file__).resolve().parent
@@ -63,8 +65,10 @@ def digest(value):
 def source_hashes():
     root = HERE.parents[2]
     files = list(HERE.glob('*.py')) + [root / 'training/envs/doorkey.py']
-    files += [HERE / '_source_shared' / name for name in
-              ('buffers.py', 'consequence_buffers.py', 'draw_log.py')]
+    files += [root / 'src/counterfactual_rl/replay/buffers.py',
+              root / 'src/counterfactual_rl/replay/consequence_buffers.py',
+              root / 'src/counterfactual_rl/learning/td.py',
+              root / 'src/counterfactual_rl/scoring/weighted_wasserstein.py']
     return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}
 
 
@@ -109,12 +113,12 @@ class Trainer:
     def _update(self, params, target, opt_state, s, a, r, ns, done, weights):
         next_online = self.task.net.apply(params, ns)
         next_target = self.task.net.apply(target, ns)
-        targets = jax.lax.stop_gradient(ddqn_targets(next_online, next_target, r, done))
+        targets = q_learning_targets(
+            r, done, next_online, next_target, .99, double_dqn=True
+        )
         def loss_fn(p):
             q = self.task.net.apply(p, s)
-            qa = jnp.take_along_axis(q, a[:, None], axis=1)[:, 0]
-            td = targets - qa
-            loss = jnp.mean(weights * td ** 2)
+            loss, td, qa = weighted_td_loss(q, a, targets, weights)
             stats = jnp.stack([loss, jnp.mean(qa), jnp.max(jnp.abs(q)),
                                jnp.mean(targets), jnp.max(jnp.abs(targets)),
                                jnp.mean(jnp.abs(td)), jnp.max(jnp.abs(td))])
@@ -141,7 +145,9 @@ class Trainer:
             del keys  # Deterministic branches need no actuator noise.
             returns = np.asarray(self.task.branch_returns(self.params, self.target, states))
             probs = np.asarray(jax.nn.softmax(self.q_fn(self.params, states) / .5, axis=-1))
-            scores = weighted_scores(returns, probs, data['a'][lo:lo + 1280])
+            scores = weighted_wasserstein_scores(
+                returns, probs, data['a'][lo:lo + 1280]
+            )
             assert np.isfinite(scores).all()
             self.buffer.update_consequence_scores(selected, scores, q_update_count=self.updates)
         assert np.all(self.buffer.scored_at[:len(self.buffer)] >= 0), 'incomplete score coverage'

@@ -31,8 +31,8 @@ import jax.numpy as jnp
 from tqdm import tqdm
 
 from .dqn import CVRPDQN, MASK_FILL
-from ._historical.consequence_buffers import ConsequenceReplayBuffer
-from training.learners.cvrp_budget.option_a._historical.score_metrics import compute_consequence_metric
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.scoring.metrics import compute_consequence_metric
 
 
 class CVRPConsequenceDQN(CVRPDQN):

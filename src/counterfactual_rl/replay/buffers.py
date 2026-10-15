@@ -100,7 +100,9 @@ class PrioritizedReplayBuffer:
         """Update priority for a transition based on TD error."""
         if self.uniform:
             return
-        self.priorities[index] = (abs(td_error) + self.eps) ** self.beta
+        raw_priority = abs(float(td_error))
+        self.max_priority = max(self.max_priority, raw_priority)
+        self.priorities[index] = (raw_priority + self.eps) ** self.beta
 
     def update_priorities(self, indices: np.ndarray, td_errors: np.ndarray):
         """Update priorities for multiple transitions."""

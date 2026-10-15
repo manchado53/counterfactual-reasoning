@@ -21,9 +21,40 @@
       "compute_all_consequence_metrics": "bd10145f083e856b6116dcdc94e5b6ad10ef9ded3942f92754d3670aaba3d14e"
     }
   },
+  "src/counterfactual_rl/learning/td.py": {
+    "reference": "shared-learning-core migration",
+    "source_sha256": "23a34f9905c5e75ed01e0057a6f62645c3fa7b773ad7d684cc61e481eab15fbd",
+    "approved_divergences": {
+      "q_learning_targets": {
+        "sha256": "4acb86bb1ad249597221504b2726550f8e297ee40f0449dcac21b5cb52682755",
+        "reason": "Support summed multi-agent action values behind an opt-in flag; the default JaxNav path remains exactly parity-tested."
+      },
+      "weighted_td_loss": {
+        "sha256": "1c41719d514c07b5d99ea098ce6296513e42c8007e48500bbc9fb51a959299e2",
+        "reason": "Support summed multi-agent chosen values behind an opt-in flag; the default JaxNav path remains exactly parity-tested."
+      }
+    },
+    "functions": {
+      "q_learning_targets": "7e889a72e19215550ded857f66d00bb80b564c03d1b879541c17959757d2e520",
+      "weighted_td_loss": "a1e4aa19535f652971b5717ea641b9b5351f1c418a3e010e9570bcb9636b9f11"
+    }
+  },
+  "src/counterfactual_rl/scoring/weighted_wasserstein.py": {
+    "reference": "shared-learning-core migration",
+    "source_sha256": "e6212f8c0f45933a06681f74c367c8b46f7de4b1c57e9f14dc3ba7087fd726e6",
+    "functions": {
+      "weighted_wasserstein_scores": "f8f08cd1327bdd5014b485bab557ed9417340b41a16e0faf39b16652cb8cbe34"
+    }
+  },
   "src/counterfactual_rl/replay/buffers.py": {
     "reference": "fixed/src/counterfactual_rl/agents/shared/buffers.py",
     "source_sha256": "ae1ad983c71cf0d7b4a192422a552a98abe5d98d67881e09a07e6611350221e5",
+    "approved_divergences": {
+      "PrioritizedReplayBuffer.update_priority": {
+        "sha256": "f5c48533fbd5848365d993301b030205a026e61194401793593ed3bf2327c3e3",
+        "reason": "Track the largest observed raw TD error so later PER inserts use the standard max-priority rule."
+      }
+    },
     "functions": {
       "PrioritizedReplayBuffer.__init__": "06033b19baaa58bcd0bc47053f9a75f663f466be0958c6a820c94b94cf6d284c",
       "PrioritizedReplayBuffer.__len__": "54263f662153f5432e63da0e4a4d0e6950f63dc2110bb04ecfe2e616e5f200db",
@@ -89,6 +120,12 @@
   "training/learners/jaxnav/qdiag.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/qdiag.py",
     "source_sha256": "f2024477131b72c810809af06cc92be9f28b57469ad490ec09ae1d2eac5baa13",
+    "approved_divergences": {
+      "build_probe": {
+        "sha256": "3a3856d18d6e8166ab81e47cbda99f1295ae6ba171eadfc229bce4e76393f121",
+        "reason": "Use the canonical shared TD target, error, and loss math in diagnostics."
+      }
+    },
     "functions": {
       "build_probe": "fc0cc84155bf8adc9d2f32be5f8e3281dc57dae48cb8f0bb856b92089e0bcba4",
       "QDiagRecorder.__init__": "699ac970e6e3b8cb1ec68542c5a03ef98fe3cba3f469dfe7baeda4e2c6f49a5d",
@@ -99,6 +136,12 @@
   "training/learners/jaxnav/dqn.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/dqn.py",
     "source_sha256": "f9e780a618fc0ecabcbddd8bd37c04c1ee26289c53e4c59d10867615992ccc31",
+    "approved_divergences": {
+      "JaxNavDQN._build_jit_fns": {
+        "sha256": "1eb6fce6e902b581030a905edb43dcc92f5b9fd4cc7cb833e664360a7dd9f448",
+        "reason": "Use the canonical shared TD target, error, and loss math."
+      }
+    },
     "functions": {
       "_QNetwork.__call__": "5815bd0d77719dca027cdb0aaae01dd290437d2b7598d09707aba632d4595768",
       "_MetricsLogger.log_eval": "c465ff6d77088002ad6e72958b8add25e00ca74519cb4cb8df53c148c3752e66",
@@ -121,8 +164,13 @@
   "training/learners/jaxnav/consequence_dqn.py": {
     "reference": "fixed/src/counterfactual_rl/agents/jax_nav/consequence_dqn.py",
     "source_sha256": "dcaa2fdfa0ae20f0637e433cd38bfafd4b8fa79638bc5f9e1e8958d1e5d54872",
+    "approved_divergences": {
+      "JaxNavConsequenceDQN._score_index_chunk": {
+        "sha256": "bfab0d2b965e5a0d59493d3dc87dd5bb3d4516238732d070f96330dbcf842663",
+        "reason": "Call the canonical shared weighted-Wasserstein CCE score."
+      }
+    },
     "functions": {
-      "_wasserstein_weighted_mean_1rollout": "a1be1aec6e25e148ead739a5481451eaa2f6b1489fc2ef862d598618f0f81922",
       "JaxNavConsequenceDQN._build_rollout_fn": "0f820df14aed5637ff9f10c85a29aa7403c93086e6744ee360dfb871d36cacdf",
       "JaxNavConsequenceDQN._score_buffer_transitions": "ce6a09c20037af70372dcb1fc71875806ae4c12db622217e5f3dcc473d3c881e",
       "JaxNavConsequenceDQN._score_indices": "95fe5ac482a2aa12f61a9b6db9390fa235c32f94919a7911def4b59285b7ce80",

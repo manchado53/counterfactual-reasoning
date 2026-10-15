@@ -4,6 +4,12 @@ from importlib import import_module
 from pathlib import Path
 
 
+CURRENT_ENVIRONMENTS = ("jaxnav", "frozenlake", "doorkey", "connect_four")
+HISTORICAL_ENVIRONMENTS = ("smax", "chess", "cvrp", "rpdqn", "cvrp_budget")
+ENVIRONMENTS = CURRENT_ENVIRONMENTS + HISTORICAL_ENVIRONMENTS
+SHARED_LEARNING_ENVIRONMENTS = ENVIRONMENTS
+
+
 @dataclass(frozen=True)
 class Environment:
     name: str
@@ -51,6 +57,6 @@ class Environment:
 
 
 def get_environment(name):
-    if name not in ("jaxnav", "frozenlake", "doorkey", "connect_four", "smax", "chess", "cvrp", "rpdqn", "cvrp_budget"):
+    if name not in ENVIRONMENTS:
         raise ValueError(f"Unsupported environment: {name!r}")
     return Environment(name)

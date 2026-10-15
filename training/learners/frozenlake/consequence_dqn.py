@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from .dqn import FrozenLakeDQN
 from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
-from counterfactual_rl.analysis.metrics import compute_consequence_metric
+from counterfactual_rl.scoring.metrics import compute_consequence_metric
 
 
 _ALL_ACTIONS = jnp.array([0, 1, 2, 3], dtype=jnp.int32)

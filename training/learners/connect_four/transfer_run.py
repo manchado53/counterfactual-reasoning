@@ -25,11 +25,14 @@ def append_json(path, value):
 
 def source_hashes():
     package = Path(__file__).resolve().parents[2]
+    root = package.parent
     files = [Path(__file__), Path(__file__).with_name('transfer.py'),
              package / 'envs/connect_four_transfer.py']
-    files += [Path(__file__).parent / '_source_shared' / name for name in
-              ('buffers.py', 'consequence_buffers.py', 'draw_log.py')]
-    return {str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    files += [root / 'src/counterfactual_rl/replay/buffers.py',
+              root / 'src/counterfactual_rl/replay/consequence_buffers.py',
+              root / 'src/counterfactual_rl/learning/td.py',
+              root / 'src/counterfactual_rl/scoring/weighted_wasserstein.py']
+    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
 
 
 def bank_hash():

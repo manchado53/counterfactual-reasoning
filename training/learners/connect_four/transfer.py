@@ -11,8 +11,10 @@ import numpy as np
 import optax
 
 from training.envs import connect_four_transfer as task
-from ._source_shared.buffers import PrioritizedReplayBuffer
-from ._source_shared.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
+from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.replay.consequence_buffers import ConsequenceReplayBuffer
+from counterfactual_rl.scoring.weighted_wasserstein import weighted_wasserstein_scores
 
 ARMS = ("uniform", "per", "cce_mul", "cce_add", "cce_only")
 RECIPE = dict(gamma=.99, alpha=.0003, hidden_dim=128, n_layers=3, batch_size=128,
@@ -36,43 +38,6 @@ class Network(nn.Module):
         for _ in range(3):
             x = nn.relu(nn.Dense(128)(x))
         return nn.Dense(7)(x)
-
-
-def targets(reward, done, online, target, mask, gamma=.99):
-    """Terminal branches never multiply zero by a masked infinity."""
-    action = jnp.argmax(jnp.where(mask, online, -jnp.inf), axis=-1)
-    value = jnp.take_along_axis(target, action[..., None], -1)[..., 0]
-    return reward + gamma * jnp.where(done, 0., value)
-
-
-def consequence(returns, q, mask, actions):
-    """Pinned N=1 score arithmetic, with illegal actions excluded.
-
-    Softmax is float32 over ALL legal moves, including the taken move. The
-    host casts returns/probabilities to float64 before subtraction and sums
-    alternatives in ascending column order. Underflow uses the source's
-    unweighted-mean fallback, not a new softmax over alternatives.
-    """
-    probs = np.asarray(jax.nn.softmax(jnp.where(mask, q.astype(jnp.float32) / .5, -jnp.inf), -1))
-    values = np.asarray(returns).astype(np.float64)
-    actions = np.asarray(actions)
-    masks = np.asarray(mask)
-    n = len(actions)
-    taken = values[np.arange(n), actions]
-    numerator, denominator = np.zeros(n), np.zeros(n)
-    for action in range(7):
-        alt = masks[:, action] & (actions != action)
-        p = probs[:, action].astype(np.float64)
-        numerator = np.where(alt, numerator + p * np.abs(taken - values[:, action]), numerator)
-        denominator = np.where(alt, denominator + p, denominator)
-    scores = np.zeros(n)
-    ok = denominator > 0
-    scores[ok] = numerator[ok] / denominator[ok]
-    for i in np.flatnonzero(~ok):
-        alternatives = [a for a in range(7) if masks[i, a] and a != actions[i]]
-        if alternatives:
-            scores[i] = float(np.mean([abs(taken[i] - values[i, a]) for a in alternatives]))
-    return scores
 
 
 def build_rollouts(network, horizon=60):
@@ -105,13 +70,14 @@ def build_update(network, optimizer):
     def update(params, target_params, opt_state, batch, weights):
         q_next = network.apply(params, batch['s_next'])
         target_next = network.apply(target_params, batch['s_next'])
-        y = jax.lax.stop_gradient(targets(batch['r'], batch['done'], q_next,
-                                          target_next, batch['next_mask']))
+        y = q_learning_targets(
+            batch['r'], batch['done'], q_next, target_next, .99,
+            double_dqn=True, legal_actions=batch['next_mask'],
+        )
         def loss_fn(p):
             q = network.apply(p, batch['s'])
-            chosen = jnp.take_along_axis(q, batch['a'][:, None], -1)[:, 0]
-            td = y - chosen
-            return jnp.mean(weights * td ** 2), (td, chosen, q)
+            loss, td, chosen = weighted_td_loss(q, batch['a'], y, weights)
+            return loss, (td, chosen, q)
         (loss, (td, chosen, q)), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
@@ -221,8 +187,16 @@ class Trainer:
                         jnp.asarray(flat['learner'][lo:hi]), jnp.arange(7), keys)
                 assert np.asarray(terminal).all(), 'H60 Connect Four must have no live tail'
                 q = self.network.apply(self.params, jnp.asarray(flat['s'][lo:hi]))
-                scores = np.asarray(consequence(returns, q, jnp.asarray(flat['mask'][lo:hi]),
-                                                jnp.asarray(flat['a'][lo:hi])))
+                mask = np.asarray(flat['mask'][lo:hi])
+                probs = np.asarray(jax.nn.softmax(
+                    jnp.where(mask, q.astype(jnp.float32) / .5, -jnp.inf), -1
+                ))
+                scores = weighted_wasserstein_scores(
+                    returns,
+                    probs,
+                    np.asarray(flat['a'][lo:hi]),
+                    legal_actions=mask,
+                )
                 assert np.isfinite(scores).all()
                 self.buffer.update_consequence_scores(slots[lo:hi], scores, self.updates)
             assert np.all(self.buffer.scored_at[:len(self.buffer)] >= 0)

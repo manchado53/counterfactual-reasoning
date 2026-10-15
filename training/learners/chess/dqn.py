@@ -28,7 +28,8 @@ import optax
 import pgx
 
 from .policies import ChessQNetwork
-from .array_buffer import ChessArrayReplayBuffer
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
+from counterfactual_rl.replay.array_buffer import ArrayReplayBuffer
 from training.envs.chess import GardnerChessEnv, CHESS_ACTIONS
 from ._historical.metrics import MetricsLogger
 
@@ -97,7 +98,7 @@ class ChessDQN:
 
         # Replay buffer
         per = self.config.get('PER_parameters', {})
-        self.buffer = ChessArrayReplayBuffer(
+        self.buffer = ArrayReplayBuffer(
             capacity=self.config.get('M', 200000),
             obs_dim=self.obs_dim,
             eps=per.get('eps', 0.01),
@@ -148,19 +149,24 @@ class ChessDQN:
             """
             def loss_fn(p):
                 q_values = jax.vmap(network.apply, in_axes=(None, 0))(p, states)
-                # q_values: (B, 1, 1225)
-                q_taken = jnp.take_along_axis(
-                    q_values, actions[:, :, None], axis=-1
-                ).squeeze(-1)               # (B, 1)
-                q_taken = q_taken.sum(axis=-1)  # (B,)
-
                 next_q = jax.vmap(network.apply, in_axes=(None, 0))(target_params, next_states)
-                next_q = jnp.where(next_masks, next_q, -jnp.inf)
-                max_next_q = next_q.max(axis=-1).sum(axis=-1)  # (B,)
-                targets = rewards + gamma * jnp.where(dones > 0.5, jnp.float32(0.0), max_next_q)
-
-                td_errors = targets - q_taken
-                loss = jnp.mean(weights * td_errors ** 2)
+                targets = q_learning_targets(
+                    rewards,
+                    dones > 0.5,
+                    next_q,
+                    next_q,
+                    gamma,
+                    double_dqn=False,
+                    legal_actions=next_masks,
+                    reduce_action_axes=True,
+                )
+                loss, td_errors, _ = weighted_td_loss(
+                    q_values,
+                    actions,
+                    targets,
+                    weights,
+                    reduce_action_axes=True,
+                )
                 return loss, td_errors
 
             (loss, td_errors), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)

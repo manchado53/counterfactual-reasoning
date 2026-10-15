@@ -41,7 +41,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from ._historical.buffers import PrioritizedReplayBuffer
+from counterfactual_rl.learning.td import q_learning_targets, weighted_td_loss
+from counterfactual_rl.replay.buffers import PrioritizedReplayBuffer
 from ._historical.timing import TrainingTimer
 from .config import DEFAULT_CONFIG
 from training.envs.cvrp import CVRPEnv
@@ -291,21 +292,20 @@ class CVRPDQN:
             def loss_fn(p):
                 feats = features[states]                                        # (B, F)
                 q = jax.vmap(network.apply, in_axes=(None, 0))(p, feats)        # (B, A)
-                q_taken = q[jnp.arange(q.shape[0]), actions]                    # (B,)
-
                 next_feats = features[next_states]
                 next_q = jax.vmap(network.apply, in_axes=(None, 0))(target_params, next_feats)
-                # CRITICAL: mask before the max, or the target bootstraps from an
-                # illegal action's Q-value and every update is poisoned.
-                next_q = jnp.where(masks[next_states], next_q, MASK_FILL)
-                max_next_q = next_q.max(axis=-1)                                # (B,)
-                # A terminal state has no legal action (all MASK_FILL); the (1 - done)
-                # factor zeroes it out, but clamp so MASK_FILL can never leak in.
-                max_next_q = jnp.where(dones > 0, 0.0, max_next_q)
-
-                targets = rewards + gamma * max_next_q * (1.0 - dones)
-                td_errors = targets - q_taken
-                loss = jnp.mean(weights * td_errors ** 2)
+                targets = q_learning_targets(
+                    rewards,
+                    dones > 0,
+                    next_q,
+                    next_q,
+                    gamma,
+                    double_dqn=False,
+                    legal_actions=masks[next_states],
+                )
+                loss, td_errors, _ = weighted_td_loss(
+                    q, actions, targets, weights
+                )
                 return loss, td_errors
 
             (_, td_errors), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)
