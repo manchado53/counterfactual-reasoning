@@ -20,4 +20,5 @@ if [[ "${CCE_SMOKE:-0}" == "1" ]]; then
   args+=(--smoke)
 fi
 cd "${CCE_SOURCE_ROOT}"
-exec "${CCE_PYTHON:-/home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python}" +  -m training.run "${args[@]}"
+exec "${CCE_PYTHON:-/home/ad.msoe.edu/manchadoa/.conda/envs/counterfactual/bin/python}" \
+  -m training.run "${args[@]}"
