@@ -64,7 +64,7 @@ def main():
         if jax.default_backend() != args.device:
             raise RuntimeError("Requested backend is unavailable")
         record["packages"] = {k: importlib.metadata.version(k) for k in
-            ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex")}
+            ("numpy", "scipy", "jax", "jaxlib", "flax", "optax", "chex", "gymnasium")}
         for package in ("jaxmarl", "pgx", "rliable"):
             try:
                 record["packages"][package] = importlib.metadata.version(package)
