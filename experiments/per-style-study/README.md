@@ -79,6 +79,27 @@ seed, use actual observed early and budget checkpoints, and freeze its values
 before results are interpreted. If an `experiment` tag differs across arms,
 declare it in `method_config_keys`; the saved method config will expose it.
 
+For an arm that changes its replay mix during training, add a config-backed
+window to the cell. For example, JaxNav's scheduled CCE-to-ranked-TD change
+uses training episodes:
+
+```json
+"blend_windows": [{
+  "arm": "cce_rank", "axis": "episode",
+  "start_key": "decay_start", "end_key": "decay_end",
+  "enabled_key": "decay_enabled"
+}]
+```
+
+The plot shades only the transition from its saved start to end, with dashed
+edges. It checks that all seeds have the same enabled window and that the
+window uses the plot's x-axis. Put schedule keys that differ between arms in
+`method_config_keys`. Do not mark a window on a plot in environment steps if
+the saved schedule counts episodes, unless that run records a verified step
+mapping. A constant blend from the start, such as the existing Four Rooms
+CCE run, has no transition window and gets no shade. The early zoom shows a
+shade only if its fixed range reaches the start of the transition.
+
 Run the shared report with:
 
 ```bash

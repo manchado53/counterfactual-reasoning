@@ -90,7 +90,8 @@ def _read_run(run_spec, cell, manifest_dir):
     return {
         "arm": run_spec["arm"], "seed": run_spec["seed"], "status": attempt["status"],
         "observations": observations, "common_config": common_config,
-        "method_config": method_config, "eval_bank_hash": attempt["eval_bank_hash"],
+        "method_config": method_config, "config": config,
+        "eval_bank_hash": attempt["eval_bank_hash"],
         "simulator_source_hashes": source_hashes, "elapsed_seconds": elapsed,
         "source": {"directory": str(directory),
                    "config_sha256": hashlib.sha256(config_bytes).hexdigest(),
@@ -145,6 +146,37 @@ def analyze_study(manifest_path):
             _require((run["eval_bank_hash"], run["simulator_source_hashes"])
                      == (first["eval_bank_hash"], first["simulator_source_hashes"]),
                      f"Evaluation/simulator mismatch: {cell['id']}")
+        blend_windows = []
+        for schedule in cell.get("blend_windows", []):
+            arm = schedule.get("arm")
+            _require(arm in cell["arms"] and arm != "uniform",
+                     f"Blend arm is missing or Uniform: {cell['id']}")
+            _require(arm not in {window["arm"] for window in blend_windows},
+                     f"Repeated blend arm: {cell['id']}")
+            _require(schedule.get("axis") == cell["axis"],
+                     f"Blend axis differs from plot axis: {cell['id']}")
+            keys = (schedule.get("start_key"), schedule.get("end_key"),
+                    schedule.get("enabled_key"))
+            _require(all(isinstance(key, str) and key for key in keys),
+                     f"Blend needs saved config keys: {cell['id']}")
+            members = [run for run in runs if run["arm"] == arm]
+            start_key, end_key, enabled_key = keys
+            intervals = []
+            for run in members:
+                config = run["config"]
+                _require(config.get(enabled_key) is True,
+                         f"Blend not enabled in saved run: {run['source']['directory']}")
+                start, end = config.get(start_key), config.get(end_key)
+                _require(type(start) is int and type(end) is int
+                         and 0 <= start < end <= cell["budget"],
+                         f"Invalid blend window in saved run: {run['source']['directory']}")
+                intervals.append((start, end))
+            _require(len(set(intervals)) == 1,
+                     f"Blend window drifts across seeds: {cell['id']}, {arm}")
+            blend_windows.append({"arm": arm, "start": intervals[0][0],
+                                  "end": intervals[0][1], "axis": cell["axis"],
+                                  "config_keys": {"start": start_key, "end": end_key,
+                                                  "enabled": enabled_key}})
         for arm in cell["arms"]:
             members = [run for run in runs if run["arm"] == arm]
             _require(all(run["method_config"] == members[0]["method_config"]
@@ -200,6 +232,7 @@ def analyze_study(manifest_path):
             "step_field": cell.get("step_field", cell["axis"]),
             "log_file": cell.get("log_file", "eval.jsonl"),
             "budget": cell["budget"], "early_step": cell["early_step"],
+            "blend_windows": blend_windows,
             "comparison_status": "final_budget" if final_ready else "interim",
             "shared_observed_steps": shared_steps,
             "eval_bank_hash": first["eval_bank_hash"],
@@ -272,6 +305,14 @@ def render_study(result, output_dir):
     for early_zoom in (False, True):
         fig, axes = plt.subplots(1, len(cells), figsize=(5.2 * len(cells), 4.2), squeeze=False)
         for axis, cell in zip(axes[0], cells):
+            for window in cell["blend_windows"]:
+                if early_zoom and window["start"] >= cell["early_step"]:
+                    continue
+                label, color = ARM_STYLE[window["arm"]]
+                axis.axvspan(window["start"], window["end"], color=color, alpha=0.09,
+                             label=f"{label} blend window", zorder=0)
+                axis.axvline(window["start"], color=color, ls="--", lw=1, alpha=0.65)
+                axis.axvline(window["end"], color=color, ls="--", lw=1, alpha=0.65)
             for curve in cell["curves"]:
                 label, color = ARM_STYLE[curve["arm"]]
                 axis.plot(curve["steps"], curve["median"], label=label, color=color, lw=2)
