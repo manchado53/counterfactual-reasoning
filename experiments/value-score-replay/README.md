@@ -7,7 +7,14 @@ state -> simulated returns -> CCE score -> original replay rule
 state -> target-network Q gaps          -> original replay rule
 ```
 
-Issue #47. Three seeds (0–2), two arms, two tasks: 12 runs.
+Issue #47. Original design: three seeds (0–2), two arms, two tasks.
+
+**Current launch:** at the user's request, array 286966 was cancelled and
+replaced by six **value-only T4** jobs (array 286976, tasks 1,3,5,7,9,11).
+At most six GPUs run at once. Two value-only T4 smoke jobs (286974) gate
+production. CCE controls are stopped; H100 partial logs remain for audit.
+Fresh CCE reproduction is not complete. Value runs restart from their seed,
+not from partial checkpoints. Future wall-clock comparisons need matched hardware.
 The first comparison is CCE versus its value-score replacement. Old Uniform/PER
 curves are context only; the old JaxNav chart mixed collector versions.
 
@@ -68,9 +75,11 @@ python -m pytest -q experiments/value-score-replay/test_value_scores.py
 python experiments/value-score-replay/report.py --plot
 ```
 
-GPU gate: two jobs, each capped at 1h30, with both arms in one environment.
-Full batch: 12 one-GPU jobs capped at 7h45 each, at most two concurrent.
-Worst-case allocation is 3 + 93 = **96 GPU-hours**. No automatic retries.
+Current T4 gate: two value-only jobs, each capped at 20 minutes.
+Current full batch: six one-GPU jobs capped at 12 hours each, at most six concurrent.
+Production ceiling: **72 GPU-hours**, plus 40 GPU-minutes for T4 gates and
+about 20 GPU-minutes already spent on H100 gates/partial runs. Total stays
+below the approved 96 GPU-hour cap. No automatic retries.
 The CCE reference JaxNav seed-0 run took 6h47 on H100, within the full-run cap;
 new gate timings verify startup but cannot predict final learning time.
 

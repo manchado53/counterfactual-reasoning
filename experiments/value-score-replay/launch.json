@@ -1,18 +1,49 @@
 {
-  "gate_array": 286963,
-  "full_array": 286966,
-  "commit": "14188d9bbc221e0282122285e2a6d462048a256b",
-  "concurrency": 2,
-  "full_time_limit": "07:45:00",
-  "gpu": "H100",
+  "previous_launch": {
+    "gate_array": 286963,
+    "full_array": 286966,
+    "commit": "14188d9bbc221e0282122285e2a6d462048a256b",
+    "concurrency": 2,
+    "full_time_limit": "07:45:00",
+    "gpu": "H100",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "tasks": 12,
+    "requeue": false,
+    "gate_completed": true,
+    "tests_passed": 6,
+    "full_results": "not yet complete"
+  },
+  "previous_full_array_state": "cancelled at user request; partial logs preserved",
+  "t4_gate_array": 286974,
+  "full_array": 286976,
+  "tasks": [
+    1,
+    3,
+    5,
+    7,
+    9,
+    11
+  ],
+  "arms": [
+    "value"
+  ],
+  "environments": [
+    "frozenlake",
+    "jaxnav"
+  ],
   "seeds": [
     0,
     1,
     2
   ],
-  "tasks": 12,
+  "gpu": "T4",
+  "concurrency": 6,
+  "full_time_limit": "12:00:00",
   "requeue": false,
-  "gate_completed": true,
-  "tests_passed": 6,
-  "full_results": "not yet complete"
+  "full_results": "not yet complete",
+  "reason": "User requested T4s, at most six GPUs, all value score. CCE runs stopped."
 }
