@@ -88,3 +88,6 @@ src/counterfactual_rl/analysis/claim1/**/checkpoints/
 src/counterfactual_rl/agents/chess/baselines/
 # graded-slip analysis scratch (sub-manifests)
 gradedslip_*/
+
+# Local value-score study outputs
+/work/value-score-replay/
