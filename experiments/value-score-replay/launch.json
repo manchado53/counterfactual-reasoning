@@ -45,5 +45,32 @@
   "full_time_limit": "12:00:00",
   "requeue": false,
   "full_results": "not yet complete",
-  "reason": "User requested T4s, at most six GPUs, all value score. CCE runs stopped."
+  "reason": "User requested T4s, at most six GPUs, all value score. CCE runs stopped.",
+  "cce_restart": {
+    "requested": "2026-10-22",
+    "gate_array": 287119,
+    "frozenlake_array": 287121,
+    "frozenlake_tasks": [
+      0,
+      2,
+      4
+    ],
+    "frozenlake_wall_limit": "04:00:00",
+    "jaxnav_array": 287122,
+    "jaxnav_tasks": [
+      6,
+      8,
+      10
+    ],
+    "jaxnav_wall_limit": "12:00:00",
+    "gpu": "T4",
+    "account": "undergrad_research",
+    "qos": "normal",
+    "control_concurrency": 3,
+    "total_concurrency_limit": 6,
+    "order": "two smoke checks, then three FrozenLake controls, then three JaxNav controls",
+    "requeue": false,
+    "training_changes": "none; exact same manifest and scorer as original CCE arm",
+    "budget": "Completed value-FL cost 8.04 GPU-h; value-JaxNav at most 36 GPU-h; new controls at most 48 GPU-h; gates and cancelled H100 partials keep total below 96 GPU-h."
+  }
 }

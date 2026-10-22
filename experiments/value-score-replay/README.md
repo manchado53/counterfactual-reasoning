@@ -12,7 +12,11 @@ Issue #47. Original design: three seeds (0–2), two arms, two tasks.
 **Current launch:** at the user's request, array 286966 was cancelled and
 replaced by six **value-only T4** jobs (array 286976, tasks 1,3,5,7,9,11).
 At most six GPUs run at once. Two value-only T4 smoke jobs (286974) gate
-production. CCE controls are stopped; H100 partial logs remain for audit.
+production. CCE controls were stopped; H100 partial logs remain for audit.
+On October 22 the user requested that controls run again: T4 gate 287119,
+FrozenLake array 287121 (tasks 0,2,4), then JaxNav array 287122
+(tasks 6,8,10). No training/config changes. At most three controls run
+with the three remaining value runs, keeping the total cap at six GPUs.
 Fresh CCE reproduction is not complete. Value runs restart from their seed,
 not from partial checkpoints. Future wall-clock comparisons need matched hardware.
 The first comparison is CCE versus its value-score replacement. Old Uniform/PER
@@ -87,3 +91,14 @@ Status JSON and `study_eval.jsonl` contain run locations and actual observations
 Use Slurm state as the authority for killed/timed-out jobs; a process killed by
 Slurm cannot update its status file. `report.py` prints each process's last
 recorded state, not a fresh scheduler assertion.
+
+## CCE restart budget
+
+The user requested fresh rollout-CCE comparisons on October 22. FrozenLake
+controls have a 4-hour cap each; JaxNav controls have a 12-hour cap each.
+They run in separate three-task arrays, with JaxNav waiting for all FrozenLake
+controls to end and for the T4 gate to pass. Finished FrozenLake value runs used
+8.04 GPU-hours; the remaining value JaxNav jobs have a combined ceiling of 36.
+New controls have a ceiling of 48. Gates and cancelled partials keep the whole
+study below 96 GPU-hours. A timeout is still an incomplete run, not a failure
+to learn. No automatic retries. Timing comparisons now use T4 for both arms.
