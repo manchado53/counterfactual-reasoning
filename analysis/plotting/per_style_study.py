@@ -14,11 +14,11 @@ import numpy as np
 
 
 ARM_STYLE = {
-    "uniform": ("Uniform", "#292929"),
-    "rank_per": ("Rank PER", "#b34a49"),
-    "proportional_per": ("Proportional PER", "#3274b9"),
-    "cce_rank": ("CCE rank blend", "#238b68"),
-    "cce_raw": ("CCE raw blend", "#b4852c"),
+    "uniform": ("Uniform", "#202124"),
+    "rank_per": ("Rank PER", "#d55e00"),
+    "proportional_per": ("Proportional PER", "#0072b2"),
+    "cce_rank": ("CCE rank blend", "#753a9b"),
+    "cce_raw": ("CCE raw blend", "#009e73"),
 }
 AXIS_LABEL = {"env_steps": "Environment steps", "episode": "Training episodes",
               "chunk": "Training chunks"}
@@ -301,16 +301,18 @@ def render_study(result, output_dir):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
     cells = result["cells"]
     for early_zoom in (False, True):
-        fig, axes = plt.subplots(1, len(cells), figsize=(5.2 * len(cells), 4.2), squeeze=False)
+        fig, axes = plt.subplots(1, len(cells),
+                                 figsize=(max(7.6, 5.2 * len(cells)), 4.6), squeeze=False)
         for axis, cell in zip(axes[0], cells):
             for window in cell["blend_windows"]:
                 if early_zoom and window["start"] >= cell["early_step"]:
                     continue
                 label, color = ARM_STYLE[window["arm"]]
-                axis.axvspan(window["start"], window["end"], color=color, alpha=0.09,
-                             label=f"{label} blend window", zorder=0)
+                axis.axvspan(window["start"], window["end"], color=color, alpha=0.13,
+                             label=f"{label}: transition", zorder=0)
                 axis.axvline(window["start"], color=color, ls="--", lw=1, alpha=0.65)
                 axis.axvline(window["end"], color=color, ls="--", lw=1, alpha=0.65)
             for curve in cell["curves"]:
@@ -327,6 +329,7 @@ def render_study(result, output_dir):
                 axis.set_xlim(0, cell["early_step"])
             if "bounds" in cell["metric"]:
                 axis.set_ylim(cell["metric"]["bounds"])
+            axis.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
             axis.grid(alpha=0.2)
         legend = {}
         for axis in axes[0]:
