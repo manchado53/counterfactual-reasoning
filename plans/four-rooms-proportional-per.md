@@ -1,0 +1,5 @@
+# One proportional PER control on 2× Four Rooms
+
+Run one full-budget seed-0 proportional PER control on the current 2× Sparse Four Rooms map. Keep its network, optimizer, step budget, warm-up, updates, epsilon schedule, evaluation bank and importance correction equal to the existing three-arm study. Change only replay selection: raw absolute TD priorities, not inverse rank and not CCE mixing. Reuse the shared replay equations rather than copy learner or priority math.
+
+Work in a new branch/worktree based on latest origin/master with the reviewed Four Rooms prerequisite brought forward. Preserve ongoing runs. Test priority probabilities against the existing proportional buffer, fixed config parity, bank identity and no CCE scoring. Pass CPU and T4 smokes before a SLURM dry run and one full seed-0 submission. Keep aggregate Four Rooms GPU jobs at most eight, add a quiet monitor, and save a seed-0 comparison against the existing arms without treating one seed as a statistical result. Push and open an unmerged PR.
